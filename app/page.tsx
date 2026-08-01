@@ -3,6 +3,7 @@ import Hero from "@/features/landing/Hero";
 import PromptEditor from "@/components/ai/PromptEditor";
 import PromptToolbar from "@/components/ai/PromptToolbar";
 import ThinkingPanel from "@/components/ai/ThinkingPanel";
+import BackgroundGlow from "@/components/background/BackgroundGlow";
 
 import AIStatus from "@/features/landing/AIStatus";
 
@@ -19,6 +20,7 @@ export default function Home() {
   <ThinkingPanel />
 </div>
 <PromptToolbar />
+<BackgroundGlow />
       <AIStatus />
     </main>
   );
