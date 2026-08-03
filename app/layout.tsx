@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
-import "@fontsource-variable/inter";
-import "@fontsource-variable/plus-jakarta-sans";
-import "@fontsource/jetbrains-mono";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
   title: "Anvix AI",
@@ -15,10 +22,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-[#090909] text-white antialiased">
-        {children}
-      </body>
-    </html>
+    <html
+  lang="en"
+  className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}
+  suppressHydrationWarning
+></html>
   );
 }
