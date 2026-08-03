@@ -10,6 +10,12 @@ export default function PromptEditor() {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const examples = [
+    "Build a SaaS CRM using Next.js and Supabase",
+    "Create an AI Resume Builder with Stripe",
+    "Design a Hospital Management Dashboard",
+  ];
+
   async function handleGenerate() {
     if (!prompt.trim()) return;
 
@@ -26,7 +32,6 @@ export default function PromptEditor() {
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-[#D4AF37]/20 bg-[#111111]/80 p-6 backdrop-blur-xl">
-
       <div className="absolute -top-32 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-[#D4AF37]/10 blur-3xl" />
 
       <div className="relative">
@@ -85,6 +90,20 @@ export default function PromptEditor() {
           >
             {prompt.length}/{MAX_CHARS}
           </span>
+        </div>
+
+        {/* Prompt Suggestions */}
+        <div className="mt-5 flex flex-wrap gap-2">
+          {examples.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => setPrompt(example)}
+              className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-400 transition hover:border-[#D4AF37] hover:text-[#D4AF37]"
+            >
+              {example}
+            </button>
+          ))}
         </div>
 
         <div className="mt-8">
