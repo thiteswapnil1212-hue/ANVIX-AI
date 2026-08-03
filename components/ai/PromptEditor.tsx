@@ -4,23 +4,32 @@ import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import GenerateButton from "@/features/landing/GenerateButton";
 
+const MAX_CHARS = 2000;
+
 export default function PromptEditor() {
   const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleGenerate() {
+  async function handleGenerate() {
+    if (!prompt.trim()) return;
+
+    setLoading(true);
+
     console.log(prompt);
 
-    // API call yaha aayegi
+    // TODO: API call
+
+    setTimeout(() => {
+      setLoading(false);
+    }, 2000);
   }
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-[#D4AF37]/20 bg-[#111111]/80 p-6 backdrop-blur-xl">
 
-      {/* Golden Glow */}
       <div className="absolute -top-32 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-[#D4AF37]/10 blur-3xl" />
 
       <div className="relative">
-
         <div className="mb-5 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-[#D4AF37]" />
           <h2 className="text-lg font-semibold text-white">
@@ -30,9 +39,14 @@ export default function PromptEditor() {
 
         <textarea
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => setPrompt(e.target.value.slice(0, MAX_CHARS))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && e.ctrlKey) {
+              handleGenerate();
+            }
+          }}
           rows={8}
-          placeholder="Example: Build a SaaS for hospitals using Next.js, Supabase and Stripe..."
+          placeholder="Example: Build an AI SaaS for hospitals using Next.js, Supabase, Stripe and OpenAI..."
           className="
             w-full
             resize-none
@@ -52,27 +66,34 @@ export default function PromptEditor() {
         />
 
         <div className="mt-4 flex items-center justify-between">
-
           <p className="text-sm text-zinc-500">
-            AI can generate complete production-ready applications.
+            Press <span className="text-[#D4AF37]">Ctrl + Enter</span> to generate.
           </p>
 
           <span className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-xs text-[#D4AF37]">
             GPT-5
           </span>
-          <div className="mt-2 flex justify-end text-xs text-zinc-500">
-  {prompt.length}/2000
-</div>
-
         </div>
 
-       <div className="mt-8">
-  <GenerateButton
-    onClick={handleGenerate}
-    disabled={!prompt.trim()}
-  />
-</div>
+        <div className="mt-2 flex justify-end">
+          <span
+            className={`text-xs ${
+              prompt.length > 1800
+                ? "text-yellow-400"
+                : "text-zinc-500"
+            }`}
+          >
+            {prompt.length}/{MAX_CHARS}
+          </span>
+        </div>
 
+        <div className="mt-8">
+          <GenerateButton
+            onClick={handleGenerate}
+            loading={loading}
+            disabled={!prompt.trim()}
+          />
+        </div>
       </div>
     </div>
   );
