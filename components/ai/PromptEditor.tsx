@@ -60,6 +60,9 @@ export default function PromptEditor() {
           <span className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-xs text-[#D4AF37]">
             GPT-5
           </span>
+          <div className="mt-2 flex justify-end text-xs text-zinc-500">
+  {prompt.length}/2000
+</div>
 
         </div>
 
