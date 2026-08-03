@@ -14,7 +14,7 @@ export function useGenerate() {
 
     try {
       const data = await generateProject(prompt);
-      setResponse(data.response);
+      setResponse(data.result.response);
     } catch (error) {
       console.error(error);
       setResponse("Something went wrong.");
