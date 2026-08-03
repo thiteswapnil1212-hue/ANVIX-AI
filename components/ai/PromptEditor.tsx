@@ -1,8 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { Sparkles } from "lucide-react";
+import GenerateButton from "@/features/landing/GenerateButton";
 
 export default function PromptEditor() {
+  const [prompt, setPrompt] = useState("");
+
+  function handleGenerate() {
+    console.log(prompt);
+
+    // API call yaha aayegi
+  }
+
   return (
     <div className="relative overflow-hidden rounded-3xl border border-[#D4AF37]/20 bg-[#111111]/80 p-6 backdrop-blur-xl">
 
@@ -19,6 +29,8 @@ export default function PromptEditor() {
         </div>
 
         <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
           rows={8}
           placeholder="Example: Build a SaaS for hospitals using Next.js, Supabase and Stripe..."
           className="
@@ -50,6 +62,13 @@ export default function PromptEditor() {
           </span>
 
         </div>
+
+       <div className="mt-8">
+  <GenerateButton
+    onClick={handleGenerate}
+    disabled={!prompt.trim()}
+  />
+</div>
 
       </div>
     </div>
