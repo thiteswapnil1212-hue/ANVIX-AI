@@ -7,13 +7,18 @@ interface Thread {
 }
 
 interface ChatSidebarProps {
-  threads: Thread[];
-  activeThread: string;
-  onSelectThread: (id: string) => void;
-  onNewThread: () => void;
+  threads?: Thread[];
+  activeThread?: string;
+  onSelectThread?: (id: string) => void;
+  onNewThread?: () => void;
 }
 
-export default function ChatSidebar({ threads, activeThread, onSelectThread, onNewThread }: ChatSidebarProps) {
+export default function ChatSidebar({
+  threads = [],
+  activeThread = "",
+  onSelectThread = () => {},
+  onNewThread = () => {},
+}: ChatSidebarProps) {
   return (
     <aside className="flex h-full flex-col rounded-3xl border border-zinc-800/80 bg-[#0D0D0D] p-4">
       <button
