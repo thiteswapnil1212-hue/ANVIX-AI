@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Plus,
   Calendar,
@@ -35,22 +36,24 @@ export default function ChatSidebar({
   onNewThread = () => {},
 }: ChatSidebarProps) {
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-[#3F3F46] bg-[#18181B] p-4">
+    <aside className="flex h-full w-full flex-col bg-[#18181B] px-4 py-4">
       {/* Brand */}
-      <div className="flex items-center gap-3 border-b border-[#3F3F46] pb-5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4AF37]/30 bg-[#0D0D0F] shadow-[0_0_20px_rgba(212,175,55,0.08)]">
-          <span className="bg-gradient-to-br from-[#FFE89A] via-[#D4AF37] to-[#9C7618] bg-clip-text text-xl font-bold text-transparent">
-            A
-          </span>
+      <div className="flex items-center gap-3 border-b border-[#3F3F46] pb-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#3F3F46] bg-[#0F0F10]">
+          <Image
+            src="/logo.png"
+            alt="ANVIX AI Logo"
+            width={44}
+            height={44}
+            className="h-11 w-11 object-contain"
+            priority
+          />
         </div>
 
         <div className="min-w-0">
           <h1 className="text-[15px] font-semibold tracking-tight text-[#F2CA50]">
             ANVIX AI
           </h1>
-          <p className="mt-0.5 text-[11px] tracking-wide text-[#A1A1AA]">
-            Expert Partner
-          </p>
         </div>
       </div>
 
@@ -134,11 +137,7 @@ export default function ChatSidebar({
       )}
 
       {/* Bottom */}
-      <div
-        className={`mt-auto border-t border-[#3F3F46] pt-4 ${
-          threads.length === 0 ? "mt-auto" : "mt-4"
-        }`}
-      >
+      <div className="mt-auto border-t border-[#3F3F46] pt-4">
         <div className="space-y-1.5">
           <button
             type="button"
@@ -157,7 +156,7 @@ export default function ChatSidebar({
           </button>
         </div>
 
-        {/* Small brand signature */}
+        {/* Brand signature */}
         <div className="mt-4 flex items-center gap-2 px-3 py-2">
           <Sparkles className="h-3 w-3 text-[#D4AF37]/70" />
           <span className="text-[10px] tracking-wide text-zinc-600">
