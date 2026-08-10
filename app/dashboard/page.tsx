@@ -29,17 +29,20 @@ const projects = [
 
 export default function DashboardPage() {
   return (
-    <AppShell
-      title="Dashboard"
-      description="Monitor your recent work, jump back into active builds, and open your latest AI-generated products."
-      action={
+    <AppShell>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+          <p className="mt-2 text-sm text-zinc-400">Build, iterate, and launch your next AI-powered product.</p>
+        </div>
+
         <Link href="/generate" className="inline-flex items-center gap-2 rounded-full bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#E2C259]">
           <Plus className="h-4 w-4" />
           New project
           <ArrowRight className="h-4 w-4" />
         </Link>
-      }
-    >
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
         <section className="rounded-3xl border border-zinc-800/80 bg-[#111111]/80 p-6 backdrop-blur-xl">
           <div className="mb-6 flex items-center justify-between">
