@@ -1,4 +1,4 @@
-import { Plus, MessageSquareText } from "lucide-react";
+import { Plus, Calendar, History, Settings, User } from "lucide-react";
 
 interface Thread {
   id: string;
@@ -13,6 +13,12 @@ interface ChatSidebarProps {
   onNewThread?: () => void;
 }
 
+const historyItems = [
+  { id: "today", label: "Today", icon: Calendar, active: true },
+  { id: "yesterday", label: "Yesterday", icon: History, active: false },
+  { id: "week", label: "Previous 7 Days", icon: History, active: false },
+];
+
 export default function ChatSidebar({
   threads = [],
   activeThread = "",
@@ -20,36 +26,64 @@ export default function ChatSidebar({
   onNewThread = () => {},
 }: ChatSidebarProps) {
   return (
-    <aside className="flex h-full flex-col rounded-3xl border border-zinc-800/80 bg-[#0D0D0D] p-4">
+    <div className="flex h-full flex-col border-r border-[#3F3F46] bg-[#18181B] px-4 py-5">
+      <div className="flex items-center gap-3 rounded-3xl border border-[#3F3F46] bg-[#0F0F10] p-4">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#3F3F46] bg-[#0F0F10] text-[#D4AF37]">
+          A
+        </div>
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#D4AF37]">ANVIX AI</p>
+          <p className="mt-1 text-xs text-zinc-500">Expert Partner</p>
+        </div>
+      </div>
+
       <button
         type="button"
         onClick={onNewThread}
-        className="flex items-center justify-center gap-2 rounded-2xl border border-[#D4AF37]/20 bg-[#D4AF37]/10 px-4 py-3 text-sm font-semibold text-[#F3D37C] transition hover:bg-[#D4AF37]/20"
+        className="mt-5 flex items-center justify-center gap-2 rounded-[12px] bg-[#D4AF37] px-4 py-3 text-sm font-semibold text-black transition hover:bg-[#E5C158]"
       >
         <Plus className="h-4 w-4" />
-        New chat
+        New Chat
       </button>
 
-      <div className="mt-5 space-y-2">
-        {threads.map((thread) => (
-          <button
-            key={thread.id}
-            type="button"
-            onClick={() => onSelectThread(thread.id)}
-            className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
-              activeThread === thread.id
-                ? "border-[#D4AF37]/30 bg-[#D4AF37]/10"
-                : "border-transparent bg-transparent hover:border-zinc-800 hover:bg-[#111111]"
-            }`}
-          >
-            <MessageSquareText className={`mt-0.5 h-4 w-4 ${activeThread === thread.id ? "text-[#D4AF37]" : "text-zinc-500"}`} />
-            <div>
-              <p className="text-sm font-medium text-white">{thread.title}</p>
-              <p className="mt-1 text-xs text-zinc-500">{thread.preview}</p>
-            </div>
-          </button>
-        ))}
+      <div className="mt-7 space-y-2">
+        {historyItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`flex w-full items-center gap-3 rounded-[12px] border px-3 py-3 text-left transition ${
+                item.active
+                  ? "border-[#3F3F46] bg-[#27272A] text-[#D4AF37]"
+                  : "border-transparent text-zinc-400 hover:border-[#3F3F46] hover:bg-[#27272A] hover:text-white"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="text-sm font-medium">{item.label}</span>
+            </button>
+          );
+        })}
       </div>
-    </aside>
+
+      <div className="mt-auto border-t border-[#3F3F46] pt-4">
+        <div className="space-y-2">
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 rounded-[12px] px-3 py-3 text-left text-sm text-zinc-400 transition hover:bg-[#27272A] hover:text-white"
+          >
+            <Settings className="h-4 w-4" />
+            Settings
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 rounded-[12px] px-3 py-3 text-left text-sm text-zinc-400 transition hover:bg-[#27272A] hover:text-white"
+          >
+            <User className="h-4 w-4" />
+            Profile
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

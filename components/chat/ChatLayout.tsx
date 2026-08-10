@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
@@ -8,7 +10,7 @@ import AppShell from "@/components/layout/AppShell";
 export default function ChatLayout() {
   return (
     <AppShell>
-      <div className="flex h-[calc(100vh-0px)] min-h-0 overflow-hidden bg-[#09090B] text-zinc-100">
+      <div className="relative flex h-[calc(100vh-0px)] min-h-0 overflow-hidden bg-[#09090B] text-[#E5E1E4]">
         {/* Chat history sidebar */}
         <aside className="hidden w-64 shrink-0 border-r border-[#3F3F46] bg-[#18181B] md:flex">
           <ChatSidebar />

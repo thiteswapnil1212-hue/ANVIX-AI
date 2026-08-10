@@ -11,19 +11,21 @@ export default function ChatMessageBubble({ role, content }: ChatMessageBubblePr
   return (
     <div className={`flex ${isAssistant ? "justify-start" : "justify-end"}`}>
       <div
-        className={`max-w-[80%] rounded-3xl border px-4 py-3 text-sm leading-7 ${
+        className={`max-w-[82%] rounded-[18px] border px-4 py-4 text-sm leading-7 ${
           isAssistant
-            ? "border-zinc-800 bg-[#111111] text-zinc-300"
-            : "border-[#D4AF37]/20 bg-[#D4AF37]/10 text-white"
+            ? "border-[#3F3F46] bg-[#111111] text-zinc-200"
+            : "border-[#3F3F46] bg-[#1F1F23] text-white"
         }`}
       >
         {isAssistant ? (
-          <div className="mb-2 flex items-center gap-2 text-[#D4AF37]">
+          <div className="mb-3 flex items-center gap-2 text-[#D4AF37]">
             <Sparkles className="h-4 w-4" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em]">Anvix AI</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em]">
+              ANVIX AI
+            </span>
           </div>
         ) : null}
-        <p>{content}</p>
+        <p className="whitespace-pre-wrap">{content}</p>
       </div>
     </div>
   );
