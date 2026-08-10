@@ -32,7 +32,6 @@ export default function ChatLayout() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-white">ANVIX AI</p>
-                    <p className="text-xs text-zinc-500">Expert Partner</p>
                   </div>
                 </div>
                 <button
