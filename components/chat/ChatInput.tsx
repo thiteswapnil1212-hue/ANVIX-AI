@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Paperclip } from "lucide-react";
+
 export default function ChatInput() {
   return (
     <div className="mx-auto w-full max-w-3xl p-4">
