@@ -70,21 +70,18 @@ export default function ChatLayout() {
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#09090B]">
 
           {/* Locked Background Video */}
-          <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              className="absolute inset-0 h-full w-full object-cover opacity-20"
-            >
-              <source src="/anvix-bg.mp4" type="video/mp4" />
-            </video>
+          <video
+  autoPlay
+  loop
+  muted
+  playsInline
+  preload="auto"
+  className="absolute inset-0 h-full w-full object-cover opacity-50"
+>
+  <source src="/anvix-bg.mp4" type="video/mp4" />
+</video>
 
-            {/* Dark Overlay */}
-            <div className="absolute inset-0 bg-[#09090B]/75" />
-          </div>
+<div className="absolute inset-0 bg-[#09090B]/15" />
 
           {/* Chat Content */}
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
