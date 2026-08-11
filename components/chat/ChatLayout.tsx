@@ -14,8 +14,9 @@ export default function ChatLayout() {
   return (
     <AppShell>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#09090B]">
+
         {/* Desktop Sidebar */}
-        <aside className="hidden h-full w-64 shrink-0 border-r border-[#3F3F46] bg-[#18181B] md:flex md:flex-col">
+        <aside className="hidden h-full w-64 shrink-0 overflow-hidden border-r border-[#3F3F46] bg-[#18181B] md:flex md:flex-col">
           <ChatSidebar />
         </aside>
 
@@ -27,8 +28,9 @@ export default function ChatLayout() {
               onClick={() => setSidebarOpen(false)}
             />
 
-            <aside className="relative z-10 h-full w-72 border-r border-[#3F3F46] bg-[#18181B]">
-              <div className="flex items-center justify-between border-b border-[#3F3F46] px-4 py-4">
+            <aside className="relative z-10 flex h-full w-72 flex-col overflow-hidden border-r border-[#3F3F46] bg-[#18181B]">
+
+              <div className="flex shrink-0 items-center justify-between border-b border-[#3F3F46] px-4 py-4">
                 <div className="flex items-center gap-3">
                   <Image
                     src="/logo.png"
@@ -42,6 +44,7 @@ export default function ChatLayout() {
                     <p className="text-sm font-semibold text-white">
                       ANVIX AI
                     </p>
+
                     <p className="text-xs text-zinc-500">
                       Expert Partner
                     </p>
@@ -51,19 +54,22 @@ export default function ChatLayout() {
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(false)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 text-zinc-400 hover:text-white"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 text-zinc-400 transition hover:text-white"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              <ChatSidebar />
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <ChatSidebar />
+              </div>
             </aside>
           </div>
         )}
 
         {/* Main Chat */}
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#09090B]">
+        <main className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden bg-[#09090B]">
+
           {/* Mobile Header */}
           <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#3F3F46] px-4 md:hidden">
             <div className="flex items-center gap-3">
@@ -79,6 +85,7 @@ export default function ChatLayout() {
                 <p className="text-sm font-semibold text-white">
                   ANVIX AI
                 </p>
+
                 <p className="text-xs text-zinc-500">
                   Expert Partner
                 </p>
@@ -88,7 +95,7 @@ export default function ChatLayout() {
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-700 text-zinc-400 hover:text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-700 text-zinc-400 transition hover:text-white"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -97,7 +104,7 @@ export default function ChatLayout() {
           {/* Scrollable Chat Area */}
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col items-center px-4 py-10 sm:px-6 lg:px-8">
-              
+
               {/* ANVIX Logo */}
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#3F3F46] bg-[#18181B]">
                 <Image
@@ -129,6 +136,7 @@ export default function ChatLayout() {
               <div className="mt-12 w-full">
                 <MessageList />
               </div>
+
             </div>
           </div>
 
@@ -142,6 +150,7 @@ export default function ChatLayout() {
               </p>
             </div>
           </div>
+
         </main>
       </div>
     </AppShell>
