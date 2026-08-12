@@ -14,7 +14,6 @@ export default function ChatLayout() {
   return (
     <AppShell>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#09090B]">
-
         {/* Desktop Sidebar */}
         <aside className="hidden h-full w-64 shrink-0 overflow-hidden border-r border-[#3F3F46] bg-[#18181B] md:flex md:flex-col">
           <ChatSidebar />
@@ -29,6 +28,7 @@ export default function ChatLayout() {
             />
 
             <aside className="relative z-10 flex h-full w-72 flex-col overflow-hidden border-r border-[#3F3F46] bg-[#18181B]">
+              {/* Mobile Sidebar Header */}
               <div className="flex shrink-0 items-center justify-between border-b border-[#3F3F46] px-4 py-4">
                 <div className="flex items-center gap-3">
                   <Image
@@ -54,6 +54,7 @@ export default function ChatLayout() {
                   type="button"
                   onClick={() => setSidebarOpen(false)}
                   className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 text-zinc-400 transition hover:text-white"
+                  aria-label="Close sidebar"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -68,24 +69,25 @@ export default function ChatLayout() {
 
         {/* Main Chat */}
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#09090B]">
-
-          {/* Locked Background Video */}
+          {/* Background Video */}
           <video
-  autoPlay
-  loop
-  muted
-  playsInline
-  preload="auto"
-  className="absolute inset-0 h-full w-full object-cover opacity-50"
->
-  <source src="/anvix-bg.mp4" type="video/mp4" />
-</video>
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-50"
+          >
+            <source src="/anvix-bg.mp4" type="video/mp4" />
+          </video>
 
-<div className="absolute inset-0 bg-[#09090B]/15" />
+          {/* Transparent Overlay */}
+          <div className="pointer-events-none absolute inset-0 bg-[#09090B]/15" />
 
-          {/* Chat Content */}
-          <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
-
+          {/* Chat Content
+              overflow-visible is important so the model dropdown
+              can escape the composer area. */}
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible">
             {/* Mobile Header */}
             <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#3F3F46] bg-[#09090B]/60 px-4 backdrop-blur-sm md:hidden">
               <div className="flex items-center gap-3">
@@ -112,15 +114,15 @@ export default function ChatLayout() {
                 type="button"
                 onClick={() => setSidebarOpen(true)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-700 text-zinc-400 transition hover:text-white"
+                aria-label="Open sidebar"
               >
                 <Menu className="h-5 w-5" />
               </button>
             </header>
 
-            {/* ONLY THIS AREA SCROLLS */}
+            {/* ONLY CHAT CONTENT SCROLLS */}
             <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col items-center px-4 py-10 sm:px-6 lg:px-8">
-
                 {/* ANVIX Logo */}
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#3F3F46] bg-[#18181B]/80">
                   <Image
@@ -144,7 +146,8 @@ export default function ChatLayout() {
                   </h1>
 
                   <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
-                    Your expert partner for code, research, and technical analysis.
+                    Your expert partner for code, research, and technical
+                    analysis.
                   </p>
                 </div>
 
@@ -152,12 +155,11 @@ export default function ChatLayout() {
                 <div className="mt-12 w-full">
                   <MessageList />
                 </div>
-
               </div>
             </div>
 
             {/* Fixed Composer */}
-            <div className="relative z-20 shrink-0 border-t border-[#3F3F46] bg-[#09090B]/85 px-4 py-4 backdrop-blur-md sm:px-6">
+            <div className="relative z-50 shrink-0 border-t border-[#3F3F46] bg-[#09090B]/70 px-4 py-4 backdrop-blur-md sm:px-6">
               <div className="mx-auto w-full max-w-3xl">
                 <ChatInput />
 
@@ -166,7 +168,6 @@ export default function ChatLayout() {
                 </p>
               </div>
             </div>
-
           </div>
         </main>
       </div>

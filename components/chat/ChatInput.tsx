@@ -4,98 +4,107 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
   ChevronDown,
-  Paperclip,
   Lock,
   Check,
+  Paperclip,
 } from "lucide-react";
 
 type Model = {
-  provider: string;
   name: string;
+  provider: string;
   locked: boolean;
 };
 
 const models: Model[] = [
-  // OpenAI
-  { provider: "OpenAI", name: "GPT-5.5", locked: true },
-  { provider: "OpenAI", name: "GPT-4.1", locked: true },
-  { provider: "OpenAI", name: "GPT-4o", locked: true },
-  { provider: "OpenAI", name: "GPT-4o Mini", locked: true },
-
-  // Anthropic
-  { provider: "Anthropic Claude", name: "Claude 4 Sonnet", locked: true },
-  { provider: "Anthropic Claude", name: "Claude 4 Opus", locked: true },
-  { provider: "Anthropic Claude", name: "Claude 3.7 Sonnet", locked: true },
-
-  // Google
-  { provider: "Google Gemini", name: "Gemini 1.5 Flash", locked: false },
-  { provider: "Google Gemini", name: "Gemini 2.5 Pro", locked: true },
-  { provider: "Google Gemini", name: "Gemini 2.5 Flash", locked: true },
-  { provider: "Google Gemini", name: "Gemini 2.0 Flash", locked: true },
-
-  // DeepSeek
-  { provider: "DeepSeek", name: "DeepSeek V3", locked: true },
-  { provider: "DeepSeek", name: "DeepSeek R1", locked: true },
-  { provider: "DeepSeek", name: "DeepSeek Coder V2", locked: true },
-
-  // xAI
-  { provider: "xAI Grok", name: "Grok 4", locked: true },
-  { provider: "xAI Grok", name: "Grok 3", locked: true },
-
-  // Meta
-  { provider: "Meta Llama", name: "Llama 4", locked: true },
-  { provider: "Meta Llama", name: "Llama 3.3 70B", locked: true },
-
-  // Alibaba
-  { provider: "Alibaba Qwen", name: "Qwen 3", locked: true },
-  { provider: "Alibaba Qwen", name: "Qwen 2.5 Coder", locked: true },
-
-  // Mistral
-  { provider: "Mistral", name: "Mistral Large", locked: true },
-  { provider: "Mistral", name: "Mistral Small", locked: true },
-
-  // Microsoft
-  { provider: "Microsoft", name: "Phi-4", locked: true },
+  {
+    name: "GPT-5.5",
+    provider: "OpenAI",
+    locked: true,
+  },
+  {
+    name: "GPT-4.1",
+    provider: "OpenAI",
+    locked: true,
+  },
+  {
+    name: "Gemini 1.5 Flash",
+    provider: "Google Gemini",
+    locked: false,
+  },
 ];
 
 export default function ChatInput() {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("Gemini 1.5 Flash");
+  const [selectedModel, setSelectedModel] =
+    useState("Gemini 1.5 Flash");
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const modelMenuRef = useRef<HTMLDivElement | null>(null);
+  const modelRef = useRef<HTMLDivElement | null>(null);
 
+  /* Auto resize textarea */
   useEffect(() => {
-    if (!textareaRef.current) return;
+    const textarea = textareaRef.current;
 
-    textareaRef.current.style.height = "auto";
+    if (!textarea) return;
 
-    textareaRef.current.style.height = `${Math.min(
-      textareaRef.current.scrollHeight,
+    textarea.style.height = "auto";
+
+    const height = Math.min(
+      textarea.scrollHeight,
       120
-    )}px`;
+    );
+
+    textarea.style.height = `${height}px`;
   }, [value]);
 
+  /* Close dropdown on outside click */
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    const handleOutsideClick = (event: MouseEvent) => {
       if (
-        modelMenuRef.current &&
-        !modelMenuRef.current.contains(event.target as Node)
+        modelRef.current &&
+        !modelRef.current.contains(
+          event.target as Node
+        )
       ) {
         setModelOpen(false);
       }
-    }
+    };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick
+    );
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick
+      );
     };
   }, []);
 
+  /* Hide model selector while typing */
+  useEffect(() => {
+    if (value.trim()) {
+      setModelOpen(false);
+    }
+  }, [value]);
+
+  const handleModelSelect = (model: Model) => {
+    if (model.locked) {
+      return;
+    }
+
+    setSelectedModel(model.name);
+    setModelOpen(false);
+  };
+
   const handleSubmit = () => {
     if (!value.trim()) return;
+
+    console.log("Prompt:", value);
+    console.log("Selected Model:", selectedModel);
 
     setValue("");
   };
@@ -103,47 +112,46 @@ export default function ChatInput() {
   const handleKeyDown = (
     event: React.KeyboardEvent<HTMLTextAreaElement>
   ) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
       event.preventDefault();
       handleSubmit();
     }
   };
 
-  const handleModelSelect = (model: Model) => {
-    if (model.locked) return;
-
-    setSelectedModel(model.name);
-    setModelOpen(false);
-  };
-
   return (
-    <div className="mx-auto w-full">
+    <div className="relative mx-auto w-full">
       <form
         onSubmit={(event) => {
           event.preventDefault();
           handleSubmit();
         }}
       >
+        {/* INPUT CONTAINER */}
         <div
           className="
             relative
             flex
+            w-full
             items-end
             gap-2
-            rounded-[20px]
+            rounded-[18px]
             border
             border-[#3F3F46]
-            bg-[#151518]/80
+            bg-[#151518]/90
             px-3
             py-2.5
+            shadow-[0_10px_40px_rgba(0,0,0,0.25)]
             backdrop-blur-xl
-            transition-all
+            transition
             duration-200
             focus-within:border-[#D4AF37]/40
-            focus-within:shadow-[0_0_30px_rgba(212,175,55,0.06)]
+            focus-within:shadow-[0_0_25px_rgba(212,175,55,0.05)]
           "
         >
-          {/* Attach */}
+          {/* ATTACHMENT */}
           <button
             type="button"
             className="
@@ -157,7 +165,7 @@ export default function ChatInput() {
               rounded-xl
               text-zinc-500
               transition
-              hover:bg-white/[0.05]
+              hover:bg-white/[0.06]
               hover:text-white
             "
             aria-label="Attach file"
@@ -165,11 +173,13 @@ export default function ChatInput() {
             <Paperclip className="h-[18px] w-[18px]" />
           </button>
 
-          {/* Prompt */}
+          {/* PROMPT */}
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(event) => setValue(event.target.value)}
+            onChange={(event) =>
+              setValue(event.target.value)
+            }
             onKeyDown={handleKeyDown}
             rows={1}
             placeholder="Message ANVIX AI..."
@@ -191,16 +201,18 @@ export default function ChatInput() {
             aria-label="Message ANVIX AI"
           />
 
-          {/* Model Selector
-              Visible ONLY when input is empty */}
+          {/* MODEL SELECTOR */}
           {!value.trim() && (
             <div
-              ref={modelMenuRef}
+              ref={modelRef}
               className="relative mb-0.5 shrink-0"
             >
+              {/* MODEL BUTTON */}
               <button
                 type="button"
-                onClick={() => setModelOpen((open) => !open)}
+                onClick={() =>
+                  setModelOpen((previous) => !previous)
+                }
                 className="
                   flex
                   h-9
@@ -212,27 +224,39 @@ export default function ChatInput() {
                   font-medium
                   text-zinc-300
                   transition
-                  hover:bg-white/[0.05]
+                  hover:bg-white/[0.06]
                   hover:text-white
                 "
+                aria-haspopup="listbox"
+                aria-expanded={modelOpen}
               >
-                <span>{selectedModel}</span>
+                <span className="whitespace-nowrap">
+                  {selectedModel}
+                </span>
 
                 <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${
-                    modelOpen ? "rotate-180" : ""
-                  }`}
+                  className={`
+                    h-3.5
+                    w-3.5
+                    transition-transform
+                    duration-200
+                    ${
+                      modelOpen
+                        ? "rotate-180"
+                        : ""
+                    }
+                  `}
                 />
               </button>
 
-              {/* Model Dropdown */}
+              {/* DROPDOWN */}
               {modelOpen && (
                 <div
                   className="
                     absolute
-                    bottom-12
+                    bottom-[42px]
                     right-0
-                    z-50
+                    z-[9999]
                     w-[280px]
                     overflow-hidden
                     rounded-2xl
@@ -240,76 +264,137 @@ export default function ChatInput() {
                     border-zinc-800
                     bg-[#18181B]
                     p-2
-                    shadow-[0_20px_60px_rgba(0,0,0,0.6)]
+                    shadow-[0_20px_60px_rgba(0,0,0,0.75)]
                     backdrop-blur-xl
                   "
                 >
+                  {/* DROPDOWN HEADER */}
                   <div className="px-3 pb-2 pt-1">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+                    <p
+                      className="
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-[0.12em]
+                        text-zinc-500
+                      "
+                    >
                       Select model
+                    </p>
+
+                    <p className="mt-1 text-xs text-zinc-600">
+                      Choose your AI model
                     </p>
                   </div>
 
-                  <div className="max-h-[360px] overflow-y-auto">
-                    {models.map((model) => {
-                      const selected =
-                        selectedModel === model.name;
+                  {/* MODEL LIST */}
+                  <div className="max-h-[250px] overflow-y-auto">
+                    <div className="space-y-1">
+                      {models.map((model) => {
+                        const selected =
+                          selectedModel === model.name;
 
-                      return (
-                        <button
-                          key={`${model.provider}-${model.name}`}
-                          type="button"
-                          disabled={model.locked}
-                          onClick={() =>
-                            handleModelSelect(model)
-                          }
-                          className={`
-                            flex
-                            w-full
-                            items-center
-                            justify-between
-                            rounded-xl
-                            px-3
-                            py-2.5
-                            text-left
-                            transition
-                            ${
-                              model.locked
-                                ? "cursor-not-allowed opacity-45"
-                                : "hover:bg-white/[0.06]"
+                        return (
+                          <button
+                            key={`${model.provider}-${model.name}`}
+                            type="button"
+                            disabled={model.locked}
+                            onClick={() =>
+                              handleModelSelect(model)
                             }
-                          `}
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-zinc-200">
-                              {model.name}
-                            </p>
+                            className={`
+                              flex
+                              w-full
+                              items-center
+                              justify-between
+                              gap-3
+                              rounded-xl
+                              px-3
+                              py-2.5
+                              text-left
+                              transition
+                              ${
+                                model.locked
+                                  ? "cursor-not-allowed opacity-40"
+                                  : "cursor-pointer hover:bg-white/[0.06]"
+                              }
+                            `}
+                          >
+                            {/* MODEL INFO */}
+                            <div className="min-w-0">
+                              <p
+                                className={`
+                                  truncate
+                                  text-sm
+                                  font-medium
+                                  ${
+                                    selected
+                                      ? "text-white"
+                                      : "text-zinc-200"
+                                  }
+                                `}
+                              >
+                                {model.name}
+                              </p>
 
-                            <p className="mt-0.5 text-[11px] text-zinc-600">
-                              {model.provider}
-                            </p>
-                          </div>
+                              <p
+                                className="
+                                  mt-0.5
+                                  truncate
+                                  text-[11px]
+                                  text-zinc-600
+                                "
+                              >
+                                {model.provider}
+                              </p>
+                            </div>
 
-                          <div className="ml-3 shrink-0">
+                            {/* STATUS */}
                             {model.locked ? (
-                              <span className="flex items-center gap-1 rounded-md border border-zinc-700/70 px-1.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-zinc-500">
+                              <span
+                                className="
+                                  ml-3
+                                  flex
+                                  shrink-0
+                                  items-center
+                                  gap-1
+                                  rounded-md
+                                  border
+                                  border-zinc-700
+                                  px-1.5
+                                  py-1
+                                  text-[9px]
+                                  font-bold
+                                  uppercase
+                                  tracking-wide
+                                  text-zinc-500
+                                "
+                              >
                                 <Lock className="h-2.5 w-2.5" />
                                 PRO
                               </span>
                             ) : selected ? (
-                              <Check className="h-4 w-4 text-[#D4AF37]" />
+                              <Check
+                                className="
+                                  ml-3
+                                  h-4
+                                  w-4
+                                  shrink-0
+                                  text-[#D4AF37]
+                                "
+                              />
                             ) : null}
-                          </div>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Send */}
+          {/* SEND BUTTON */}
           <button
             type="submit"
             disabled={!value.trim()}
