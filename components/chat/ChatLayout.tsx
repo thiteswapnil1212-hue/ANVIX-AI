@@ -23,7 +23,7 @@ export default function ChatLayout() {
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
             <div
-              className="absolute inset-0 bg-black/60"
+              className="absolute inset-0 bg-black/25"
               onClick={() => setSidebarOpen(false)}
             />
 
@@ -89,7 +89,7 @@ export default function ChatLayout() {
               can escape the composer area. */}
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible">
             {/* Mobile Header */}
-            <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#3F3F46] bg-[#09090B]/60 px-4 backdrop-blur-sm md:hidden">
+            <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#3F3F46] bg-[#09090B]/25 px-4 backdrop-blur-sm md:hidden">
               <div className="flex items-center gap-3">
                 <Image
                   src="/logo.png"
@@ -124,7 +124,7 @@ export default function ChatLayout() {
             <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col items-center px-4 py-10 sm:px-6 lg:px-8">
                 {/* ANVIX Logo */}
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#3F3F46] bg-[#18181B]/80">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#3F3F46] bg-[#18181B]/25">
                   <Image
                     src="/logo.png"
                     alt="ANVIX AI"
@@ -158,7 +158,7 @@ export default function ChatLayout() {
             </div>
 
             {/* Fixed Composer */}
-            <div className="relative z-50 shrink-0 border-t border-[#3F3F46] bg-[#09090B]/70 px-4 py-4 backdrop-blur-md sm:px-6">
+            <div className="relative z-50 shrink-0 border-t border-white/[0.08] bg-transparent px-4 py-4 sm:px-6">
               <div className="mx-auto w-full max-w-3xl">
                 <ChatInput />
 
