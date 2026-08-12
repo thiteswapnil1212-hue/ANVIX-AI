@@ -42,7 +42,9 @@ export default function ChatInput() {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const modelRef = useRef<HTMLDivElement | null>(null);
 
-  /* Auto resize textarea */
+  /* --------------------------------
+     AUTO RESIZE TEXTAREA
+  -------------------------------- */
   useEffect(() => {
     const textarea = textareaRef.current;
 
@@ -58,7 +60,9 @@ export default function ChatInput() {
     textarea.style.height = `${height}px`;
   }, [value]);
 
-  /* Close dropdown on outside click */
+  /* --------------------------------
+     CLOSE DROPDOWN OUTSIDE CLICK
+  -------------------------------- */
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       if (
@@ -84,13 +88,18 @@ export default function ChatInput() {
     };
   }, []);
 
-  /* Hide model selector while typing */
+  /* --------------------------------
+     CLOSE MODEL MENU WHILE TYPING
+  -------------------------------- */
   useEffect(() => {
-    if (value.trim()) {
+    if (value.trim().length > 0) {
       setModelOpen(false);
     }
   }, [value]);
 
+  /* --------------------------------
+     MODEL SELECTION
+  -------------------------------- */
   const handleModelSelect = (model: Model) => {
     if (model.locked) {
       return;
@@ -100,8 +109,13 @@ export default function ChatInput() {
     setModelOpen(false);
   };
 
+  /* --------------------------------
+     SEND MESSAGE
+  -------------------------------- */
   const handleSubmit = () => {
-    if (!value.trim()) return;
+    if (!value.trim()) {
+      return;
+    }
 
     console.log("Prompt:", value);
     console.log("Selected Model:", selectedModel);
@@ -109,6 +123,9 @@ export default function ChatInput() {
     setValue("");
   };
 
+  /* --------------------------------
+     KEYBOARD HANDLING
+  -------------------------------- */
   const handleKeyDown = (
     event: React.KeyboardEvent<HTMLTextAreaElement>
   ) => {
@@ -129,7 +146,9 @@ export default function ChatInput() {
           handleSubmit();
         }}
       >
-        {/* INPUT CONTAINER */}
+        {/* =====================================
+            MAIN PROMPT BOX
+        ====================================== */}
         <div
           className="
             relative
@@ -140,18 +159,24 @@ export default function ChatInput() {
             rounded-[18px]
             border
             border-[#3F3F46]
-            bg-[#151518]/90
+            bg-[#151518]/80
             px-3
             py-2.5
             shadow-[0_10px_40px_rgba(0,0,0,0.25)]
             backdrop-blur-xl
-            transition
-            duration-200
-            focus-within:border-[#D4AF37]/40
-            focus-within:shadow-[0_0_25px_rgba(212,175,55,0.05)]
+
+            animate-[chatInputIn_0.45s_ease-out]
+
+            transition-all
+            duration-300
+
+            focus-within:border-[#D4AF37]/50
+            focus-within:shadow-[0_0_30px_rgba(212,175,55,0.08)]
           "
         >
-          {/* ATTACHMENT */}
+          {/* =====================================
+              ATTACHMENT BUTTON
+          ====================================== */}
           <button
             type="button"
             className="
@@ -164,16 +189,24 @@ export default function ChatInput() {
               justify-center
               rounded-xl
               text-zinc-500
-              transition
+
+              transition-all
+              duration-200
+
               hover:bg-white/[0.06]
               hover:text-white
+              hover:scale-105
+
+              active:scale-95
             "
             aria-label="Attach file"
           >
             <Paperclip className="h-[18px] w-[18px]" />
           </button>
 
-          {/* PROMPT */}
+          {/* =====================================
+              PROMPT TEXTAREA
+          ====================================== */}
           <textarea
             ref={textareaRef}
             value={value}
@@ -196,22 +229,38 @@ export default function ChatInput() {
               leading-6
               text-white
               outline-none
+
               placeholder:text-zinc-600
+
+              scrollbar-thin
+              scrollbar-track-transparent
+              scrollbar-thumb-zinc-700
             "
             aria-label="Message ANVIX AI"
           />
 
-          {/* MODEL SELECTOR */}
+          {/* =====================================
+              MODEL SELECTOR
+              ONLY WHEN INPUT IS EMPTY
+          ====================================== */}
           {!value.trim() && (
             <div
               ref={modelRef}
-              className="relative mb-0.5 shrink-0"
+              className="
+                relative
+                mb-0.5
+                shrink-0
+
+                animate-[modelFadeIn_0.18s_ease-out]
+              "
             >
               {/* MODEL BUTTON */}
               <button
                 type="button"
                 onClick={() =>
-                  setModelOpen((previous) => !previous)
+                  setModelOpen(
+                    (previous) => !previous
+                  )
                 }
                 className="
                   flex
@@ -223,9 +272,13 @@ export default function ChatInput() {
                   text-xs
                   font-medium
                   text-zinc-300
-                  transition
+
+                  transition-all
+                  duration-200
+
                   hover:bg-white/[0.06]
                   hover:text-white
+                  active:scale-[0.97]
                 "
                 aria-haspopup="listbox"
                 aria-expanded={modelOpen}
@@ -240,36 +293,54 @@ export default function ChatInput() {
                     w-3.5
                     transition-transform
                     duration-200
+
                     ${
                       modelOpen
                         ? "rotate-180"
-                        : ""
+                        : "rotate-0"
                     }
                   `}
                 />
               </button>
 
-              {/* DROPDOWN */}
+              {/* =================================
+                  MODEL DROPDOWN
+              ================================== */}
               {modelOpen && (
                 <div
                   className="
                     absolute
-                    bottom-[42px]
+                    bottom-[46px]
                     right-0
                     z-[9999]
+
                     w-[280px]
+
+                    origin-bottom-right
+
+                    animate-[dropdownIn_0.18s_ease-out]
+
                     overflow-hidden
                     rounded-2xl
                     border
                     border-zinc-800
                     bg-[#18181B]
                     p-2
+
                     shadow-[0_20px_60px_rgba(0,0,0,0.75)]
+
                     backdrop-blur-xl
                   "
+                  role="listbox"
                 >
                   {/* DROPDOWN HEADER */}
-                  <div className="px-3 pb-2 pt-1">
+                  <div
+                    className="
+                      px-3
+                      pb-2
+                      pt-1
+                    "
+                  >
                     <p
                       className="
                         text-[11px]
@@ -282,111 +353,137 @@ export default function ChatInput() {
                       Select model
                     </p>
 
-                    <p className="mt-1 text-xs text-zinc-600">
+                    <p
+                      className="
+                        mt-1
+                        text-xs
+                        text-zinc-600
+                      "
+                    >
                       Choose your AI model
                     </p>
                   </div>
 
                   {/* MODEL LIST */}
-                  <div className="max-h-[250px] overflow-y-auto">
+                  <div
+                    className="
+                      max-h-[250px]
+                      overflow-y-auto
+                    "
+                  >
                     <div className="space-y-1">
-                      {models.map((model) => {
-                        const selected =
-                          selectedModel === model.name;
+                      {models.map(
+                        (model, index) => {
+                          const selected =
+                            selectedModel ===
+                            model.name;
 
-                        return (
-                          <button
-                            key={`${model.provider}-${model.name}`}
-                            type="button"
-                            disabled={model.locked}
-                            onClick={() =>
-                              handleModelSelect(model)
-                            }
-                            className={`
-                              flex
-                              w-full
-                              items-center
-                              justify-between
-                              gap-3
-                              rounded-xl
-                              px-3
-                              py-2.5
-                              text-left
-                              transition
-                              ${
-                                model.locked
-                                  ? "cursor-not-allowed opacity-40"
-                                  : "cursor-pointer hover:bg-white/[0.06]"
+                          return (
+                            <button
+                              key={`${model.provider}-${model.name}`}
+                              type="button"
+                              disabled={model.locked}
+                              onClick={() =>
+                                handleModelSelect(
+                                  model
+                                )
                               }
-                            `}
-                          >
-                            {/* MODEL INFO */}
-                            <div className="min-w-0">
-                              <p
-                                className={`
-                                  truncate
-                                  text-sm
-                                  font-medium
-                                  ${
-                                    selected
-                                      ? "text-white"
-                                      : "text-zinc-200"
-                                  }
-                                `}
-                              >
-                                {model.name}
-                              </p>
+                              className={`
+                                flex
+                                w-full
+                                items-center
+                                justify-between
+                                gap-3
+                                rounded-xl
+                                px-3
+                                py-2.5
+                                text-left
 
-                              <p
-                                className="
-                                  mt-0.5
-                                  truncate
-                                  text-[11px]
-                                  text-zinc-600
-                                "
-                              >
-                                {model.provider}
-                              </p>
-                            </div>
+                                transition-all
+                                duration-150
 
-                            {/* STATUS */}
-                            {model.locked ? (
-                              <span
-                                className="
-                                  ml-3
-                                  flex
-                                  shrink-0
-                                  items-center
-                                  gap-1
-                                  rounded-md
-                                  border
-                                  border-zinc-700
-                                  px-1.5
-                                  py-1
-                                  text-[9px]
-                                  font-bold
-                                  uppercase
-                                  tracking-wide
-                                  text-zinc-500
-                                "
-                              >
-                                <Lock className="h-2.5 w-2.5" />
-                                PRO
-                              </span>
-                            ) : selected ? (
-                              <Check
-                                className="
-                                  ml-3
-                                  h-4
-                                  w-4
-                                  shrink-0
-                                  text-[#D4AF37]
-                                "
-                              />
-                            ) : null}
-                          </button>
-                        );
-                      })}
+                                animate-[modelItemIn_0.2s_ease-out]
+                              `}
+                              style={{
+                                animationDelay: `${
+                                  index * 40
+                                }ms`,
+                                animationFillMode:
+                                  "both",
+                              }}
+                            >
+                              {/* MODEL INFO */}
+                              <div className="min-w-0">
+                                <p
+                                  className={`
+                                    truncate
+                                    text-sm
+                                    font-medium
+
+                                    ${
+                                      selected
+                                        ? "text-white"
+                                        : "text-zinc-200"
+                                    }
+                                  `}
+                                >
+                                  {model.name}
+                                </p>
+
+                                <p
+                                  className="
+                                    mt-0.5
+                                    truncate
+                                    text-[11px]
+                                    text-zinc-600
+                                  "
+                                >
+                                  {model.provider}
+                                </p>
+                              </div>
+
+                              {/* STATUS */}
+                              {model.locked ? (
+                                <span
+                                  className="
+                                    ml-3
+                                    flex
+                                    shrink-0
+                                    items-center
+                                    gap-1
+
+                                    rounded-md
+                                    border
+                                    border-zinc-700
+
+                                    px-1.5
+                                    py-1
+
+                                    text-[9px]
+                                    font-bold
+                                    uppercase
+                                    tracking-wide
+                                    text-zinc-500
+                                  "
+                                >
+                                  <Lock className="h-2.5 w-2.5" />
+                                  PRO
+                                </span>
+                              ) : selected ? (
+                                <Check
+                                  className="
+                                    ml-3
+                                    h-4
+                                    w-4
+                                    shrink-0
+                                    text-[#D4AF37]
+                                  "
+                                />
+                              ) : null}
+                            </button>
+                          );
+                        }
+                      )}
                     </div>
                   </div>
                 </div>
@@ -394,7 +491,9 @@ export default function ChatInput() {
             </div>
           )}
 
-          {/* SEND BUTTON */}
+          {/* =====================================
+              SEND BUTTON
+          ====================================== */}
           <button
             type="submit"
             disabled={!value.trim()}
@@ -407,14 +506,22 @@ export default function ChatInput() {
               items-center
               justify-center
               rounded-full
+
               bg-[#D4AF37]
               text-black
-              transition
+
+              transition-all
+              duration-200
+
               hover:bg-[#E5C158]
-              active:scale-95
+              hover:scale-105
+
+              active:scale-90
+
               disabled:cursor-not-allowed
               disabled:bg-zinc-700
               disabled:text-zinc-500
+              disabled:hover:scale-100
             "
             aria-label="Send message"
           >
