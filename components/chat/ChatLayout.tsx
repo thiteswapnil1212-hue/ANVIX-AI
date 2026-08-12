@@ -146,8 +146,7 @@ export default function ChatLayout() {
                   </h1>
 
                   <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
-                    Your expert partner for code, research, and technical
-                    analysis.
+                    Built for thinking. Designed for building.
                   </p>
                 </div>
 
