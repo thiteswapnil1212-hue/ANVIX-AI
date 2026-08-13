@@ -33,7 +33,11 @@ const models: Model[] = [
   },
 ];
 
-export default function ChatInput() {
+type ChatInputProps = {
+  onSend: (message: string, model: string) => void;
+};
+
+export default function ChatInput({ onSend }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [selectedModel, setSelectedModel] =
@@ -112,16 +116,39 @@ export default function ChatInput() {
   /* --------------------------------
      SEND MESSAGE
   -------------------------------- */
-  const handleSubmit = () => {
-    if (!value.trim()) {
+  const handleSubmit = async () => {
+  const prompt = value.trim();
+
+  if (!prompt) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt,
+        model: selectedModel,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(data.error || "Something went wrong");
       return;
     }
 
-    console.log("Prompt:", value);
-    console.log("Selected Model:", selectedModel);
+    console.log("AI Response:", data.response);
 
     setValue("");
-  };
+  } catch (error) {
+    console.error("Failed to send message:", error);
+  }
+};
 
   /* --------------------------------
      KEYBOARD HANDLING
@@ -496,7 +523,7 @@ export default function ChatInput() {
           ====================================== */}
           <button
             type="submit"
-            disabled={!value.trim()}
+            disabled={false}
             className="
               mb-0.5
               flex
