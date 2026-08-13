@@ -172,7 +172,7 @@ export default function Hero() {
               />
             </span>
 
-            AI Software Engineering Platform
+            AI Softwares Platform
           </div>
         </div>
 
