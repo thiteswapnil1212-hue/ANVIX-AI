@@ -13,7 +13,7 @@ export default function UsageAnalytics() {
           Usage Analytics
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Overview of your AI workspace activity.
+          your AI workspace activity.
         </p>
       </div>
 
