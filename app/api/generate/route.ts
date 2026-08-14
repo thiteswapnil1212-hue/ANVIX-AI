@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+type GenerateRequestBody = {
+  prompt?: unknown;
+  model?: unknown;
+};
+
 const MODEL_MAP: Record<string, string> = {
   "Gemini 1.5 Flash": "gemini-1.5-flash",
 };
@@ -9,10 +14,10 @@ const DEFAULT_MODEL = "Gemini 1.5 Flash";
 const MAX_PROMPT_LENGTH = 20000;
 
 export async function POST(req: Request) {
-  let body: any;
+  let body: GenerateRequestBody;
 
   try {
-    body = await req.json();
+    body = (await req.json()) as GenerateRequestBody;
   } catch (err) {
     console.error("Invalid JSON in request to /api/generate:", err);
     return NextResponse.json(
@@ -72,21 +77,9 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: mappedModel });
 
-    // Use the simple generateContent flow. The library may return different
-    // shapes; follow the common pattern: result.response.text()
-    const result = await model.generateContent(normalizedPrompt as string);
-
-    const response = result?.response;
-
-    if (!response || typeof response.text !== "function") {
-      console.error("Unexpected response shape from Gemini API", result);
-      return NextResponse.json(
-        { success: false, error: "AI service returned an unexpected response" },
-        { status: 502 }
-      );
-    }
-
-    const text = await response.text();
+    const result = await model.generateContent(normalizedPrompt);
+    const response = result.response;
+    const text = response.text();
 
     return NextResponse.json({ success: true, response: text });
   } catch (err) {
