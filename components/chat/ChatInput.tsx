@@ -453,33 +453,29 @@ export default function ChatInput({
               SEND BUTTON
           ====================================== */}
           <button
-            type="submit"
-            disabled={!value.trim()}
-            className="
-              mb-0.5
-              flex
-              h-9
-              w-9
-              shrink-0
-              items-center
-              justify-center
-              rounded-full
-              bg-[#D4AF37]
-              text-black
-              transition-all
-              duration-200
-              hover:bg-[#E5C158]
-              hover:scale-105
-              active:scale-90
-              disabled:cursor-not-allowed
-              disabled:bg-zinc-700
-              disabled:text-zinc-500
-              disabled:hover:scale-100
-            "
-            aria-label="Send message"
-          >
-            <ArrowUp className="h-[17px] w-[17px]" />
-          </button>
+  type="submit"
+  disabled={false}
+  className="
+    mb-0.5
+    flex
+    h-9
+    w-9
+    shrink-0
+    items-center
+    justify-center
+    rounded-full
+    bg-[#D4AF37]
+    text-black
+    transition-all
+    duration-200
+    hover:bg-[#E5C158]
+    hover:scale-105
+    active:scale-90
+  "
+  aria-label="Send message"
+>
+  <ArrowUp className="h-[17px] w-[17px]" />
+</button>
         </div>
       </form>
     </div>
