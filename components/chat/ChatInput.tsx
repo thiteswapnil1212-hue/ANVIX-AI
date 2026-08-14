@@ -27,7 +27,7 @@ const models: Model[] = [
     locked: true,
   },
   {
-    name: "Gemini 1.5 Flash",
+    name: "Gemini 2.5 Flash",
     provider: "Google Gemini",
     locked: false,
   },
@@ -43,7 +43,7 @@ export default function ChatInput({
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [selectedModel, setSelectedModel] =
-    useState("Gemini 1.5 Flash");
+    useState("Gemini 2.5 Flash");
 
   const textareaRef =
     useRef<HTMLTextAreaElement | null>(null);
