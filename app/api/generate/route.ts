@@ -7,10 +7,11 @@ type GenerateRequestBody = {
 };
 
 const MODEL_MAP: Record<string, string> = {
-  "Gemini 1.5 Flash": "gemini-1.5-flash",
+  "Gemini 2.5 Flash": "gemini-2.5-flash",
+  "Gemini 1.5 Flash": "gemini-2.5-flash",
 };
 
-const DEFAULT_MODEL = "Gemini 1.5 Flash";
+const DEFAULT_MODEL = "Gemini 2.5 Flash";
 const MAX_PROMPT_LENGTH = 20000;
 
 export async function POST(req: Request) {
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey as string);
+    const genAI = new GoogleGenerativeAI(apiKey);
 
     const model = genAI.getGenerativeModel({ model: mappedModel });
 
@@ -84,8 +85,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, response: text });
   } catch (err) {
     console.error("Gemini API error:", err);
+    const errorMessage =
+      err instanceof Error
+        ? err.message
+        : "Unknown Gemini API error";
+
     return NextResponse.json(
-      { success: false, error: "AI service is currently unavailable" },
+      {
+        success: false,
+        error:
+          process.env.NODE_ENV === "development"
+            ? errorMessage
+            : "AI service is currently unavailable",
+      },
       { status: 503 }
     );
   }
