@@ -34,7 +34,10 @@ const models: Model[] = [
 ];
 
 type ChatInputProps = {
-  onSend: (message: string, model: string) => void;
+  onSend: (
+    message: string,
+    model: string
+  ) => boolean | Promise<boolean>;
 };
 
 export default function ChatInput({
@@ -42,6 +45,7 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedModel, setSelectedModel] =
     useState("Gemini 2.5 Flash");
 
@@ -50,6 +54,9 @@ export default function ChatInput({
 
   const modelRef =
     useRef<HTMLDivElement | null>(null);
+
+  const canSend =
+    value.trim().length > 0 && !isSubmitting;
 
   /* --------------------------------
      AUTO RESIZE TEXTAREA
@@ -116,16 +123,28 @@ export default function ChatInput({
   /* --------------------------------
      SEND MESSAGE
   -------------------------------- */
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const prompt = value.trim();
 
-    if (!prompt) {
+    if (!prompt || isSubmitting) {
       return;
     }
 
-    onSend(prompt, selectedModel);
-    setValue("");
-    setModelOpen(false);
+    setIsSubmitting(true);
+
+    try {
+      const accepted = await onSend(
+        prompt,
+        selectedModel
+      );
+
+      if (accepted) {
+        setValue("");
+        setModelOpen(false);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   /* --------------------------------
@@ -139,7 +158,7 @@ export default function ChatInput({
       !event.shiftKey
     ) {
       event.preventDefault();
-      handleSubmit();
+      void handleSubmit();
     }
   };
 
@@ -148,7 +167,7 @@ export default function ChatInput({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          handleSubmit();
+          void handleSubmit();
         }}
       >
         {/* =====================================
@@ -206,6 +225,8 @@ export default function ChatInput({
               TEXTAREA
           ====================================== */}
           <textarea
+            id="chat-message"
+            name="message"
             ref={textareaRef}
             value={value}
             onChange={(event) => {
@@ -454,7 +475,7 @@ export default function ChatInput({
           ====================================== */}
           <button
   type="submit"
-  disabled={false}
+  disabled={!canSend}
   className="
     mb-0.5
     flex
@@ -471,6 +492,10 @@ export default function ChatInput({
     hover:bg-[#E5C158]
     hover:scale-105
     active:scale-90
+    disabled:cursor-not-allowed
+    disabled:bg-zinc-700
+    disabled:text-zinc-500
+    disabled:hover:scale-100
   "
   aria-label="Send message"
 >

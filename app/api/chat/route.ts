@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     }
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
     });
 
     const result = await model.generateContent(prompt.trim());
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       response,
-      model: "Gemini 1.5 Flash",
+      model: "Gemini 2.5 Flash",
     });
   } catch (error) {
     console.error("Gemini API Error:", error);

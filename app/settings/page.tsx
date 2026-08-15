@@ -36,7 +36,7 @@ const settingsSections = [
     description:
       "Choose your preferred model and response behavior.",
     icon: Sparkles,
-    status: "Gemini 1.5 Flash",
+    status: "Gemini 2.5 Flash",
   },
   {
     title: "Notifications",

@@ -28,14 +28,14 @@ export default function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleSend = async (
+  const handleSend = (
     prompt: string,
     model: string
   ) => {
     const trimmedPrompt = prompt.trim();
 
     if (!trimmedPrompt || isTyping) {
-      return;
+      return false;
     }
 
     // Add user message immediately
@@ -48,6 +48,15 @@ export default function ChatLayout() {
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
+    void generateResponse(trimmedPrompt, model);
+
+    return true;
+  };
+
+  const generateResponse = async (
+    prompt: string,
+    model: string
+  ) => {
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -55,7 +64,7 @@ export default function ChatLayout() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          prompt: trimmedPrompt,
+          prompt,
           model,
         }),
       });

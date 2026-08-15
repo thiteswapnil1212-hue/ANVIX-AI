@@ -8,7 +8,6 @@ type GenerateRequestBody = {
 
 const MODEL_MAP: Record<string, string> = {
   "Gemini 2.5 Flash": "gemini-2.5-flash",
-  "Gemini 1.5 Flash": "gemini-2.5-flash",
 };
 
 const DEFAULT_MODEL = "Gemini 2.5 Flash";
