@@ -7,9 +7,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: var(--font-sans);
---font-mono: var(--font-mono);
---font-heading: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -18,27 +20,36 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
+
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
+
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
+
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -47,39 +58,53 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
+
 :root {
+  /* Brand */
   --gold: #d4af37;
   --gold-light: #f3d46b;
   --gold-dark: #9c7b17;
+
+  /* Base */
   --background: #080808;
   --foreground: #fafafa;
 
+  /* Cards */
   --card: #111111;
   --card-foreground: #fafafa;
 
+  /* Popovers */
   --popover: #111111;
   --popover-foreground: #fafafa;
 
+  /* Primary */
   --primary: #d4af37;
   --primary-foreground: #090909;
 
+  /* Secondary */
   --secondary: #181818;
   --secondary-foreground: #fafafa;
 
+  /* Muted */
   --muted: #181818;
   --muted-foreground: #a1a1aa;
 
+  /* Accent */
   --accent: #181818;
   --accent-foreground: #fafafa;
 
+  /* Destructive */
   --destructive: #ef4444;
 
+  /* UI */
   --border: #2a2a2a;
   --input: #262626;
   --ring: #d4af37;
 
+  /* Radius */
   --radius: 1rem;
 
+  /* Sidebar */
   --sidebar: #111111;
   --sidebar-foreground: #fafafa;
   --sidebar-primary: #d4af37;
@@ -90,46 +115,116 @@
   --sidebar-ring: #d4af37;
 }
 
+/* =========================================================
+   BASE
+   ========================================================= */
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-  @apply bg-background text-foreground antialiased;
-  font-family: var(--font-sans);
-}
+
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+  }
+
+  code,
+  pre,
+  textarea {
+    font-family: var(--font-mono);
   }
 }
+
+/* =========================================================
+   TEXT SELECTION
+   ========================================================= */
+
 ::selection {
-  background: #d4af37;
+  background: var(--gold);
   color: #090909;
 }
 
-html {
-  scroll-behavior: smooth;
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
 }
 
-body {
-  overflow-x: hidden;
+::-webkit-scrollbar-track {
+  background: #080808;
 }
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--font-heading);
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 999px;
 }
-code,
-pre,
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+/* =========================================================
+   FORM ELEMENTS
+   ========================================================= */
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
 textarea {
-  font-family: var(--font-mono);
+  resize: none;
 }
-* {
-  transition:
-    color .2s ease,
-    background-color .2s ease,
-    border-color .2s ease;
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* =========================================================
+   ACCESSIBILITY
+   ========================================================= */
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
 }
