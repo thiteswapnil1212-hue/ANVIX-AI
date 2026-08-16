@@ -40,54 +40,43 @@ type ChatInputProps = {
   ) => boolean | Promise<boolean>;
 };
 
-export default function ChatInput({
-  onSend,
-}: ChatInputProps) {
+export default function ChatInput({ onSend }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedModel, setSelectedModel] =
     useState("Gemini 2.5 Flash");
 
-  const textareaRef =
-    useRef<HTMLTextAreaElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const modelRef = useRef<HTMLDivElement>(null);
 
-  const modelRef =
-    useRef<HTMLDivElement | null>(null);
-
+  // Button is enabled whenever there is real text.
   const canSend =
     value.trim().length > 0 && !isSubmitting;
 
-  /* --------------------------------
-     AUTO RESIZE TEXTAREA
-  -------------------------------- */
+  /* -----------------------------
+     AUTO RESIZE
+  ----------------------------- */
   useEffect(() => {
     const textarea = textareaRef.current;
 
     if (!textarea) return;
 
     textarea.style.height = "auto";
-
-    const height = Math.min(
+    textarea.style.height = `${Math.min(
       textarea.scrollHeight,
       120
-    );
-
-    textarea.style.height = `${height}px`;
+    )}px`;
   }, [value]);
 
-  /* --------------------------------
-     CLOSE DROPDOWN OUTSIDE CLICK
-  -------------------------------- */
+  /* -----------------------------
+     CLOSE MODEL DROPDOWN
+  ----------------------------- */
   useEffect(() => {
-    const handleOutsideClick = (
-      event: MouseEvent
-    ) => {
+    const handleOutsideClick = (event: MouseEvent) => {
       if (
         modelRef.current &&
-        !modelRef.current.contains(
-          event.target as Node
-        )
+        !modelRef.current.contains(event.target as Node)
       ) {
         setModelOpen(false);
       }
@@ -106,53 +95,53 @@ export default function ChatInput({
     };
   }, []);
 
-  /* --------------------------------
-     MODEL SELECTION
-  -------------------------------- */
-  const handleModelSelect = (
-    model: Model
-  ) => {
-    if (model.locked) {
-      return;
-    }
+  /* -----------------------------
+     MODEL SELECT
+  ----------------------------- */
+  const handleModelSelect = (model: Model) => {
+    if (model.locked) return;
 
     setSelectedModel(model.name);
     setModelOpen(false);
   };
 
-  /* --------------------------------
-     SEND MESSAGE
-  -------------------------------- */
+  /* -----------------------------
+     SEND
+  ----------------------------- */
   const handleSubmit = async () => {
-    const prompt = value.trim();
+    const message = value.trim();
 
-    if (!prompt || isSubmitting) {
-      return;
-    }
+    // Prevent empty messages and double submits.
+    if (!message || isSubmitting) return;
 
     setIsSubmitting(true);
 
     try {
       const accepted = await onSend(
-        prompt,
+        message,
         selectedModel
       );
 
+      // Clear only after parent accepts the message.
       if (accepted) {
         setValue("");
         setModelOpen(false);
       }
+    } catch (error) {
+      console.error("Failed to send message:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  /* --------------------------------
-     KEYBOARD HANDLING
-  -------------------------------- */
+  /* -----------------------------
+     KEYBOARD
+  ----------------------------- */
   const handleKeyDown = (
     event: React.KeyboardEvent<HTMLTextAreaElement>
   ) => {
+    // Enter = send
+    // Shift + Enter = newline
     if (
       event.key === "Enter" &&
       !event.shiftKey
@@ -170,9 +159,6 @@ export default function ChatInput({
           void handleSubmit();
         }}
       >
-        {/* =====================================
-            MAIN PROMPT BOX
-        ====================================== */}
         <div
           className="
             relative
@@ -194,9 +180,7 @@ export default function ChatInput({
             focus-within:shadow-[0_0_30px_rgba(212,175,55,0.08)]
           "
         >
-          {/* =====================================
-              ATTACHMENT BUTTON
-          ====================================== */}
+          {/* ATTACHMENT */}
           <button
             type="button"
             className="
@@ -210,7 +194,6 @@ export default function ChatInput({
               rounded-xl
               text-zinc-500
               transition-all
-              duration-200
               hover:bg-white/[0.06]
               hover:text-white
               hover:scale-105
@@ -221,25 +204,24 @@ export default function ChatInput({
             <Paperclip className="h-[18px] w-[18px]" />
           </button>
 
-          {/* =====================================
-              TEXTAREA
-          ====================================== */}
+          {/* TEXTAREA */}
           <textarea
             id="chat-message"
             name="message"
             ref={textareaRef}
             value={value}
             onChange={(event) => {
-              const nextValue = event.target.value;
-              setValue(nextValue);
+              setValue(event.target.value);
 
-              if (nextValue.trim().length > 0) {
+              // Close model menu when user starts typing.
+              if (event.target.value.trim()) {
                 setModelOpen(false);
               }
             }}
             onKeyDown={handleKeyDown}
             rows={1}
             placeholder="Message ANVIX AI..."
+            aria-label="Message ANVIX AI"
             className="
               min-h-[36px]
               max-h-[120px]
@@ -254,31 +236,19 @@ export default function ChatInput({
               text-white
               outline-none
               placeholder:text-zinc-600
-              scrollbar-thin
-              scrollbar-track-transparent
-              scrollbar-thumb-zinc-700
             "
-            aria-label="Message ANVIX AI"
           />
 
-          {/* =====================================
-              MODEL SELECTOR
-          ====================================== */}
+          {/* MODEL SELECTOR */}
           {!value.trim() && (
             <div
               ref={modelRef}
-              className="
-                relative
-                mb-0.5
-                shrink-0
-              "
+              className="relative mb-0.5 shrink-0"
             >
               <button
                 type="button"
                 onClick={() =>
-                  setModelOpen(
-                    (previous) => !previous
-                  )
+                  setModelOpen((open) => !open)
                 }
                 className="
                   flex
@@ -291,10 +261,8 @@ export default function ChatInput({
                   font-medium
                   text-zinc-300
                   transition-all
-                  duration-200
                   hover:bg-white/[0.06]
                   hover:text-white
-                  active:scale-[0.97]
                 "
                 aria-haspopup="listbox"
                 aria-expanded={modelOpen}
@@ -304,23 +272,14 @@ export default function ChatInput({
                 </span>
 
                 <ChevronDown
-                  className={`
-                    h-3.5
-                    w-3.5
-                    transition-transform
-                    duration-200
-                    ${
-                      modelOpen
-                        ? "rotate-180"
-                        : "rotate-0"
-                    }
-                  `}
+                  className={`h-3.5 w-3.5 transition-transform ${
+                    modelOpen
+                      ? "rotate-180"
+                      : ""
+                  }`}
                 />
               </button>
 
-              {/* =================================
-                  MODEL DROPDOWN
-              ================================== */}
               {modelOpen && (
                 <div
                   className="
@@ -336,21 +295,11 @@ export default function ChatInput({
                     bg-[#18181B]
                     p-2
                     shadow-[0_20px_60px_rgba(0,0,0,0.75)]
-                    backdrop-blur-xl
                   "
                   role="listbox"
                 >
-                  {/* Header */}
                   <div className="px-3 pb-2 pt-1">
-                    <p
-                      className="
-                        text-[11px]
-                        font-semibold
-                        uppercase
-                        tracking-[0.12em]
-                        text-zinc-500
-                      "
-                    >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
                       Select model
                     </p>
 
@@ -359,148 +308,103 @@ export default function ChatInput({
                     </p>
                   </div>
 
-                  {/* Model list */}
-                  <div className="max-h-[250px] overflow-y-auto">
-                    <div className="space-y-1">
-                      {models.map((model) => {
-                        const selected =
-                          selectedModel ===
-                          model.name;
+                  <div className="space-y-1">
+                    {models.map((model) => {
+                      const selected =
+                        selectedModel === model.name;
 
-                        return (
-                          <button
-                            key={`${model.provider}-${model.name}`}
-                            type="button"
-                            disabled={model.locked}
-                            onClick={() =>
-                              handleModelSelect(
-                                model
-                              )
+                      return (
+                        <button
+                          key={`${model.provider}-${model.name}`}
+                          type="button"
+                          disabled={model.locked}
+                          onClick={() =>
+                            handleModelSelect(model)
+                          }
+                          className={`
+                            flex
+                            w-full
+                            items-center
+                            justify-between
+                            gap-3
+                            rounded-xl
+                            px-3
+                            py-2.5
+                            text-left
+                            transition
+                            ${
+                              model.locked
+                                ? "cursor-not-allowed opacity-60"
+                                : "hover:bg-white/[0.06]"
                             }
-                            className={`
-                              flex
-                              w-full
-                              items-center
-                              justify-between
-                              gap-3
-                              rounded-xl
-                              px-3
-                              py-2.5
-                              text-left
-                              transition-all
-                              duration-150
-                              ${
-                                model.locked
-                                  ? "cursor-not-allowed opacity-60"
-                                  : "hover:bg-white/[0.06]"
-                              }
-                            `}
-                          >
-                            {/* Model info */}
-                            <div className="min-w-0">
-                              <p
-                                className={`
-                                  truncate
-                                  text-sm
-                                  font-medium
-                                  ${
-                                    selected
-                                      ? "text-white"
-                                      : "text-zinc-200"
-                                  }
-                                `}
-                              >
-                                {model.name}
-                              </p>
+                          `}
+                        >
+                          <div className="min-w-0">
+                            <p
+                              className={`truncate text-sm font-medium ${
+                                selected
+                                  ? "text-white"
+                                  : "text-zinc-200"
+                              }`}
+                            >
+                              {model.name}
+                            </p>
 
-                              <p
-                                className="
-                                  mt-0.5
-                                  truncate
-                                  text-[11px]
-                                  text-zinc-600
-                                "
-                              >
-                                {model.provider}
-                              </p>
-                            </div>
+                            <p className="mt-0.5 text-[11px] text-zinc-600">
+                              {model.provider}
+                            </p>
+                          </div>
 
-                            {/* Status */}
-                            {model.locked ? (
-                              <span
-                                className="
-                                  ml-3
-                                  flex
-                                  shrink-0
-                                  items-center
-                                  gap-1
-                                  rounded-md
-                                  border
-                                  border-zinc-700
-                                  px-1.5
-                                  py-1
-                                  text-[9px]
-                                  font-bold
-                                  uppercase
-                                  tracking-wide
-                                  text-zinc-500
-                                "
-                              >
-                                <Lock className="h-2.5 w-2.5" />
-                                PRO
-                              </span>
-                            ) : selected ? (
-                              <Check
-                                className="
-                                  ml-3
-                                  h-4
-                                  w-4
-                                  shrink-0
-                                  text-[#D4AF37]
-                                "
-                              />
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
+                          {model.locked ? (
+                            <span className="flex shrink-0 items-center gap-1 rounded-md border border-zinc-700 px-1.5 py-1 text-[9px] font-bold uppercase tracking-wide text-zinc-500">
+                              <Lock className="h-2.5 w-2.5" />
+                              PRO
+                            </span>
+                          ) : selected ? (
+                            <Check className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+                          ) : null}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* =====================================
-              SEND BUTTON
-          ====================================== */}
+          {/* SEND */}
           <button
-  type="submit"
-  disabled={!canSend}
-  className="
-    mb-0.5
-    flex
-    h-9
-    w-9
-    shrink-0
-    items-center
-    justify-center
-    rounded-full
-    bg-[#D4AF37]
-    text-black
-    transition-all
-    duration-200
-    hover:bg-[#E5C158]
-    hover:scale-105
-    active:scale-90
-    disabled:cursor-not-allowed
-    disabled:bg-zinc-700
-    disabled:text-zinc-500
-    disabled:hover:scale-100
-  "
-  aria-label="Send message"
->
-  <ArrowUp className="h-[17px] w-[17px]" />
-</button>
+            type="submit"
+            disabled={!canSend}
+            aria-label={
+              isSubmitting
+                ? "Sending message"
+                : "Send message"
+            }
+            className="
+              mb-0.5
+              flex
+              h-9
+              w-9
+              shrink-0
+              items-center
+              justify-center
+              rounded-full
+              bg-[#D4AF37]
+              text-black
+              transition-all
+              duration-200
+              hover:bg-[#E5C158]
+              hover:scale-105
+              active:scale-90
+              disabled:cursor-not-allowed
+              disabled:bg-zinc-700
+              disabled:text-zinc-500
+              disabled:hover:scale-100
+            "
+          >
+            <ArrowUp className="h-[17px] w-[17px]" />
+          </button>
         </div>
       </form>
     </div>
