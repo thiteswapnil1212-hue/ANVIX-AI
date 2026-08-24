@@ -50,37 +50,46 @@ export default function ChatInput({ onSend }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
 
-  // Button is enabled whenever there is real text.
-  const canSend =
-    value.trim().length > 0 && !isSubmitting;
+  /*
+   * IMPORTANT:
+   * The button is enabled whenever the user has entered
+   * meaningful text and we are not currently submitting.
+   */
+  const hasMessage = value.trim().length > 0;
+  const canSend = hasMessage && !isSubmitting;
 
-  /* -----------------------------
+  /* --------------------------------
      AUTO RESIZE
-  ----------------------------- */
+  -------------------------------- */
   useEffect(() => {
     const textarea = textareaRef.current;
 
     if (!textarea) return;
 
     textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(
-      textarea.scrollHeight,
+
+    const nextHeight = Math.min(
+      Math.max(textarea.scrollHeight, 36),
       120
-    )}px`;
+    );
+
+    textarea.style.height = `${nextHeight}px`;
   }, [value]);
 
-  /* -----------------------------
-     CLOSE MODEL DROPDOWN
-  ----------------------------- */
+  /* --------------------------------
+     CLOSE DROPDOWN
+  -------------------------------- */
   useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+
       if (
         modelRef.current &&
-        !modelRef.current.contains(event.target as Node)
+        !modelRef.current.contains(target)
       ) {
         setModelOpen(false);
       }
-    };
+    }
 
     document.addEventListener(
       "mousedown",
@@ -95,25 +104,55 @@ export default function ChatInput({ onSend }: ChatInputProps) {
     };
   }, []);
 
-  /* -----------------------------
+  /* --------------------------------
+     ESC CLOSES MODEL MENU
+  -------------------------------- */
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setModelOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "keydown",
+      handleEscape
+    );
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, []);
+
+  /* --------------------------------
      MODEL SELECT
-  ----------------------------- */
-  const handleModelSelect = (model: Model) => {
+  -------------------------------- */
+  function handleModelSelect(model: Model) {
     if (model.locked) return;
 
     setSelectedModel(model.name);
     setModelOpen(false);
-  };
 
-  /* -----------------------------
+    textareaRef.current?.focus();
+  }
+
+  /* --------------------------------
      SEND
-  ----------------------------- */
-  const handleSubmit = async () => {
+  -------------------------------- */
+  async function handleSubmit() {
     const message = value.trim();
 
-    // Prevent empty messages and double submits.
-    if (!message || isSubmitting) return;
+    if (!message || isSubmitting) {
+      return;
+    }
 
+    /*
+     * Lock immediately so double-click / Enter spam
+     * cannot create duplicate messages.
+     */
     setIsSubmitting(true);
 
     try {
@@ -122,41 +161,59 @@ export default function ChatInput({ onSend }: ChatInputProps) {
         selectedModel
       );
 
-      // Clear only after parent accepts the message.
+      /*
+       * Parent accepted the message.
+       * Only now clear the input.
+       */
       if (accepted) {
         setValue("");
         setModelOpen(false);
+
+        requestAnimationFrame(() => {
+          textareaRef.current?.focus();
+        });
       }
     } catch (error) {
-      console.error("Failed to send message:", error);
+      console.error(
+        "ANVIX chat submission failed:",
+        error
+      );
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }
 
-  /* -----------------------------
+  /* --------------------------------
      KEYBOARD
-  ----------------------------- */
-  const handleKeyDown = (
+  -------------------------------- */
+  function handleKeyDown(
     event: React.KeyboardEvent<HTMLTextAreaElement>
-  ) => {
-    // Enter = send
-    // Shift + Enter = newline
+  ) {
+    /*
+     * Enter = send
+     * Shift + Enter = newline
+     */
     if (
       event.key === "Enter" &&
       !event.shiftKey
     ) {
       event.preventDefault();
-      void handleSubmit();
+
+      if (canSend) {
+        void handleSubmit();
+      }
     }
-  };
+  }
 
   return (
     <div className="relative mx-auto w-full">
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          void handleSubmit();
+
+          if (canSend) {
+            void handleSubmit();
+          }
         }}
       >
         <div
@@ -194,14 +251,18 @@ export default function ChatInput({ onSend }: ChatInputProps) {
               rounded-xl
               text-zinc-500
               transition-all
+              duration-200
+              hover:scale-105
               hover:bg-white/[0.06]
               hover:text-white
-              hover:scale-105
               active:scale-95
             "
             aria-label="Attach file"
           >
-            <Paperclip className="h-[18px] w-[18px]" />
+            <Paperclip
+              className="h-[18px] w-[18px]"
+              aria-hidden="true"
+            />
           </button>
 
           {/* TEXTAREA */}
@@ -211,15 +272,17 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             ref={textareaRef}
             value={value}
             onChange={(event) => {
-              setValue(event.target.value);
+              const nextValue = event.target.value;
 
-              // Close model menu when user starts typing.
-              if (event.target.value.trim()) {
+              setValue(nextValue);
+
+              if (nextValue.trim()) {
                 setModelOpen(false);
               }
             }}
             onKeyDown={handleKeyDown}
             rows={1}
+            disabled={isSubmitting}
             placeholder="Message ANVIX AI..."
             aria-label="Message ANVIX AI"
             className="
@@ -236,11 +299,13 @@ export default function ChatInput({ onSend }: ChatInputProps) {
               text-white
               outline-none
               placeholder:text-zinc-600
+              disabled:cursor-wait
+              disabled:opacity-80
             "
           />
 
           {/* MODEL SELECTOR */}
-          {!value.trim() && (
+          {!hasMessage && (
             <div
               ref={modelRef}
               className="relative mb-0.5 shrink-0"
@@ -272,11 +337,10 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                 </span>
 
                 <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform ${
-                    modelOpen
-                      ? "rotate-180"
-                      : ""
+                  className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                    modelOpen ? "rotate-180" : ""
                   }`}
+                  aria-hidden="true"
                 />
               </button>
 
@@ -297,6 +361,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                     shadow-[0_20px_60px_rgba(0,0,0,0.75)]
                   "
                   role="listbox"
+                  aria-label="Select AI model"
                 >
                   <div className="px-3 pb-2 pt-1">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
@@ -361,7 +426,10 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                               PRO
                             </span>
                           ) : selected ? (
-                            <Check className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+                            <Check
+                              className="h-4 w-4 shrink-0 text-[#D4AF37]"
+                              aria-hidden="true"
+                            />
                           ) : null}
                         </button>
                       );
@@ -372,16 +440,17 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             </div>
           )}
 
-          {/* SEND */}
+          {/* SEND BUTTON */}
           <button
             type="submit"
             disabled={!canSend}
+            aria-disabled={!canSend}
             aria-label={
               isSubmitting
                 ? "Sending message"
                 : "Send message"
             }
-            className="
+            className={`
               mb-0.5
               flex
               h-9
@@ -390,20 +459,19 @@ export default function ChatInput({ onSend }: ChatInputProps) {
               items-center
               justify-center
               rounded-full
-              bg-[#D4AF37]
-              text-black
               transition-all
               duration-200
-              hover:bg-[#E5C158]
-              hover:scale-105
-              active:scale-90
-              disabled:cursor-not-allowed
-              disabled:bg-zinc-700
-              disabled:text-zinc-500
-              disabled:hover:scale-100
-            "
+              ${
+                canSend
+                  ? "bg-[#D4AF37] text-black hover:scale-105 hover:bg-[#E5C158] active:scale-90"
+                  : "cursor-not-allowed bg-zinc-700 text-zinc-500"
+              }
+            `}
           >
-            <ArrowUp className="h-[17px] w-[17px]" />
+            <ArrowUp
+              className="h-[17px] w-[17px]"
+              aria-hidden="true"
+            />
           </button>
         </div>
       </form>
