@@ -13,11 +13,11 @@ import {
 
 const tiers = [
   {
-    name: "Starter",
+    name: "Launch",
     price: "$29",
     period: "/month",
     description:
-      "Everything you need to explore AI-powered product development.",
+      "Everything you need to turn ideas into intelligent products.",
     icon: Zap,
     features: [
       "Unlimited projects",
@@ -26,43 +26,43 @@ const tiers = [
       "Core AI models",
       "Community support",
     ],
-    button: "Start building",
+    button: "Start Creating",
     popular: false,
   },
   {
-    name: "Pro",
+    name: "Accelerate",
     price: "$99",
     period: "/month",
     description:
-      "For teams that want faster generation, deeper AI workflows, and collaboration.",
+      "For ambitious teams ready to move from ideas to execution at full speed.",
     icon: Sparkles,
     features: [
-      "Everything in Starter",
+      "Everything in Launch",
       "Advanced AI agents",
       "Priority generation",
       "Workspace collaboration",
       "Advanced analytics",
       "Higher usage limits",
     ],
-    button: "Upgrade to Pro",
+    button: "Unlock More Power",
     popular: true,
   },
   {
-    name: "Scale",
+    name: "Enterprise",
     price: "Custom",
     period: "",
     description:
-      "For organizations that need secure, high-volume AI execution at scale.",
+      "For organizations ready to deploy AI with enterprise-grade power and control.",
     icon: Crown,
     features: [
-      "Everything in Pro",
+      "Everything in Accelerate",
       "Dedicated onboarding",
       "Custom deployments",
       "Enterprise controls",
       "Priority support",
       "Custom usage limits",
     ],
-    button: "Talk to sales",
+    button: "Let's Talk",
     popular: false,
   },
 ];
@@ -70,11 +70,10 @@ const tiers = [
 export default function PricingPage() {
   return (
     <AppShell
-      title="Pricing"
-      description="Choose the plan that matches your team's shipping velocity."
+      title="Plans & Possibilities"
+      description="Choose the power that matches your ambition."
     >
       <div className="mx-auto w-full max-w-7xl space-y-10">
-
         {/* HERO */}
         <section className="relative overflow-hidden rounded-3xl border border-zinc-800/80 bg-[#111113] px-6 py-10 text-center sm:px-10">
           <div
@@ -87,34 +86,34 @@ export default function PricingPage() {
               <Sparkles className="h-3.5 w-3.5 text-[#D4AF37]" />
 
               <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#D4AF37]">
-                Simple & transparent
+                Straightforward. Powerful. Yours.
               </span>
             </div>
 
             <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-5xl">
-              Build faster with{" "}
+              Build Beyond Limits with{" "}
               <span className="text-[#D4AF37]">ANVIX AI</span>
             </h1>
 
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-base">
-              Start small, move faster, and scale when your product demands
-              it. Choose the workspace that fits your team.
+              Start with what you need. Scale with everything you can imagine.
+              One platform for every stage of your journey.
             </p>
 
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <div className="flex items-center gap-2 text-xs text-zinc-500">
                 <Check className="h-3.5 w-3.5 text-[#D4AF37]" />
-                No hidden fees
+                No surprises
               </div>
 
               <div className="flex items-center gap-2 text-xs text-zinc-500">
                 <Check className="h-3.5 w-3.5 text-[#D4AF37]" />
-                Flexible plans
+                Built to evolve
               </div>
 
               <div className="flex items-center gap-2 text-xs text-zinc-500">
                 <Check className="h-3.5 w-3.5 text-[#D4AF37]" />
-                Upgrade anytime
+                Scale when you're ready
               </div>
             </div>
           </div>
@@ -138,7 +137,7 @@ export default function PricingPage() {
                 {tier.popular && (
                   <div className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-[#D4AF37] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
                     <Sparkles className="h-3 w-3" />
-                    Most popular
+                    Most Chosen
                   </div>
                 )}
 
@@ -151,7 +150,6 @@ export default function PricingPage() {
                 )}
 
                 <div className="relative flex flex-1 flex-col p-6 sm:p-7">
-
                   {/* ICON */}
                   <div
                     className={`flex h-11 w-11 items-center justify-center rounded-xl border ${
@@ -213,7 +211,7 @@ export default function PricingPage() {
                   {/* FEATURES */}
                   <div>
                     <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
-                      What's included
+                      Everything Inside
                     </p>
 
                     <ul className="space-y-3.5">
@@ -259,20 +257,21 @@ export default function PricingPage() {
 
               <div>
                 <p className="text-sm font-medium text-zinc-200">
-                  Built for secure AI workflows
+                  Powerful AI. Enterprise-Ready.
                 </p>
 
                 <p className="mt-1 text-xs leading-5 text-zinc-500">
-                  Your workspace stays protected with enterprise-ready
-                  controls and secure infrastructure.
+                  Built with the security, control, and infrastructure your AI
+                  workflows deserve.
                 </p>
               </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2 rounded-full border border-zinc-800 bg-[#0D0D0F] px-3 py-2">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
               <span className="text-[11px] text-zinc-500">
-                All systems operational
+                ANVIX is online
               </span>
             </div>
           </div>
@@ -291,19 +290,19 @@ export default function PricingPage() {
             </div>
 
             <h2 className="mt-4 text-xl font-semibold text-white">
-              Not sure which plan is right for you?
+              Not sure where to begin?
             </h2>
 
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-500">
-              Start with Starter and upgrade whenever your workspace needs
-              more power.
+              Begin with what you need today. Unlock more when your ideas
+              demand it.
             </p>
 
             <button
               type="button"
               className="mt-6 inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-[#0D0D0F] px-5 py-3 text-sm font-medium text-zinc-300 transition hover:border-[#D4AF37]/30 hover:text-[#D4AF37]"
             >
-              Explore ANVIX
+              Discover ANVIX
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
