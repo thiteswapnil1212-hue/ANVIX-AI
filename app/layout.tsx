@@ -14,22 +14,29 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const siteUrl = "https://your-domain.com";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+
   title: {
-    default: "ANVIX AI",
+    default: "ANVIX AI — Build Beyond Limits",
     template: "%s | ANVIX AI",
   },
+
   description:
-    "ANVIX AI — an intelligent software engineering platform for building, exploring, and shipping AI-powered products.",
+    "ANVIX AI is an intelligent software engineering platform for building, exploring, and shipping AI-powered products faster.",
+
   applicationName: "ANVIX AI",
 
   keywords: [
     "ANVIX AI",
     "AI software engineering",
-    "AI development",
+    "AI development platform",
+    "AI coding platform",
+    "AI developer tools",
     "AI workspace",
-    "AI coding",
-    "developer tools",
+    "AI-powered development",
   ],
 
   authors: [
@@ -41,28 +48,48 @@ export const metadata: Metadata = {
   creator: "ANVIX AI",
   publisher: "ANVIX AI",
 
+  category: "technology",
+
+  alternates: {
+    canonical: "/",
+  },
+
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      {
+        url: "/favicon.ico",
+        type: "image/x-icon",
+      },
+    ],
   },
 
   openGraph: {
     type: "website",
-    title: "ANVIX AI",
+    locale: "en_US",
+    url: siteUrl,
+    title: "ANVIX AI — Build Beyond Limits",
     description:
-      "Build, explore, and ship AI-powered software with ANVIX AI.",
+      "Build, explore, and ship AI-powered software with an intelligent development platform designed for speed and scale.",
     siteName: "ANVIX AI",
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "ANVIX AI",
+    title: "ANVIX AI — Build Beyond Limits",
     description:
-      "An intelligent software engineering platform for building AI-powered products.",
+      "Build, explore, and ship AI-powered products faster with ANVIX AI.",
   },
 };
 
