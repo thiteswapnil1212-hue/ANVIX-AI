@@ -1,4 +1,4 @@
-export interface GenerationResult {
+﻿export interface GenerationResult {
   summary: string;
   response: string;
   confidence: string;
@@ -13,7 +13,9 @@ export interface GenerateProjectResponse {
   result: GenerationResult;
 }
 
-export async function generateProject(prompt: string): Promise<GenerateProjectResponse> {
+export async function generateProject(
+  prompt: string
+): Promise<GenerateProjectResponse> {
   const response = await fetch("/api/generate", {
     method: "POST",
     headers: {
