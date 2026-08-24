@@ -8,15 +8,20 @@ export function useGenerate() {
   const [response, setResponse] = useState("");
 
   async function generate(prompt: string) {
-    if (!prompt.trim()) return;
+    const trimmedPrompt = prompt.trim();
+
+    if (!trimmedPrompt) {
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const data = await generateProject(prompt);
+      const data = await generateProject(trimmedPrompt);
+
       setResponse(data.result.response);
     } catch (error) {
-      console.error(error);
+      console.error("Project generation failed:", error);
       setResponse("Something went wrong.");
     } finally {
       setLoading(false);
