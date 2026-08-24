@@ -59,13 +59,17 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* =========================================================
+   ANVIX DESIGN TOKENS
+   ========================================================= */
+
 :root {
   /* Brand */
   --gold: #d4af37;
   --gold-light: #f3d46b;
   --gold-dark: #9c7b17;
 
-  /* Base */
+  /* Background */
   --background: #080808;
   --foreground: #fafafa;
 
@@ -93,7 +97,7 @@
   --accent: #181818;
   --accent-foreground: #fafafa;
 
-  /* Destructive */
+  /* Status */
   --destructive: #ef4444;
 
   /* UI */
@@ -120,19 +124,32 @@
    ========================================================= */
 
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border outline-ring/50;
   }
 
   html {
     @apply font-sans;
     scroll-behavior: smooth;
+    background: var(--background);
+    color-scheme: dark;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+    min-height: 100dvh;
     font-family: var(--font-sans);
     overflow-x: hidden;
+    background:
+      radial-gradient(
+        circle at 50% -20%,
+        rgba(212, 175, 55, 0.035),
+        transparent 35%
+      ),
+      var(--background);
   }
 
   h1,
@@ -149,10 +166,30 @@
   textarea {
     font-family: var(--font-mono);
   }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  textarea {
+    resize: none;
+  }
+
+  img,
+  svg {
+    user-select: none;
+  }
 }
 
 /* =========================================================
-   TEXT SELECTION
+   SELECTION
    ========================================================= */
 
 ::selection {
@@ -161,8 +198,13 @@
 }
 
 /* =========================================================
-   SCROLLBAR
+   GLOBAL SCROLLBAR
    ========================================================= */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #303033 transparent;
+}
 
 ::-webkit-scrollbar {
   width: 7px;
@@ -170,39 +212,98 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #080808;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2a2a;
   border-radius: 999px;
+  background: #2a2a2d;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a3a;
+  background: #3a3a3e;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* =========================================================
+   CHAT SCROLLING
+   ========================================================= */
+
+.chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #303033 transparent;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #29292c;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3e;
 }
 
 /* =========================================================
    FORM ELEMENTS
    ========================================================= */
 
-button,
 input,
 textarea,
 select {
-  font: inherit;
+  color-scheme: dark;
 }
 
-textarea {
-  resize: none;
+input::placeholder,
+textarea::placeholder {
+  color: #52525b;
+  opacity: 1;
 }
 
-button {
-  -webkit-tap-highlight-color: transparent;
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fafafa;
+  -webkit-box-shadow: 0 0 0px 1000px #151518 inset;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 /* =========================================================
-   ACCESSIBILITY
+   CODE / MARKDOWN
+   ========================================================= */
+
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0.875rem;
+}
+
+code {
+  font-size: 0.9em;
+}
+
+pre code {
+  display: block;
+  min-width: max-content;
+}
+
+/* =========================================================
+   FOCUS
    ========================================================= */
 
 button:focus-visible,
@@ -211,6 +312,32 @@ textarea:focus-visible,
 select:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+
+/* =========================================================
+   INTERACTION
+   ========================================================= */
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* =========================================================
+   MOBILE VIEWPORT
+   ========================================================= */
+
+@media (max-width: 768px) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  body {
+    min-width: 320px;
+  }
 }
 
 /* =========================================================
@@ -226,5 +353,8 @@ select:focus-visible {
   *::before,
   *::after {
     scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
