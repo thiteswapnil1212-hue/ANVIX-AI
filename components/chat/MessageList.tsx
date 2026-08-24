@@ -6,7 +6,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowDown, MessageSquare } from "lucide-react";
+import {
+  ArrowDown,
+  MessageSquare,
+  Sparkles,
+} from "lucide-react";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -22,7 +26,7 @@ interface MessageListProps {
   isTyping?: boolean;
 }
 
-const BOTTOM_THRESHOLD = 120;
+const BOTTOM_THRESHOLD = 100;
 
 export default function MessageList({
   messages = [],
@@ -34,36 +38,43 @@ export default function MessageList({
   const [showScrollButton, setShowScrollButton] =
     useState(false);
 
-  const shouldAutoScrollRef = useRef(true);
-  const previousMessageCount = useRef(messages.length);
+  const autoScrollRef = useRef(true);
+  const previousMessageCountRef = useRef(messages.length);
+  const firstRenderRef = useRef(true);
 
   /* =====================================================
-     CHECK WHETHER USER IS NEAR BOTTOM
+     CHECK IF USER IS CLOSE TO BOTTOM
   ===================================================== */
+
   const isNearBottom = useCallback(() => {
     const container = scrollRef.current;
 
     if (!container) return true;
 
-    const distanceFromBottom =
+    const distance =
       container.scrollHeight -
       container.scrollTop -
       container.clientHeight;
 
-    return distanceFromBottom <= BOTTOM_THRESHOLD;
+    return distance <= BOTTOM_THRESHOLD;
   }, []);
 
   /* =====================================================
      SCROLL TO BOTTOM
   ===================================================== */
+
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
-      bottomRef.current?.scrollIntoView({
+      const container = scrollRef.current;
+
+      if (!container) return;
+
+      container.scrollTo({
+        top: container.scrollHeight,
         behavior,
-        block: "end",
       });
 
-      shouldAutoScrollRef.current = true;
+      autoScrollRef.current = true;
       setShowScrollButton(false);
     },
     []
@@ -72,48 +83,95 @@ export default function MessageList({
   /* =====================================================
      HANDLE USER SCROLL
   ===================================================== */
+
   const handleScroll = useCallback(() => {
     const nearBottom = isNearBottom();
 
-    shouldAutoScrollRef.current = nearBottom;
+    autoScrollRef.current = nearBottom;
     setShowScrollButton(!nearBottom);
   }, [isNearBottom]);
 
   /* =====================================================
-     AUTO SCROLL WHEN NEW CONTENT ARRIVES
+     NEW MESSAGE / TYPING AUTO SCROLL
   ===================================================== */
+
   useEffect(() => {
     const newMessageAdded =
-      messages.length > previousMessageCount.current;
+      messages.length >
+      previousMessageCountRef.current;
 
-    previousMessageCount.current = messages.length;
+    previousMessageCountRef.current =
+      messages.length;
 
-    if (
-      shouldAutoScrollRef.current &&
-      (newMessageAdded || isTyping)
-    ) {
+    /*
+      First render:
+      Always start at latest message.
+    */
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+
+      if (messages.length > 0) {
+        requestAnimationFrame(() => {
+          scrollToBottom("auto");
+        });
+      }
+
+      return;
+    }
+
+    /*
+      If user intentionally scrolled upward,
+      NEVER force them back down.
+    */
+    if (!autoScrollRef.current) return;
+
+    /*
+      New message or AI typing:
+      Keep conversation anchored at bottom.
+    */
+    if (newMessageAdded || isTyping) {
       requestAnimationFrame(() => {
         scrollToBottom("smooth");
       });
     }
-  }, [messages.length, isTyping, scrollToBottom]);
+  }, [
+    messages.length,
+    isTyping,
+    scrollToBottom,
+  ]);
 
   /* =====================================================
-     INITIAL POSITION
+     HANDLE WINDOW RESIZE
   ===================================================== */
+
   useEffect(() => {
-    if (messages.length > 0) {
+    const handleResize = () => {
+      if (!autoScrollRef.current) return;
+
       requestAnimationFrame(() => {
         scrollToBottom("auto");
       });
-    }
+    };
+
+    window.addEventListener(
+      "resize",
+      handleResize
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        handleResize
+      );
+    };
   }, [scrollToBottom]);
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden">
+    <div className="relative min-h-0 flex-1 overflow-hidden bg-[#09090B]">
       {/* =================================================
-          SCROLL CONTAINER
+          SCROLL AREA
       ================================================= */}
+
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -121,57 +179,144 @@ export default function MessageList({
           h-full
           overflow-y-auto
           overscroll-contain
+          scroll-smooth
           px-3
           py-6
           sm:px-5
-          lg:px-6
+          lg:px-8
+
           [scrollbar-color:#3f3f46_transparent]
           [scrollbar-width:thin]
+
+          [&::-webkit-scrollbar]:w-1.5
+          [&::-webkit-scrollbar-track]:bg-transparent
+          [&::-webkit-scrollbar-thumb]:rounded-full
+          [&::-webkit-scrollbar-thumb]:bg-zinc-800
+          hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
         "
       >
         {/* =================================================
             EMPTY STATE
         ================================================= */}
+
         {messages.length === 0 ? (
           <div className="flex min-h-full items-center justify-center">
             <div className="w-full max-w-xl px-4 text-center">
+              {/* Icon */}
               <div
                 className="
+                  relative
                   mx-auto
                   flex
-                  h-14
-                  w-14
+                  h-16
+                  w-16
                   items-center
                   justify-center
                   rounded-2xl
                   border
                   border-[#3F3F46]
                   bg-[#151518]
-                  shadow-[0_10px_40px_rgba(0,0,0,0.25)]
+                  shadow-[0_15px_50px_rgba(0,0,0,0.35)]
                 "
               >
-                <MessageSquare
-                  className="h-6 w-6 text-[#D4AF37]"
-                  strokeWidth={1.7}
+                <div
+                  className="
+                    absolute
+                    inset-0
+                    rounded-2xl
+                    bg-[#D4AF37]/[0.04]
+                    blur-xl
+                  "
+                />
+
+                <Sparkles
+                  className="
+                    relative
+                    h-6
+                    w-6
+                    text-[#D4AF37]
+                  "
+                  strokeWidth={1.6}
                 />
               </div>
 
-              <h2 className="mt-5 text-lg font-semibold text-white">
-                Start a conversation
+              <h2
+                className="
+                  mt-6
+                  text-xl
+                  font-semibold
+                  tracking-tight
+                  text-white
+                "
+              >
+                How can I help you?
               </h2>
 
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-500">
-                Ask ANVIX AI to explain something, build an
-                application, debug code, or help you explore
-                an idea.
+              <p
+                className="
+                  mx-auto
+                  mt-2
+                  max-w-md
+                  text-sm
+                  leading-6
+                  text-zinc-500
+                "
+              >
+                Ask ANVIX AI to build something,
+                explain a concept, debug your code,
+                or explore a new idea.
               </p>
+
+              {/* Suggestions */}
+              <div
+                className="
+                  mt-7
+                  flex
+                  flex-wrap
+                  justify-center
+                  gap-2
+                "
+              >
+                {[
+                  "Build a website",
+                  "Explain code",
+                  "Debug my project",
+                ].map((suggestion) => (
+                  <div
+                    key={suggestion}
+                    className="
+                      rounded-full
+                      border
+                      border-zinc-800
+                      bg-[#111113]
+                      px-3
+                      py-1.5
+                      text-xs
+                      text-zinc-500
+                    "
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
           /* =================================================
              MESSAGE STACK
           ================================================= */
-          <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
+
+          <div
+            className="
+              mx-auto
+              flex
+              w-full
+              max-w-4xl
+              flex-col
+              gap-6
+              pb-4
+            "
+          >
             {messages.map((message) => (
               <ChatMessageBubble
                 key={message.id}
@@ -181,10 +326,12 @@ export default function MessageList({
             ))}
 
             {/* =================================================
-                TYPING INDICATOR
+                AI TYPING
             ================================================= */}
+
             {isTyping && (
               <div className="flex items-start gap-3">
+                {/* AI icon */}
                 <div
                   className="
                     flex
@@ -199,26 +346,35 @@ export default function MessageList({
                     bg-[#151518]
                   "
                 >
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#D4AF37]" />
+                  <Sparkles
+                    className="
+                      h-3.5
+                      w-3.5
+                      text-[#D4AF37]
+                    "
+                  />
                 </div>
 
+                {/* Typing bubble */}
                 <div
                   className="
                     flex
                     items-center
-                    gap-1
+                    gap-1.5
                     rounded-2xl
                     rounded-tl-md
                     border
                     border-[#2F2F33]
                     bg-[#18181B]
                     px-4
-                    py-3
+                    py-3.5
+                    shadow-[0_5px_20px_rgba(0,0,0,0.15)]
                   "
+                  aria-label="ANVIX AI is thinking"
                 >
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
                 </div>
               </div>
             )}
@@ -226,7 +382,7 @@ export default function MessageList({
             {/* Bottom anchor */}
             <div
               ref={bottomRef}
-              className="h-px w-full"
+              className="h-1 w-full"
               aria-hidden="true"
             />
           </div>
@@ -234,21 +390,25 @@ export default function MessageList({
       </div>
 
       {/* =====================================================
-          JUMP TO LATEST
+          JUMP TO LATEST BUTTON
       ===================================================== */}
+
       {showScrollButton && messages.length > 0 && (
         <button
           type="button"
-          onClick={() => scrollToBottom("smooth")}
+          onClick={() =>
+            scrollToBottom("smooth")
+          }
           aria-label="Jump to latest message"
+          title="Jump to latest"
           className="
             absolute
-            bottom-5
+            bottom-6
             left-1/2
-            z-20
+            z-30
             flex
-            h-9
-            w-9
+            h-10
+            w-10
             -translate-x-1/2
             items-center
             justify-center
@@ -257,17 +417,21 @@ export default function MessageList({
             border-zinc-700
             bg-[#18181B]/95
             text-zinc-300
-            shadow-[0_10px_30px_rgba(0,0,0,0.45)]
+            shadow-[0_10px_35px_rgba(0,0,0,0.5)]
             backdrop-blur-xl
             transition-all
             duration-200
             hover:border-[#D4AF37]/40
             hover:bg-[#222225]
             hover:text-[#D4AF37]
-            active:scale-95
+            hover:shadow-[0_10px_35px_rgba(212,175,55,0.12)]
+            active:scale-90
           "
         >
-          <ArrowDown className="h-4 w-4" />
+          <ArrowDown
+            className="h-4 w-4"
+            strokeWidth={2}
+          />
         </button>
       )}
     </div>
