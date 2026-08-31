@@ -8,7 +8,6 @@ import {
 } from "react";
 import {
   ArrowDown,
-  MessageSquare,
   Sparkles,
 } from "lucide-react";
 import ChatMessageBubble from "./ChatMessageBubble";
@@ -171,7 +170,7 @@ export default function MessageList({
   }
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden bg-[#09090B]">
+    <div className="relative h-full min-h-0 w-full overflow-hidden bg-transparent">
       {/* =================================================
           SCROLL AREA
       ================================================= */}
