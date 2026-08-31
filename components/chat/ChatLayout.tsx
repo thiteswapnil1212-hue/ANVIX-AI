@@ -277,7 +277,7 @@ export default function ChatLayout() {
               min-h-0
               flex-1
               flex-col
-              overflow-visible
+              overflow-hidden
             "
           >
             {/* ================================
@@ -342,118 +342,103 @@ export default function ChatLayout() {
             </header>
 
             {/* ================================
-                CHAT SCROLL AREA
+                CHAT CONTENT AREA
             ================================= */}
-            <div
-              className="
-                min-h-0
-                flex-1
-                overflow-hidden
-              "
-            >
-              <div
-                className="
-                  mx-auto
-                  flex
-                  min-h-full
-                  w-full
-                  max-w-5xl
-                  flex-col
-                  items-center
-                  px-4
-                  py-10
-                  sm:px-6
-                  lg:px-8
-                "
-              >
-                {/* ================================
-                    WELCOME SCREEN
-                ================================= */}
-                {messages.length === 0 && !isTyping && (
-                  <>
-                    {/* Logo */}
-                    <div
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {messages.length === 0 && !isTyping ? (
+                <div
+                  className="
+                    mx-auto
+                    flex
+                    h-full
+                    min-h-0
+                    w-full
+                    max-w-5xl
+                    flex-col
+                    items-center
+                    justify-center
+                    px-4
+                    py-10
+                    text-center
+                    sm:px-6
+                    lg:px-8
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      h-16
+                      w-16
+                      items-center
+                      justify-center
+                      rounded-2xl
+                      border
+                      border-white/10
+                      bg-transparent
+                    "
+                  >
+                    <Image
+                      src="/logo.png"
+                      alt="ANVIX AI"
+                      width={64}
+                      height={64}
                       className="
-                        flex
-                        h-16
-                        w-16
-                        items-center
-                        justify-center
+                        h-full
+                        w-full
                         rounded-2xl
-                        border
-                        border-white/10
-                        bg-transparent
+                        object-contain
+                      "
+                      priority
+                    />
+                  </div>
+
+                  <div className="mt-8">
+                    <p
+                      className="
+                        text-sm
+                        font-semibold
+                        uppercase
+                        tracking-[0.4em]
+                        text-[#D4AF37]
                       "
                     >
-                      <Image
-                        src="/logo.png"
-                        alt="ANVIX AI"
-                        width={64}
-                        height={64}
-                        className="
-                          h-full
-                          w-full
-                          rounded-2xl
-                          object-contain
-                        "
-                        priority
-                      />
-                    </div>
+                      ANVIX AI
+                    </p>
 
-                    {/* Welcome Text */}
-                    <div className="mt-8 text-center">
-                      <p
-                        className="
-                          text-sm
-                          font-semibold
-                          uppercase
-                          tracking-[0.4em]
-                          text-[#D4AF37]
-                        "
-                      >
-                        ANVIX AI
-                      </p>
+                    <h1
+                      className="
+                        mt-5
+                        text-3xl
+                        font-semibold
+                        tracking-tight
+                        text-white
+                        sm:text-4xl
+                      "
+                    >
+                      How can I help you today?
+                    </h1>
 
-                      <h1
-                        className="
-                          mt-5
-                          text-3xl
-                          font-semibold
-                          tracking-tight
-                          text-white
-                          sm:text-4xl
-                        "
-                      >
-                        How can I help you today?
-                      </h1>
-
-                      <p
-                        className="
-                          mx-auto
-                          mt-3
-                          max-w-2xl
-                          text-sm
-                          leading-7
-                          text-zinc-400
-                          sm:text-base
-                        "
-                      >
-                        Built for thinking. Designed for building.
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {/* ================================
-                    MESSAGES
-                ================================= */}
-                <div className="mt-12 w-full">
-                  <MessageList
-                    messages={messages}
-                    isTyping={isTyping}
-                  />
+                    <p
+                      className="
+                        mx-auto
+                        mt-3
+                        max-w-2xl
+                        text-sm
+                        leading-7
+                        text-zinc-400
+                        sm:text-base
+                      "
+                    >
+                      Built for thinking. Designed for building.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <MessageList
+                  messages={messages}
+                  isTyping={isTyping}
+                />
+              )}
             </div>
 
             {/* ================================

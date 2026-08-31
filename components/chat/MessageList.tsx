@@ -170,7 +170,7 @@ export default function MessageList({
   }
 
   return (
-    <div className="relative h-full min-h-0 w-full overflow-hidden bg-transparent">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-transparent">
       {/* =================================================
           SCROLL AREA
       ================================================= */}
@@ -179,7 +179,8 @@ export default function MessageList({
         ref={scrollRef}
         onScroll={handleScroll}
         className="
-          h-full
+          min-h-0
+          flex-1
           overflow-y-auto
           overscroll-contain
           scroll-smooth
