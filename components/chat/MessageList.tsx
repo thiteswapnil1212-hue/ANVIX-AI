@@ -170,23 +170,22 @@ export default function MessageList({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-transparent">
-      {/* =================================================
-          SCROLL AREA
-      ================================================= */}
-
+    <div className="relative h-full min-h-0 w-full overflow-hidden bg-transparent">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="
+          h-full
           min-h-0
-          flex-1
           overflow-y-auto
           overscroll-contain
           scroll-smooth
           px-3
-          py-6
+          py-5
+          pb-7
           sm:px-5
+          sm:py-6
+          sm:pb-8
           lg:px-8
 
           [scrollbar-color:#3f3f46_transparent]
