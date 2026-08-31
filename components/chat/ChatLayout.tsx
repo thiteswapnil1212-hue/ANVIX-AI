@@ -111,7 +111,7 @@ export default function ChatLayout() {
 
   return (
     <AppShell>
-      <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#09090B]">
+      <div className="flex h-full min-h-0 w-full overflow-hidden bg-transparent">
         {/* ================================
             DESKTOP SIDEBAR
         ================================= */}
@@ -348,7 +348,7 @@ export default function ChatLayout() {
               className="
                 min-h-0
                 flex-1
-                overflow-y-auto
+                overflow-hidden
               "
             >
               <div
