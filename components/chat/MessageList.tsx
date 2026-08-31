@@ -166,6 +166,10 @@ export default function MessageList({
     };
   }, [scrollToBottom]);
 
+  if (messages.length === 0 && !isTyping) {
+    return null;
+  }
+
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-[#09090B]">
       {/* =================================================
