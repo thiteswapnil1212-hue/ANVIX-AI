@@ -85,8 +85,8 @@ export default function ChatMessageBubble({
           min-w-0
           ${
             isAssistant
-              ? "max-w-[88%] sm:max-w-[78%]"
-              : "max-w-[85%] sm:max-w-[72%]"
+              ? "max-w-[92%] sm:max-w-[78%]"
+              : "max-w-[88%] sm:max-w-[72%]"
           }
         `}
       >
@@ -121,11 +121,13 @@ export default function ChatMessageBubble({
             relative
             rounded-2xl
             border
-            px-4
-            py-3.5
+            px-3
+            py-2.5
             shadow-[0_6px_25px_rgba(0,0,0,0.12)]
             transition-all
             duration-200
+            sm:px-4
+            sm:py-3.5
             ${
               isAssistant
                 ? `
@@ -150,9 +152,11 @@ export default function ChatMessageBubble({
             className="
               whitespace-pre-wrap
               break-words
-              text-[14px]
-              leading-7
+              text-[13px]
+              leading-6
               [overflow-wrap:anywhere]
+              sm:text-[14px]
+              sm:leading-7
             "
           >
             {content}
