@@ -98,6 +98,12 @@ export default function RootLayout({
       className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        <meta
+          name="google-site-verification"
+          content="LcyAJt9BmZijUliyiotG_GuaVDetCm_KdFAMkJ9P2hA"
+        />
+      </head>
       <body className="min-h-screen bg-[#090909] font-sans text-white antialiased">
         <PwaRegister />
         {children}
