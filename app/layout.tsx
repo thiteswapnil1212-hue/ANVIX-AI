@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -14,21 +15,19 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const siteUrl = "https://your-domain.com";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://anvix-ai.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-
   title: {
     default: "ANVIX AI — Build Beyond Limits",
     template: "%s | ANVIX AI",
   },
-
   description:
-    "ANVIX AI is an intelligent software engineering platform for building, exploring, and shipping AI-powered products faster.",
-
+    "ANVIX AI is an intelligent AI assistant and software engineering platform for building, exploring, and shipping AI-powered products faster.",
   applicationName: "ANVIX AI",
-
+  manifest: "/manifest.webmanifest",
   keywords: [
     "ANVIX AI",
     "AI software engineering",
@@ -38,22 +37,13 @@ export const metadata: Metadata = {
     "AI workspace",
     "AI-powered development",
   ],
-
-  authors: [
-    {
-      name: "ANVIX AI",
-    },
-  ],
-
+  authors: [{ name: "ANVIX AI" }],
   creator: "ANVIX AI",
   publisher: "ANVIX AI",
-
   category: "technology",
-
   alternates: {
     canonical: "/",
   },
-
   robots: {
     index: true,
     follow: true,
@@ -65,16 +55,14 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
-
   icons: {
     icon: [
-      {
-        url: "/favicon.png",
-        type: "image/png",
-      },
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/icon-192.png", type: "image/png" },
+      { url: "/icon-512.png", type: "image/png" },
     ],
+    apple: [{ url: "/icon-192.png", type: "image/png" }],
   },
-
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -84,7 +72,6 @@ export const metadata: Metadata = {
       "Build, explore, and ship AI-powered software with an intelligent development platform designed for speed and scale.",
     siteName: "ANVIX AI",
   },
-
   twitter: {
     card: "summary_large_image",
     title: "ANVIX AI — Build Beyond Limits",
@@ -112,6 +99,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-[#090909] font-sans text-white antialiased">
+        <PwaRegister />
         {children}
       </body>
     </html>
