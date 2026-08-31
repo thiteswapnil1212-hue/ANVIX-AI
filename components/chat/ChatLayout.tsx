@@ -112,9 +112,6 @@ export default function ChatLayout() {
   return (
     <AppShell>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-transparent">
-        {/* ================================
-            DESKTOP SIDEBAR
-        ================================= */}
         <aside
           className="
             hidden
@@ -132,18 +129,13 @@ export default function ChatLayout() {
           <ChatSidebar />
         </aside>
 
-        {/* ================================
-            MOBILE SIDEBAR
-        ================================= */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
-            {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/25"
               onClick={() => setSidebarOpen(false)}
             />
 
-            {/* Sidebar */}
             <aside
               className="
                 relative
@@ -158,7 +150,6 @@ export default function ChatLayout() {
                 bg-[#18181B]
               "
             >
-              {/* Mobile Sidebar Header */}
               <div
                 className="
                   flex
@@ -220,13 +211,11 @@ export default function ChatLayout() {
           </div>
         )}
 
-        {/* ================================
-            MAIN CHAT
-        ================================= */}
         <main
           className="
             relative
             flex
+            h-full
             min-h-0
             min-w-0
             flex-1
@@ -235,7 +224,6 @@ export default function ChatLayout() {
             bg-transparent
           "
         >
-          {/* Background Video */}
           <video
             autoPlay
             loop
@@ -252,37 +240,12 @@ export default function ChatLayout() {
               opacity-50
             "
           >
-            <source
-              src="/anvix-bg.mp4"
-              type="video/mp4"
-            />
+            <source src="/anvix-bg.mp4" type="video/mp4" />
           </video>
 
-          {/* Background Overlay */}
-          <div
-            className="
-              pointer-events-none
-              absolute
-              inset-0
-              bg-black/10
-            "
-          />
+          <div className="pointer-events-none absolute inset-0 bg-black/10" />
 
-          {/* Chat Content */}
-          <div
-            className="
-              relative
-              z-10
-              flex
-              min-h-0
-              flex-1
-              flex-col
-              overflow-hidden
-            "
-          >
-            {/* ================================
-                MOBILE HEADER
-            ================================= */}
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
             <header
               className="
                 flex
@@ -341,9 +304,6 @@ export default function ChatLayout() {
               </button>
             </header>
 
-            {/* ================================
-                CHAT CONTENT AREA
-            ================================= */}
             <div className="min-h-0 flex-1 overflow-hidden">
               {messages.length === 0 && !isTyping ? (
                 <div
@@ -351,7 +311,6 @@ export default function ChatLayout() {
                     mx-auto
                     flex
                     h-full
-                    min-h-0
                     w-full
                     max-w-5xl
                     flex-col
@@ -382,12 +341,7 @@ export default function ChatLayout() {
                       alt="ANVIX AI"
                       width={64}
                       height={64}
-                      className="
-                        h-full
-                        w-full
-                        rounded-2xl
-                        object-contain
-                      "
+                      className="h-full w-full rounded-2xl object-contain"
                       priority
                     />
                   </div>
@@ -434,16 +388,10 @@ export default function ChatLayout() {
                   </div>
                 </div>
               ) : (
-                <MessageList
-                  messages={messages}
-                  isTyping={isTyping}
-                />
+                <MessageList messages={messages} isTyping={isTyping} />
               )}
             </div>
 
-            {/* ================================
-                COMPOSER
-            ================================= */}
             <div
               className="
                 relative
@@ -451,26 +399,24 @@ export default function ChatLayout() {
                 shrink-0
                 border-t
                 border-white/[0.08]
-                bg-transparent
-                px-4
-                py-4
+                bg-[#09090B]/70
+                px-3
+                pb-[max(env(safe-area-inset-bottom),1.1rem)]
+                pt-4
+                backdrop-blur-xl
                 sm:px-6
+                sm:py-4
               "
             >
-              <div
-                className="
-                  mx-auto
-                  w-full
-                  max-w-3xl
-                "
-              >
+              <div className="mx-auto w-full max-w-3xl">
                 <ChatInput onSend={handleSend} />
 
                 <p
                   className="
-                    mt-2
+                    mt-3
                     text-center
                     text-[11px]
+                    leading-5
                     text-zinc-500
                   "
                 >
@@ -484,3 +430,4 @@ export default function ChatLayout() {
     </AppShell>
   );
 }
+
