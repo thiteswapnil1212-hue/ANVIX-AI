@@ -28,10 +28,10 @@ export default function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleSend = (
+  const handleSend = async (
     prompt: string,
     model: string
-  ) => {
+  ): Promise<boolean> => {
     const trimmedPrompt = prompt.trim();
 
     if (!trimmedPrompt || isTyping) {
@@ -48,15 +48,6 @@ export default function ChatLayout() {
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    void generateResponse(trimmedPrompt, model);
-
-    return true;
-  };
-
-  const generateResponse = async (
-    prompt: string,
-    model: string
-  ) => {
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -83,9 +74,7 @@ export default function ChatLayout() {
         );
       }
 
-      const aiResponse =
-        data.response ||
-        data.result?.response;
+      const aiResponse = data.response?.trim();
 
       if (!aiResponse) {
         throw new Error(
@@ -103,6 +92,7 @@ export default function ChatLayout() {
         ...prev,
         aiMessage,
       ]);
+      return true;
     } catch (error) {
       console.error("Chat error:", error);
 
@@ -119,6 +109,7 @@ export default function ChatLayout() {
         ...prev,
         errorMessage,
       ]);
+      return false;
     } finally {
       setIsTyping(false);
     }
