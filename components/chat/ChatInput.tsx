@@ -222,22 +222,24 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             flex
             w-full
             items-end
-            gap-2
+            gap-2.5
             rounded-[18px]
             border
             border-[#3F3F46]
-            bg-[#151518]/80
+            bg-[#151518]/85
             px-3
-            py-2.5
+            py-3
             shadow-[0_10px_40px_rgba(0,0,0,0.25)]
             backdrop-blur-xl
             transition-all
             duration-300
             focus-within:border-[#D4AF37]/50
             focus-within:shadow-[0_0_30px_rgba(212,175,55,0.08)]
+            sm:gap-3
+            sm:px-3.5
+            sm:py-3.5
           "
         >
-          {/* ATTACHMENT */}
           <button
             type="button"
             className="
@@ -265,7 +267,6 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             />
           </button>
 
-          {/* TEXTAREA */}
           <textarea
             id="chat-message"
             name="message"
@@ -304,7 +305,6 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             "
           />
 
-          {/* MODEL SELECTOR */}
           {!hasMessage && (
             <div
               ref={modelRef}
@@ -318,26 +318,30 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                 className="
                   flex
                   h-9
+                  max-w-[120px]
                   items-center
-                  gap-1.5
+                  gap-1
                   rounded-xl
-                  px-2.5
-                  text-xs
+                  px-2
+                  text-[11px]
                   font-medium
                   text-zinc-300
                   transition-all
                   hover:bg-white/[0.06]
                   hover:text-white
+                  sm:gap-1.5
+                  sm:px-2.5
+                  sm:text-xs
                 "
                 aria-haspopup="listbox"
                 aria-expanded={modelOpen}
               >
-                <span className="whitespace-nowrap">
+                <span className="truncate whitespace-nowrap">
                   {selectedModel}
                 </span>
 
                 <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                  className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
                     modelOpen ? "rotate-180" : ""
                   }`}
                   aria-hidden="true"
@@ -351,7 +355,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                     bottom-[46px]
                     right-0
                     z-[9999]
-                    w-[280px]
+                    w-[240px]
                     overflow-hidden
                     rounded-2xl
                     border
@@ -359,6 +363,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                     bg-[#18181B]
                     p-2
                     shadow-[0_20px_60px_rgba(0,0,0,0.75)]
+                    sm:w-[280px]
                   "
                   role="listbox"
                   aria-label="Select AI model"
@@ -440,7 +445,6 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             </div>
           )}
 
-          {/* SEND BUTTON */}
           <button
             type="submit"
             disabled={!canSend}
