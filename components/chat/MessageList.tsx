@@ -201,82 +201,25 @@ export default function MessageList({
 
         {messages.length === 0 ? (
           <div className="flex min-h-full items-center justify-center">
-            <div className="w-full max-w-xl px-4 text-center">
-              {/* Icon */}
-              <div
-                className="
-                  relative
-                  mx-auto
-                  flex
-                  h-16
-                  w-16
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  border
-                  border-[#3F3F46]
-                  bg-[#151518]
-                  shadow-[0_15px_50px_rgba(0,0,0,0.35)]
-                "
-              >
-                <div
-                  className="
-                    absolute
-                    inset-0
-                    rounded-2xl
-                    bg-[#D4AF37]/[0.04]
-                    blur-xl
-                  "
-                />
-
+            <div className="w-full max-w-2xl px-4 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-transparent">
                 <Sparkles
-                  className="
-                    relative
-                    h-6
-                    w-6
-                    text-[#D4AF37]
-                  "
+                  className="h-6 w-6 text-[#D4AF37]"
                   strokeWidth={1.6}
                 />
               </div>
 
-              <h2
-                className="
-                  mt-6
-                  text-xl
-                  font-semibold
-                  tracking-tight
-                  text-white
-                "
-              >
+              <h2 className="mt-6 text-xl font-semibold tracking-tight text-white">
                 How can I help you?
               </h2>
 
-              <p
-                className="
-                  mx-auto
-                  mt-2
-                  max-w-md
-                  text-sm
-                  leading-6
-                  text-zinc-500
-                "
-              >
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-500">
                 Ask ANVIX AI to build something,
                 explain a concept, debug your code,
                 or explore a new idea.
               </p>
 
-              {/* Suggestions */}
-              <div
-                className="
-                  mt-7
-                  flex
-                  flex-wrap
-                  justify-center
-                  gap-2
-                "
-              >
+              <div className="mt-7 flex flex-wrap justify-center gap-2">
                 {[
                   "Build a website",
                   "Explain code",
@@ -284,16 +227,7 @@ export default function MessageList({
                 ].map((suggestion) => (
                   <div
                     key={suggestion}
-                    className="
-                      rounded-full
-                      border
-                      border-zinc-800
-                      bg-[#111113]
-                      px-3
-                      py-1.5
-                      text-xs
-                      text-zinc-500
-                    "
+                    className="rounded-full border border-zinc-800 bg-transparent px-3 py-1.5 text-xs text-zinc-500"
                   >
                     {suggestion}
                   </div>
