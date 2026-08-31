@@ -77,9 +77,7 @@ export default function ChatLayout() {
       const aiResponse = data.response?.trim();
 
       if (!aiResponse) {
-        throw new Error(
-          "AI returned an empty response."
-        );
+        throw new Error("AI returned an empty response.");
       }
 
       const aiMessage: Message = {
@@ -88,10 +86,8 @@ export default function ChatLayout() {
         content: aiResponse,
       };
 
-      setMessages((prev) => [
-        ...prev,
-        aiMessage,
-      ]);
+      setMessages((prev) => [...prev, aiMessage]);
+
       return true;
     } catch (error) {
       console.error("Chat error:", error);
@@ -105,10 +101,8 @@ export default function ChatLayout() {
             : "Sorry, something went wrong while generating the response.",
       };
 
-      setMessages((prev) => [
-        ...prev,
-        errorMessage,
-      ]);
+      setMessages((prev) => [...prev, errorMessage]);
+
       return false;
     } finally {
       setIsTyping(false);
@@ -118,7 +112,6 @@ export default function ChatLayout() {
   return (
     <AppShell>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#09090B]">
-
         {/* ================================
             DESKTOP SIDEBAR
         ================================= */}
@@ -144,7 +137,6 @@ export default function ChatLayout() {
         ================================= */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
-
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-black/25"
@@ -166,7 +158,6 @@ export default function ChatLayout() {
                 bg-[#18181B]
               "
             >
-
               {/* Mobile Sidebar Header */}
               <div
                 className="
@@ -202,9 +193,7 @@ export default function ChatLayout() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setSidebarOpen(false)
-                  }
+                  onClick={() => setSidebarOpen(false)}
                   className="
                     flex
                     h-9
@@ -243,10 +232,9 @@ export default function ChatLayout() {
             flex-1
             flex-col
             overflow-hidden
-            bg-[#09090B]
+            bg-transparent
           "
         >
-
           {/* Background Video */}
           <video
             autoPlay
@@ -270,13 +258,13 @@ export default function ChatLayout() {
             />
           </video>
 
-          {/* Overlay */}
+          {/* Background Overlay */}
           <div
             className="
               pointer-events-none
               absolute
               inset-0
-              bg-[#09090B]/15
+              bg-black/10
             "
           />
 
@@ -292,7 +280,6 @@ export default function ChatLayout() {
               overflow-visible
             "
           >
-
             {/* ================================
                 MOBILE HEADER
             ================================= */}
@@ -305,7 +292,7 @@ export default function ChatLayout() {
                 justify-between
                 border-b
                 border-[#3F3F46]
-                bg-[#09090B]/25
+                bg-transparent
                 px-4
                 backdrop-blur-sm
                 md:hidden
@@ -333,9 +320,7 @@ export default function ChatLayout() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setSidebarOpen(true)
-                }
+                onClick={() => setSidebarOpen(true)}
                 className="
                   flex
                   h-10
@@ -345,6 +330,7 @@ export default function ChatLayout() {
                   rounded-xl
                   border
                   border-zinc-700
+                  bg-transparent
                   text-zinc-400
                   transition
                   hover:text-white
@@ -380,12 +366,12 @@ export default function ChatLayout() {
                   lg:px-8
                 "
               >
-
                 {/* ================================
                     WELCOME SCREEN
                 ================================= */}
                 {messages.length === 0 && !isTyping && (
                   <>
+                    {/* Logo */}
                     <div
                       className="
                         flex
@@ -395,8 +381,8 @@ export default function ChatLayout() {
                         justify-center
                         rounded-2xl
                         border
-                        border-[#3F3F46]
-                        bg-[#18181B]/25
+                        border-white/10
+                        bg-transparent
                       "
                     >
                       <Image
@@ -414,6 +400,7 @@ export default function ChatLayout() {
                       />
                     </div>
 
+                    {/* Welcome Text */}
                     <div className="mt-8 text-center">
                       <p
                         className="
@@ -466,7 +453,6 @@ export default function ChatLayout() {
                     isTyping={isTyping}
                   />
                 </div>
-
               </div>
             </div>
 
@@ -493,9 +479,7 @@ export default function ChatLayout() {
                   max-w-3xl
                 "
               >
-                <ChatInput
-                  onSend={handleSend}
-                />
+                <ChatInput onSend={handleSend} />
 
                 <p
                   className="
@@ -509,7 +493,6 @@ export default function ChatLayout() {
                 </p>
               </div>
             </div>
-
           </div>
         </main>
       </div>
