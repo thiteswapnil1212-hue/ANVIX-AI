@@ -50,11 +50,6 @@ export default function ChatInput({ onSend }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
 
-  /*
-   * IMPORTANT:
-   * The button is enabled whenever the user has entered
-   * meaningful text and we are not currently submitting.
-   */
   const hasMessage = value.trim().length > 0;
   const canSend = hasMessage && !isSubmitting;
 
@@ -149,10 +144,6 @@ export default function ChatInput({ onSend }: ChatInputProps) {
       return;
     }
 
-    /*
-     * Lock immediately so double-click / Enter spam
-     * cannot create duplicate messages.
-     */
     setIsSubmitting(true);
 
     try {
@@ -161,10 +152,6 @@ export default function ChatInput({ onSend }: ChatInputProps) {
         selectedModel
       );
 
-      /*
-       * Parent accepted the message.
-       * Only now clear the input.
-       */
       if (accepted) {
         setValue("");
         setModelOpen(false);
@@ -189,10 +176,6 @@ export default function ChatInput({ onSend }: ChatInputProps) {
   function handleKeyDown(
     event: React.KeyboardEvent<HTMLTextAreaElement>
   ) {
-    /*
-     * Enter = send
-     * Shift + Enter = newline
-     */
     if (
       event.key === "Enter" &&
       !event.shiftKey
@@ -222,51 +205,52 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             flex
             w-full
             items-end
-            gap-2.5
-            rounded-[18px]
+            gap-2
+            rounded-[17px]
             border
-            border-[#3F3F46]
-            bg-[#151518]/85
-            px-3
-            py-3
-            shadow-[0_10px_40px_rgba(0,0,0,0.25)]
-            backdrop-blur-xl
-            transition-all
-            duration-300
-            focus-within:border-[#D4AF37]/50
-            focus-within:shadow-[0_0_30px_rgba(212,175,55,0.08)]
-            sm:gap-3
-            sm:px-3.5
-            sm:py-3.5
+            border-zinc-800
+            bg-[#151518]
+            px-2.5
+            py-2.5
+            shadow-[0_8px_30px_rgba(0,0,0,0.22)]
+            transition-[border-color,box-shadow]
+            duration-200
+            focus-within:border-zinc-700
+            focus-within:shadow-[0_10px_34px_rgba(0,0,0,0.28)]
+            sm:gap-2.5
+            sm:px-3
+            sm:py-3
           "
         >
+          {/* Attach */}
           <button
             type="button"
             className="
               mb-0.5
               flex
-              h-9
-              w-9
+              h-8
+              w-8
               shrink-0
               items-center
               justify-center
-              rounded-xl
+              rounded-lg
               text-zinc-500
-              transition-all
-              duration-200
-              hover:scale-105
-              hover:bg-white/[0.06]
-              hover:text-white
-              active:scale-95
+              transition-colors
+              duration-150
+              hover:bg-zinc-800/70
+              hover:text-zinc-300
+              active:bg-zinc-800
             "
             aria-label="Attach file"
           >
             <Paperclip
-              className="h-[18px] w-[18px]"
+              className="h-[17px] w-[17px]"
+              strokeWidth={1.8}
               aria-hidden="true"
             />
           </button>
 
+          {/* Message */}
           <textarea
             id="chat-message"
             name="message"
@@ -294,17 +278,19 @@ export default function ChatInput({ onSend }: ChatInputProps) {
               resize-none
               overflow-y-auto
               bg-transparent
+              px-0.5
               py-1.5
               text-[15px]
               leading-6
-              text-white
+              text-zinc-100
               outline-none
               placeholder:text-zinc-600
               disabled:cursor-wait
-              disabled:opacity-80
+              disabled:opacity-70
             "
           />
 
+          {/* Model selector */}
           {!hasMessage && (
             <div
               ref={modelRef}
@@ -317,20 +303,19 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                 }
                 className="
                   flex
-                  h-9
-                  max-w-[120px]
+                  h-8
+                  max-w-[150px]
                   items-center
-                  gap-1
-                  rounded-xl
+                  gap-1.5
+                  rounded-lg
                   px-2
                   text-[11px]
                   font-medium
-                  text-zinc-300
-                  transition-all
-                  hover:bg-white/[0.06]
-                  hover:text-white
-                  sm:gap-1.5
-                  sm:px-2.5
+                  text-zinc-400
+                  transition-colors
+                  duration-150
+                  hover:bg-zinc-800/70
+                  hover:text-zinc-200
                   sm:text-xs
                 "
                 aria-haspopup="listbox"
@@ -341,44 +326,47 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                 </span>
 
                 <ChevronDown
-                  className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
-                    modelOpen ? "rotate-180" : ""
-                  }`}
+                  className={`
+                    h-3.5
+                    w-3.5
+                    shrink-0
+                    text-zinc-600
+                    transition-transform
+                    duration-150
+                    ${modelOpen ? "rotate-180" : ""}
+                  `}
                   aria-hidden="true"
                 />
               </button>
 
+              {/* Model dropdown */}
               {modelOpen && (
                 <div
                   className="
                     absolute
-                    bottom-[46px]
+                    bottom-[43px]
                     right-0
                     z-[9999]
-                    w-[240px]
+                    w-[250px]
                     overflow-hidden
-                    rounded-2xl
+                    rounded-xl
                     border
                     border-zinc-800
                     bg-[#18181B]
-                    p-2
-                    shadow-[0_20px_60px_rgba(0,0,0,0.75)]
-                    sm:w-[280px]
+                    p-1.5
+                    shadow-[0_16px_45px_rgba(0,0,0,0.55)]
+                    sm:w-[270px]
                   "
                   role="listbox"
                   aria-label="Select AI model"
                 >
-                  <div className="px-3 pb-2 pt-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-                      Select model
-                    </p>
-
-                    <p className="mt-1 text-xs text-zinc-600">
-                      Choose your AI model
+                  <div className="px-2.5 pb-2 pt-2">
+                    <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-zinc-600">
+                      Model
                     </p>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {models.map((model) => {
                       const selected =
                         selectedModel === model.name;
@@ -397,25 +385,31 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                             items-center
                             justify-between
                             gap-3
-                            rounded-xl
-                            px-3
+                            rounded-lg
+                            px-2.5
                             py-2.5
                             text-left
-                            transition
+                            transition-colors
+                            duration-150
                             ${
                               model.locked
-                                ? "cursor-not-allowed opacity-60"
-                                : "hover:bg-white/[0.06]"
+                                ? "cursor-not-allowed opacity-45"
+                                : "hover:bg-zinc-800/70"
                             }
                           `}
                         >
                           <div className="min-w-0">
                             <p
-                              className={`truncate text-sm font-medium ${
-                                selected
-                                  ? "text-white"
-                                  : "text-zinc-200"
-                              }`}
+                              className={`
+                                truncate
+                                text-sm
+                                font-medium
+                                ${
+                                  selected
+                                    ? "text-zinc-100"
+                                    : "text-zinc-300"
+                                }
+                              `}
                             >
                               {model.name}
                             </p>
@@ -426,13 +420,31 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                           </div>
 
                           {model.locked ? (
-                            <span className="flex shrink-0 items-center gap-1 rounded-md border border-zinc-700 px-1.5 py-1 text-[9px] font-bold uppercase tracking-wide text-zinc-500">
+                            <span
+                              className="
+                                flex
+                                shrink-0
+                                items-center
+                                gap-1
+                                rounded-md
+                                border
+                                border-zinc-800
+                                px-1.5
+                                py-1
+                                text-[9px]
+                                font-semibold
+                                uppercase
+                                tracking-wide
+                                text-zinc-600
+                              "
+                            >
                               <Lock className="h-2.5 w-2.5" />
                               PRO
                             </span>
                           ) : selected ? (
                             <Check
                               className="h-4 w-4 shrink-0 text-[#D4AF37]"
+                              strokeWidth={2}
                               aria-hidden="true"
                             />
                           ) : null}
@@ -445,6 +457,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             </div>
           )}
 
+          {/* Send */}
           <button
             type="submit"
             disabled={!canSend}
@@ -457,23 +470,24 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             className={`
               mb-0.5
               flex
-              h-9
-              w-9
+              h-8
+              w-8
               shrink-0
               items-center
               justify-center
               rounded-full
               transition-all
-              duration-200
+              duration-150
               ${
                 canSend
-                  ? "bg-[#D4AF37] text-black hover:scale-105 hover:bg-[#E5C158] active:scale-90"
-                  : "cursor-not-allowed bg-zinc-700 text-zinc-500"
+                  ? "bg-[#D4AF37] text-black hover:bg-[#E0BB4C] active:scale-95"
+                  : "cursor-not-allowed bg-zinc-800 text-zinc-600"
               }
             `}
           >
             <ArrowUp
-              className="h-[17px] w-[17px]"
+              className="h-[16px] w-[16px]"
+              strokeWidth={2.2}
               aria-hidden="true"
             />
           </button>
