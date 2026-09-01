@@ -79,8 +79,11 @@ export default function Navbar() {
           z-50
           w-full
           border-b
-          border-white/[0.08]
-          bg-transparent
+          border-white/[0.10]
+          bg-black/[0.52]
+          backdrop-blur-xl
+          backdrop-saturate-150
+          shadow-[0_8px_30px_rgba(0,0,0,0.18)]
         "
       >
         <div
@@ -117,11 +120,25 @@ export default function Navbar() {
               alt="ANVIX AI Logo"
               width={40}
               height={40}
-              className="h-9 w-9 object-contain sm:h-10 sm:w-10"
+              className="
+                h-9
+                w-9
+                object-contain
+                sm:h-10
+                sm:w-10
+              "
               priority
             />
 
-            <span className="text-[16px] font-semibold tracking-tight text-white sm:text-[17px]">
+            <span
+              className="
+                text-[16px]
+                font-semibold
+                tracking-tight
+                text-white
+                sm:text-[17px]
+              "
+            >
               ANVIX AI
             </span>
           </Link>
@@ -146,8 +163,9 @@ export default function Navbar() {
                 rounded-xl
                 border
                 border-white/[0.08]
-                bg-transparent
+                bg-white/[0.025]
                 p-1
+                shadow-[0_4px_18px_rgba(0,0,0,0.12)]
               "
             >
               {links.map((link) => {
@@ -167,12 +185,12 @@ export default function Navbar() {
                       py-2
                       text-[13px]
                       font-medium
-                      transition-colors
+                      transition-all
                       duration-200
                       ${
                         active
-                          ? "bg-white/[0.08] text-white"
-                          : "text-zinc-400 hover:bg-white/[0.035] hover:text-white"
+                          ? "bg-white/[0.09] text-white"
+                          : "text-zinc-400 hover:bg-white/[0.045] hover:text-white"
                       }
                     `}
                   >
@@ -201,6 +219,11 @@ export default function Navbar() {
 
           <Link
             href="/settings"
+            aria-current={
+              pathname === "/settings"
+                ? "page"
+                : undefined
+            }
             className={`
               hidden
               items-center
@@ -211,13 +234,13 @@ export default function Navbar() {
               py-2
               text-[13px]
               font-medium
-              transition-colors
+              transition-all
               duration-200
               md:flex
               ${
                 pathname === "/settings"
-                  ? "border-white/[0.14] bg-white/[0.07] text-white"
-                  : "border-white/[0.08] bg-transparent text-zinc-400 hover:bg-white/[0.035] hover:text-white"
+                  ? "border-white/[0.16] bg-white/[0.08] text-white"
+                  : "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white"
               }
             `}
           >
@@ -229,7 +252,7 @@ export default function Navbar() {
             <span>Settings</span>
           </Link>
 
-          {/* Mobile Button */}
+          {/* Mobile Menu Button */}
 
           <button
             type="button"
@@ -245,11 +268,16 @@ export default function Navbar() {
               rounded-lg
               border
               border-white/[0.10]
-              bg-white/[0.025]
+              bg-white/[0.035]
               text-zinc-300
-              transition-colors
-              hover:bg-white/[0.06]
+              transition-all
+              duration-200
+              hover:border-white/[0.18]
+              hover:bg-white/[0.07]
               hover:text-white
+              focus-visible:outline-none
+              focus-visible:ring-2
+              focus-visible:ring-[#D4AF37]/50
               md:hidden
             "
             aria-label={
@@ -260,9 +288,15 @@ export default function Navbar() {
             aria-expanded={mobileOpen}
           >
             {mobileOpen ? (
-              <X className="h-5 w-5" strokeWidth={1.8} />
+              <X
+                className="h-5 w-5"
+                strokeWidth={1.8}
+              />
             ) : (
-              <Menu className="h-5 w-5" strokeWidth={1.8} />
+              <Menu
+                className="h-5 w-5"
+                strokeWidth={1.8}
+              />
             )}
           </button>
         </div>
@@ -274,7 +308,9 @@ export default function Navbar() {
             overflow-hidden
             border-t
             border-white/[0.07]
-            bg-transparent
+            bg-black/[0.38]
+            backdrop-blur-xl
+            backdrop-saturate-150
             transition-[max-height,opacity]
             duration-200
             md:hidden
@@ -286,7 +322,17 @@ export default function Navbar() {
           `}
         >
           <nav className="px-4 py-3 sm:px-6">
-            <div className="rounded-2xl border border-white/[0.08] bg-black/[0.20] p-2 backdrop-blur-sm">
+            <div
+              className="
+                rounded-2xl
+                border
+                border-white/[0.09]
+                bg-black/[0.30]
+                p-2
+                shadow-[0_15px_40px_rgba(0,0,0,0.25)]
+                backdrop-blur-xl
+              "
+            >
               <div className="space-y-1">
                 {links.map((link) => {
                   const active = isActive(link.href);
@@ -304,11 +350,11 @@ export default function Navbar() {
                         px-4
                         text-sm
                         font-medium
-                        transition-colors
+                        transition-all
                         ${
                           active
                             ? "bg-white/[0.08] text-white"
-                            : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"
+                            : "text-zinc-400 hover:bg-white/[0.045] hover:text-white"
                         }
                       `}
                     >
@@ -316,7 +362,14 @@ export default function Navbar() {
 
                       <span className="flex items-center gap-2">
                         {active && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
+                          <span
+                            className="
+                              h-1.5
+                              w-1.5
+                              rounded-full
+                              bg-[#D4AF37]
+                            "
+                          />
                         )}
 
                         <ChevronRight
@@ -342,8 +395,8 @@ export default function Navbar() {
                     text-sm
                     font-medium
                     text-zinc-400
-                    transition-colors
-                    hover:bg-white/[0.04]
+                    transition-all
+                    hover:bg-white/[0.045]
                     hover:text-white
                   "
                 >
