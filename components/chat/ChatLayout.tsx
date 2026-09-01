@@ -112,6 +112,7 @@ export default function ChatLayout() {
   return (
     <AppShell>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-transparent">
+        {/* Desktop Sidebar */}
         <aside
           className="
             hidden
@@ -129,6 +130,7 @@ export default function ChatLayout() {
           <ChatSidebar />
         </aside>
 
+        {/* Mobile Sidebar */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
             <div
@@ -211,6 +213,7 @@ export default function ChatLayout() {
           </div>
         )}
 
+        {/* Main Chat */}
         <main
           className="
             relative
@@ -224,6 +227,7 @@ export default function ChatLayout() {
             bg-transparent
           "
         >
+          {/* Background Video */}
           <video
             autoPlay
             loop
@@ -237,15 +241,16 @@ export default function ChatLayout() {
               h-full
               w-full
               object-cover
-              opacity-50
+              opacity-100
             "
           >
             <source src="/anvix-bg.mp4" type="video/mp4" />
           </video>
 
-          <div className="pointer-events-none absolute inset-0 bg-black/10" />
+          {/* No dark overlay */}
 
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* Mobile Header */}
             <header
               className="
                 flex
@@ -254,10 +259,9 @@ export default function ChatLayout() {
                 items-center
                 justify-between
                 border-b
-                border-[#3F3F46]
+                border-white/[0.08]
                 bg-transparent
                 px-4
-                backdrop-blur-sm
                 md:hidden
               "
             >
@@ -292,10 +296,11 @@ export default function ChatLayout() {
                   justify-center
                   rounded-xl
                   border
-                  border-zinc-700
+                  border-white/[0.12]
                   bg-transparent
                   text-zinc-400
                   transition
+                  hover:border-white/[0.2]
                   hover:text-white
                 "
                 aria-label="Open sidebar"
@@ -304,7 +309,8 @@ export default function ChatLayout() {
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-hidden">
+            {/* Messages / Empty State */}
+            <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
               {messages.length === 0 && !isTyping ? (
                 <div
                   className="
@@ -388,22 +394,25 @@ export default function ChatLayout() {
                   </div>
                 </div>
               ) : (
-                <MessageList messages={messages} isTyping={isTyping} />
+                <MessageList
+                  messages={messages}
+                  isTyping={isTyping}
+                />
               )}
             </div>
 
+            {/* Transparent Composer Area */}
             <div
               className="
                 relative
                 z-50
                 shrink-0
                 border-t
-                border-white/[0.08]
-                bg-[#09090B]/70
+                border-white/[0.06]
+                bg-transparent
                 px-3
                 pb-[max(env(safe-area-inset-bottom),1.1rem)]
                 pt-4
-                backdrop-blur-xl
                 sm:px-6
                 sm:py-4
               "
@@ -417,7 +426,7 @@ export default function ChatLayout() {
                     text-center
                     text-[11px]
                     leading-5
-                    text-zinc-500
+                    text-zinc-400/70
                   "
                 >
                   ANVIX AI can make mistakes. Verify important information.
@@ -430,4 +439,3 @@ export default function ChatLayout() {
     </AppShell>
   );
 }
-
