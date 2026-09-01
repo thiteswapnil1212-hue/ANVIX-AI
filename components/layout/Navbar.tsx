@@ -22,35 +22,32 @@ export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  /* Close mobile menu when route changes */
+  /* Close menu when route changes */
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  /* Close with Escape */
+  /* Close menu with Escape */
   useEffect(() => {
     if (!mobileOpen) return;
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMobileOpen(false);
       }
     };
 
-    document.addEventListener(
-      "keydown",
-      handleKeyDown
-    );
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
       document.removeEventListener(
         "keydown",
-        handleKeyDown
+        handleEscape
       );
     };
   }, [mobileOpen]);
 
-  /* Prevent background scrolling while mobile menu is open */
+  /* Prevent page scroll while mobile menu is open */
   useEffect(() => {
     if (!mobileOpen) return;
 
@@ -67,8 +64,10 @@ export default function Navbar() {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
-      return pathname === "/dashboard" ||
-        pathname.startsWith("/dashboard/");
+      return (
+        pathname === "/dashboard" ||
+        pathname.startsWith("/dashboard/")
+      );
     }
 
     return pathname === href;
@@ -76,6 +75,10 @@ export default function Navbar() {
 
   return (
     <>
+      {/* =====================================================
+          NAVBAR
+      ===================================================== */}
+
       <header
         className="
           sticky
@@ -83,8 +86,9 @@ export default function Navbar() {
           z-50
           w-full
           border-b
-          border-white/[0.07]
-          bg-black/[0.08]
+          border-white/[0.08]
+          bg-black/[0.28]
+          backdrop-blur-md
         "
       >
         <div
@@ -100,12 +104,13 @@ export default function Navbar() {
             lg:px-8
           "
         >
-          {/* ================================
+          {/* =================================================
               LOGO
-          ================================= */}
+          ================================================= */}
 
           <Link
             href="/"
+            onClick={() => setMobileOpen(false)}
             className="
               group
               flex
@@ -141,7 +146,7 @@ export default function Navbar() {
               className="
                 text-[16px]
                 font-semibold
-                tracking-[-0.01em]
+                tracking-tight
                 text-white
                 sm:text-[17px]
               "
@@ -150,9 +155,9 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* ================================
+          {/* =================================================
               DESKTOP NAVIGATION
-          ================================= */}
+          ================================================= */}
 
           <nav
             className="
@@ -169,10 +174,11 @@ export default function Navbar() {
               className="
                 flex
                 items-center
+                gap-1
                 rounded-xl
                 border
-                border-white/[0.08]
-                bg-white/[0.025]
+                border-white/[0.09]
+                bg-white/[0.035]
                 p-1
               "
             >
@@ -197,8 +203,8 @@ export default function Navbar() {
                       duration-200
                       ${
                         active
-                          ? "bg-white/[0.08] text-white"
-                          : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
+                          ? "bg-white/[0.09] text-white"
+                          : "text-zinc-400 hover:bg-white/[0.045] hover:text-zinc-100"
                       }
                     `}
                   >
@@ -223,9 +229,9 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* ================================
+          {/* =================================================
               DESKTOP SETTINGS
-          ================================= */}
+          ================================================= */}
 
           <Link
             href="/settings"
@@ -240,7 +246,7 @@ export default function Navbar() {
               gap-2
               rounded-lg
               border
-              px-3
+              px-3.5
               py-2
               text-[13px]
               font-medium
@@ -249,8 +255,8 @@ export default function Navbar() {
               md:flex
               ${
                 pathname === "/settings"
-                  ? "border-white/[0.16] bg-white/[0.07] text-white"
-                  : "border-white/[0.08] text-zinc-400 hover:border-white/[0.15] hover:bg-white/[0.035] hover:text-white"
+                  ? "border-white/[0.16] bg-white/[0.08] text-white"
+                  : "border-white/[0.08] bg-white/[0.015] text-zinc-400 hover:border-white/[0.16] hover:bg-white/[0.045] hover:text-white"
               }
             `}
           >
@@ -262,9 +268,9 @@ export default function Navbar() {
             <span>Settings</span>
           </Link>
 
-          {/* ================================
+          {/* =================================================
               MOBILE MENU BUTTON
-          ================================= */}
+          ================================================= */}
 
           <button
             type="button"
@@ -280,12 +286,12 @@ export default function Navbar() {
               rounded-lg
               border
               border-white/[0.10]
-              bg-white/[0.025]
+              bg-white/[0.035]
               text-zinc-300
               transition-colors
               duration-200
               hover:border-white/[0.18]
-              hover:bg-white/[0.05]
+              hover:bg-white/[0.06]
               hover:text-white
               focus-visible:outline-none
               focus-visible:ring-2
@@ -314,17 +320,18 @@ export default function Navbar() {
           </button>
         </div>
 
-        {/* ================================
-            MOBILE NAVIGATION
-        ================================= */}
+        {/* ===================================================
+            MOBILE MENU
+        =================================================== */}
 
         <div
           id="mobile-navigation"
           className={`
             overflow-hidden
             border-t
-            border-white/[0.06]
-            bg-black/[0.18]
+            border-white/[0.07]
+            bg-black/[0.32]
+            backdrop-blur-md
             transition-[max-height,opacity]
             duration-200
             ease-out
@@ -370,34 +377,41 @@ export default function Navbar() {
                       duration-150
                       ${
                         active
-                          ? "bg-white/[0.07] text-white"
-                          : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"
+                          ? "bg-white/[0.08] text-white"
+                          : "text-zinc-400 hover:bg-white/[0.045] hover:text-white"
                       }
                     `}
                   >
                     <span>{link.label}</span>
 
-                    {active ? (
-                      <span className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
-                        <ChevronRight
-                          className="h-4 w-4 text-zinc-500"
-                          strokeWidth={1.8}
+                    <span className="flex items-center gap-2">
+                      {active && (
+                        <span
+                          className="
+                            h-1.5
+                            w-1.5
+                            rounded-full
+                            bg-[#D4AF37]
+                          "
                         />
-                      </span>
-                    ) : (
+                      )}
+
                       <ChevronRight
-                        className="h-4 w-4 text-zinc-700"
+                        className={
+                          active
+                            ? "h-4 w-4 text-zinc-400"
+                            : "h-4 w-4 text-zinc-600"
+                        }
                         strokeWidth={1.8}
                       />
-                    )}
+                    </span>
                   </Link>
                 );
               })}
             </div>
 
             {/* Mobile Settings */}
-            <div className="mt-3 border-t border-white/[0.06] pt-3">
+            <div className="mt-3 border-t border-white/[0.07] pt-3">
               <Link
                 href="/settings"
                 aria-current={
@@ -419,8 +433,8 @@ export default function Navbar() {
                   duration-150
                   ${
                     pathname === "/settings"
-                      ? "border-white/[0.14] bg-white/[0.07] text-white"
-                      : "border-white/[0.07] text-zinc-400 hover:bg-white/[0.04] hover:text-white"
+                      ? "border-white/[0.14] bg-white/[0.08] text-white"
+                      : "border-white/[0.07] bg-white/[0.015] text-zinc-400 hover:bg-white/[0.045] hover:text-white"
                   }
                 `}
               >
@@ -443,7 +457,10 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* Mobile backdrop */}
+      {/* =====================================================
+          MOBILE BACKDROP
+      ===================================================== */}
+
       {mobileOpen && (
         <button
           type="button"
@@ -453,7 +470,7 @@ export default function Navbar() {
             fixed
             inset-0
             z-40
-            bg-black/[0.12]
+            bg-black/[0.10]
             md:hidden
           "
         />
