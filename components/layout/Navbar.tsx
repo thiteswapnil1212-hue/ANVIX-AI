@@ -22,12 +22,10 @@ export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  /* Close menu when route changes */
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  /* Close menu with Escape */
   useEffect(() => {
     if (!mobileOpen) return;
 
@@ -47,7 +45,6 @@ export default function Navbar() {
     };
   }, [mobileOpen]);
 
-  /* Prevent page scroll while mobile menu is open */
   useEffect(() => {
     if (!mobileOpen) return;
 
@@ -75,10 +72,6 @@ export default function Navbar() {
 
   return (
     <>
-      {/* =====================================================
-          NAVBAR
-      ===================================================== */}
-
       <header
         className="
           sticky
@@ -87,8 +80,7 @@ export default function Navbar() {
           w-full
           border-b
           border-white/[0.08]
-          bg-black/[0.28]
-          backdrop-blur-md
+          bg-transparent
         "
       >
         <div
@@ -104,15 +96,11 @@ export default function Navbar() {
             lg:px-8
           "
         >
-          {/* =================================================
-              LOGO
-          ================================================= */}
+          {/* Logo */}
 
           <Link
             href="/"
-            onClick={() => setMobileOpen(false)}
             className="
-              group
               flex
               shrink-0
               items-center
@@ -129,35 +117,16 @@ export default function Navbar() {
               alt="ANVIX AI Logo"
               width={40}
               height={40}
-              className="
-                h-9
-                w-9
-                object-contain
-                transition-transform
-                duration-200
-                group-hover:scale-[1.03]
-                sm:h-10
-                sm:w-10
-              "
+              className="h-9 w-9 object-contain sm:h-10 sm:w-10"
               priority
             />
 
-            <span
-              className="
-                text-[16px]
-                font-semibold
-                tracking-tight
-                text-white
-                sm:text-[17px]
-              "
-            >
+            <span className="text-[16px] font-semibold tracking-tight text-white sm:text-[17px]">
               ANVIX AI
             </span>
           </Link>
 
-          {/* =================================================
-              DESKTOP NAVIGATION
-          ================================================= */}
+          {/* Desktop Navigation */}
 
           <nav
             className="
@@ -165,8 +134,7 @@ export default function Navbar() {
               left-1/2
               hidden
               -translate-x-1/2
-              items-center
-              md:flex
+              md:block
             "
             aria-label="Main navigation"
           >
@@ -177,8 +145,8 @@ export default function Navbar() {
                 gap-1
                 rounded-xl
                 border
-                border-white/[0.09]
-                bg-white/[0.035]
+                border-white/[0.08]
+                bg-transparent
                 p-1
               "
             >
@@ -203,8 +171,8 @@ export default function Navbar() {
                       duration-200
                       ${
                         active
-                          ? "bg-white/[0.09] text-white"
-                          : "text-zinc-400 hover:bg-white/[0.045] hover:text-zinc-100"
+                          ? "bg-white/[0.08] text-white"
+                          : "text-zinc-400 hover:bg-white/[0.035] hover:text-white"
                       }
                     `}
                   >
@@ -214,7 +182,7 @@ export default function Navbar() {
                       <span
                         className="
                           absolute
-                          bottom-[-1px]
+                          bottom-0
                           left-1/2
                           h-px
                           w-5
@@ -229,17 +197,10 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* =================================================
-              DESKTOP SETTINGS
-          ================================================= */}
+          {/* Desktop Settings */}
 
           <Link
             href="/settings"
-            aria-current={
-              pathname === "/settings"
-                ? "page"
-                : undefined
-            }
             className={`
               hidden
               items-center
@@ -255,8 +216,8 @@ export default function Navbar() {
               md:flex
               ${
                 pathname === "/settings"
-                  ? "border-white/[0.16] bg-white/[0.08] text-white"
-                  : "border-white/[0.08] bg-white/[0.015] text-zinc-400 hover:border-white/[0.16] hover:bg-white/[0.045] hover:text-white"
+                  ? "border-white/[0.14] bg-white/[0.07] text-white"
+                  : "border-white/[0.08] bg-transparent text-zinc-400 hover:bg-white/[0.035] hover:text-white"
               }
             `}
           >
@@ -268,9 +229,7 @@ export default function Navbar() {
             <span>Settings</span>
           </Link>
 
-          {/* =================================================
-              MOBILE MENU BUTTON
-          ================================================= */}
+          {/* Mobile Button */}
 
           <button
             type="button"
@@ -286,16 +245,11 @@ export default function Navbar() {
               rounded-lg
               border
               border-white/[0.10]
-              bg-white/[0.035]
+              bg-white/[0.025]
               text-zinc-300
               transition-colors
-              duration-200
-              hover:border-white/[0.18]
               hover:bg-white/[0.06]
               hover:text-white
-              focus-visible:outline-none
-              focus-visible:ring-2
-              focus-visible:ring-[#D4AF37]/50
               md:hidden
             "
             aria-label={
@@ -304,37 +258,25 @@ export default function Navbar() {
                 : "Open navigation"
             }
             aria-expanded={mobileOpen}
-            aria-controls="mobile-navigation"
           >
             {mobileOpen ? (
-              <X
-                className="h-[19px] w-[19px]"
-                strokeWidth={1.8}
-              />
+              <X className="h-5 w-5" strokeWidth={1.8} />
             ) : (
-              <Menu
-                className="h-[19px] w-[19px]"
-                strokeWidth={1.8}
-              />
+              <Menu className="h-5 w-5" strokeWidth={1.8} />
             )}
           </button>
         </div>
 
-        {/* ===================================================
-            MOBILE MENU
-        =================================================== */}
+        {/* Mobile Navigation */}
 
         <div
-          id="mobile-navigation"
           className={`
             overflow-hidden
             border-t
             border-white/[0.07]
-            bg-black/[0.32]
-            backdrop-blur-md
+            bg-transparent
             transition-[max-height,opacity]
             duration-200
-            ease-out
             md:hidden
             ${
               mobileOpen
@@ -343,123 +285,88 @@ export default function Navbar() {
             }
           `}
         >
-          <nav
-            className="
-              mx-auto
-              max-w-7xl
-              px-4
-              py-3
-              sm:px-6
-            "
-            aria-label="Mobile navigation"
-          >
-            <div className="space-y-1">
-              {links.map((link) => {
-                const active = isActive(link.href);
+          <nav className="px-4 py-3 sm:px-6">
+            <div className="rounded-2xl border border-white/[0.08] bg-black/[0.20] p-2 backdrop-blur-sm">
+              <div className="space-y-1">
+                {links.map((link) => {
+                  const active = isActive(link.href);
 
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    aria-current={
-                      active ? "page" : undefined
-                    }
-                    className={`
-                      flex
-                      min-h-12
-                      items-center
-                      justify-between
-                      rounded-xl
-                      px-4
-                      text-sm
-                      font-medium
-                      transition-colors
-                      duration-150
-                      ${
-                        active
-                          ? "bg-white/[0.08] text-white"
-                          : "text-zinc-400 hover:bg-white/[0.045] hover:text-white"
-                      }
-                    `}
-                  >
-                    <span>{link.label}</span>
-
-                    <span className="flex items-center gap-2">
-                      {active && (
-                        <span
-                          className="
-                            h-1.5
-                            w-1.5
-                            rounded-full
-                            bg-[#D4AF37]
-                          "
-                        />
-                      )}
-
-                      <ChevronRight
-                        className={
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className={`
+                        flex
+                        min-h-12
+                        items-center
+                        justify-between
+                        rounded-xl
+                        px-4
+                        text-sm
+                        font-medium
+                        transition-colors
+                        ${
                           active
-                            ? "h-4 w-4 text-zinc-400"
-                            : "h-4 w-4 text-zinc-600"
+                            ? "bg-white/[0.08] text-white"
+                            : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"
                         }
-                        strokeWidth={1.8}
-                      />
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
+                      `}
+                    >
+                      <span>{link.label}</span>
 
-            {/* Mobile Settings */}
-            <div className="mt-3 border-t border-white/[0.07] pt-3">
-              <Link
-                href="/settings"
-                aria-current={
-                  pathname === "/settings"
-                    ? "page"
-                    : undefined
-                }
-                className={`
-                  flex
-                  min-h-12
-                  items-center
-                  justify-between
-                  rounded-xl
-                  border
-                  px-4
-                  text-sm
-                  font-medium
-                  transition-colors
-                  duration-150
-                  ${
-                    pathname === "/settings"
-                      ? "border-white/[0.14] bg-white/[0.08] text-white"
-                      : "border-white/[0.07] bg-white/[0.015] text-zinc-400 hover:bg-white/[0.045] hover:text-white"
-                  }
-                `}
-              >
-                <span className="flex items-center gap-2.5">
-                  <Settings
-                    className="h-4 w-4"
+                      <span className="flex items-center gap-2">
+                        {active && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
+                        )}
+
+                        <ChevronRight
+                          className="h-4 w-4 text-zinc-600"
+                          strokeWidth={1.8}
+                        />
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="mt-2 border-t border-white/[0.07] pt-2">
+                <Link
+                  href="/settings"
+                  className="
+                    flex
+                    min-h-12
+                    items-center
+                    justify-between
+                    rounded-xl
+                    px-4
+                    text-sm
+                    font-medium
+                    text-zinc-400
+                    transition-colors
+                    hover:bg-white/[0.04]
+                    hover:text-white
+                  "
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Settings
+                      className="h-4 w-4"
+                      strokeWidth={1.8}
+                    />
+                    Settings
+                  </span>
+
+                  <ChevronRight
+                    className="h-4 w-4 text-zinc-600"
                     strokeWidth={1.8}
                   />
-
-                  <span>Settings</span>
-                </span>
-
-                <ChevronRight
-                  className="h-4 w-4 text-zinc-600"
-                  strokeWidth={1.8}
-                />
-              </Link>
+                </Link>
+              </div>
             </div>
           </nav>
         </div>
       </header>
 
-      {/* =====================================================
-          MOBILE BACKDROP
-      ===================================================== */}
+      {/* Mobile backdrop */}
 
       {mobileOpen && (
         <button
@@ -470,7 +377,7 @@ export default function Navbar() {
             fixed
             inset-0
             z-40
-            bg-black/[0.10]
+            bg-black/[0.08]
             md:hidden
           "
         />
