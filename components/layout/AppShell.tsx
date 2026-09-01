@@ -12,7 +12,7 @@ export default function AppShell({
 }: AppShellProps) {
   return (
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#09090B] text-white">
-      {/* Global background video */}
+      {/* Background video */}
       <video
         autoPlay
         loop
@@ -32,23 +32,23 @@ export default function AppShell({
         <source src="/anvix-bg.mp4" type="video/mp4" />
       </video>
 
-      {/* Very subtle readability layer */}
+      {/* Subtle video overlay */}
       <div
         className="
           pointer-events-none
           absolute
           inset-0
           z-0
-          bg-black/[0.08]
+          bg-black/[0.18]
         "
       />
 
-      {/* Navbar sits above video */}
+      {/* Navbar */}
       <div className="relative z-50 shrink-0">
         <Navbar />
       </div>
 
-      {/* Page content */}
+      {/* Content */}
       <main className="relative z-10 flex min-h-0 flex-1 overflow-hidden">
         {children}
       </main>
