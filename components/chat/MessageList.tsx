@@ -6,10 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  ArrowDown,
-  Sparkles,
-} from "lucide-react";
+import { ArrowDown, Sparkles } from "lucide-react";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -26,6 +23,7 @@ interface MessageListProps {
 }
 
 const BOTTOM_THRESHOLD = 100;
+const TYPING_SPEED = 12;
 
 export default function MessageList({
   messages = [],
@@ -37,9 +35,18 @@ export default function MessageList({
   const [showScrollButton, setShowScrollButton] =
     useState(false);
 
+  const [displayedContent, setDisplayedContent] =
+    useState("");
+
+  const [isRevealing, setIsRevealing] =
+    useState(false);
+
   const autoScrollRef = useRef(true);
   const previousMessageCountRef = useRef(messages.length);
   const firstRenderRef = useRef(true);
+
+  const typingTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* =====================================================
      CHECK IF USER IS CLOSE TO BOTTOM
@@ -91,6 +98,100 @@ export default function MessageList({
   }, [isNearBottom]);
 
   /* =====================================================
+     TYPE / REVEAL AI RESPONSE
+  ===================================================== */
+
+  useEffect(() => {
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+
+    const latestMessage =
+      messages[messages.length - 1];
+
+    /*
+     * If AI is still processing and there is no
+     * assistant response yet, show the normal
+     * thinking indicator.
+     */
+    if (
+      isTyping &&
+      (!latestMessage ||
+        latestMessage.role !== "assistant")
+    ) {
+      setDisplayedContent("");
+      setIsRevealing(false);
+      return;
+    }
+
+    /*
+     * Find the latest assistant response.
+     */
+    if (
+      latestMessage &&
+      latestMessage.role === "assistant"
+    ) {
+      const fullContent = latestMessage.content;
+
+      /*
+       * If this is a new assistant response,
+       * reveal it from the beginning.
+       */
+      if (
+        !displayedContent ||
+        !fullContent.startsWith(displayedContent)
+      ) {
+        setDisplayedContent("");
+        setIsRevealing(true);
+
+        let currentIndex = 0;
+
+        const revealNext = () => {
+          currentIndex += 1;
+
+          setDisplayedContent(
+            fullContent.slice(0, currentIndex)
+          );
+
+          if (currentIndex < fullContent.length) {
+            /*
+             * Small natural variation keeps the
+             * animation from feeling too robotic.
+             */
+            const delay =
+              TYPING_SPEED +
+              Math.random() * 10;
+
+            typingTimerRef.current =
+              setTimeout(revealNext, delay);
+          } else {
+            setIsRevealing(false);
+            typingTimerRef.current = null;
+          }
+        };
+
+        typingTimerRef.current =
+          setTimeout(revealNext, TYPING_SPEED);
+
+        return () => {
+          if (typingTimerRef.current) {
+            clearTimeout(
+              typingTimerRef.current
+            );
+          }
+        };
+      }
+    }
+
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+      }
+    };
+  }, [messages, isTyping]);
+
+  /* =====================================================
      NEW MESSAGE / TYPING AUTO SCROLL
   ===================================================== */
 
@@ -102,10 +203,6 @@ export default function MessageList({
     previousMessageCountRef.current =
       messages.length;
 
-    /*
-      First render:
-      Always start at latest message.
-    */
     if (firstRenderRef.current) {
       firstRenderRef.current = false;
 
@@ -118,17 +215,13 @@ export default function MessageList({
       return;
     }
 
-    /*
-      If user intentionally scrolled upward,
-      NEVER force them back down.
-    */
     if (!autoScrollRef.current) return;
 
-    /*
-      New message or AI typing:
-      Keep conversation anchored at bottom.
-    */
-    if (newMessageAdded || isTyping) {
+    if (
+      newMessageAdded ||
+      isTyping ||
+      isRevealing
+    ) {
       requestAnimationFrame(() => {
         scrollToBottom("smooth");
       });
@@ -136,6 +229,7 @@ export default function MessageList({
   }, [
     messages.length,
     isTyping,
+    isRevealing,
     scrollToBottom,
   ]);
 
@@ -165,9 +259,29 @@ export default function MessageList({
     };
   }, [scrollToBottom]);
 
+  /* =====================================================
+     CLEANUP TIMER
+  ===================================================== */
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(
+          typingTimerRef.current
+        );
+      }
+    };
+  }, []);
+
   if (messages.length === 0 && !isTyping) {
     return null;
   }
+
+  const latestMessage =
+    messages[messages.length - 1];
+
+  const showingAssistant =
+    latestMessage?.role === "assistant";
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden bg-transparent">
@@ -198,10 +312,6 @@ export default function MessageList({
           hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
         "
       >
-        {/* =================================================
-            EMPTY STATE
-        ================================================= */}
-
         <div
           className="
             mx-auto
@@ -213,22 +323,40 @@ export default function MessageList({
             pb-4
           "
         >
-          {messages.length > 0 &&
-            messages.map((message) => (
+          {messages.map((message, index) => {
+            const isLatestAssistant =
+              index === messages.length - 1 &&
+              message.role === "assistant";
+
+            /*
+             * Latest assistant message is revealed
+             * progressively. Older messages stay normal.
+             */
+            if (isLatestAssistant) {
+              return (
+                <ChatMessageBubble
+                  key={message.id}
+                  role={message.role}
+                  content={displayedContent}
+                />
+              );
+            }
+
+            return (
               <ChatMessageBubble
                 key={message.id}
                 role={message.role}
                 content={message.content}
               />
-            ))}
+            );
+          })}
 
           {/* =================================================
-              AI TYPING
+              AI THINKING
           ================================================= */}
 
-          {isTyping && (
+          {isTyping && !showingAssistant && (
             <div className="flex items-start gap-3">
-              {/* AI icon */}
               <div
                 className="
                   flex
@@ -244,15 +372,11 @@ export default function MessageList({
                 "
               >
                 <Sparkles
-                  className="
-                    h-3.5
-                    w-3.5
-                    text-[#D4AF37]
-                  "
+                  className="h-3.5 w-3.5 text-[#D4AF37]"
+                  strokeWidth={1.8}
                 />
               </div>
 
-              {/* Typing bubble */}
               <div
                 className="
                   flex
@@ -265,7 +389,6 @@ export default function MessageList({
                   bg-[#18181B]
                   px-4
                   py-3.5
-                  shadow-[0_5px_20px_rgba(0,0,0,0.15)]
                 "
                 aria-label="ANVIX AI is thinking"
               >
@@ -276,7 +399,24 @@ export default function MessageList({
             </div>
           )}
 
-          {/* Bottom anchor */}
+          {/* =================================================
+              CURSOR WHILE RESPONSE IS BEING REVEALED
+          ================================================= */}
+
+          {showingAssistant && isRevealing && (
+            <span
+              className="
+                ml-11
+                inline-block
+                h-4
+                w-[2px]
+                animate-pulse
+                bg-[#D4AF37]
+              "
+              aria-hidden="true"
+            />
+          )}
+
           <div
             ref={bottomRef}
             className="h-1 w-full"
@@ -286,7 +426,7 @@ export default function MessageList({
       </div>
 
       {/* =====================================================
-          JUMP TO LATEST BUTTON
+          JUMP TO LATEST
       ===================================================== */}
 
       {showScrollButton && messages.length > 0 && (
@@ -320,7 +460,6 @@ export default function MessageList({
             hover:border-[#D4AF37]/40
             hover:bg-[#222225]
             hover:text-[#D4AF37]
-            hover:shadow-[0_10px_35px_rgba(212,175,55,0.12)]
             active:scale-90
           "
         >
