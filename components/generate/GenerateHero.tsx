@@ -4,21 +4,31 @@ import {
   Check,
   Sparkles,
   WandSparkles,
+  ArrowDown,
 } from "lucide-react";
 
 interface GenerateHeroProps {
-  promptActive?: boolean;
+  promptLength?: number;
+  maxChars?: number;
 }
 
-const capabilities = [
+const DEFAULT_MAX_CHARS = 2200;
+
+const benefits = [
   "Describe your idea",
-  "Add key features",
-  "Mention your target users",
+  "Define key features",
+  "Build with natural language",
 ];
 
 export default function GenerateHero({
-  promptActive = false,
+  promptLength = 0,
+  maxChars = DEFAULT_MAX_CHARS,
 }: GenerateHeroProps) {
+  const progress = Math.min(
+    (promptLength / maxChars) * 100,
+    100
+  );
+
   return (
     <section
       aria-labelledby="generate-hero-title"
@@ -28,26 +38,22 @@ export default function GenerateHero({
         rounded-[28px]
         border
         border-zinc-800/80
-        bg-[#111113]
-        px-6
-        py-8
-        shadow-[0_20px_60px_rgba(0,0,0,0.16)]
-        sm:px-8
-        sm:py-10
+        bg-[#0F0F11]/95
+        shadow-[0_20px_70px_rgba(0,0,0,0.24)]
       "
     >
-      {/* Background atmosphere */}
+      {/* Ambient background glow */}
       <div
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
-          -right-28
-          -top-36
+          -right-32
+          -top-32
           h-80
           w-80
           rounded-full
-          bg-[#D4AF37]/[0.075]
+          bg-[#D4AF37]/[0.08]
           blur-[110px]
         "
       />
@@ -62,163 +68,174 @@ export default function GenerateHero({
           h-72
           w-72
           rounded-full
-          bg-[#D4AF37]/[0.035]
+          bg-[#D4AF37]/[0.045]
           blur-[100px]
         "
       />
 
-      {/* Subtle grid */}
+      {/* Subtle top line */}
       <div
         aria-hidden="true"
         className="
-          pointer-events-none
           absolute
-          inset-0
-          opacity-[0.025]
-          [background-image:linear-gradient(rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.5)_1px,transparent_1px)]
-          [background-size:32px_32px]
+          inset-x-0
+          top-0
+          h-px
+          bg-gradient-to-r
+          from-transparent
+          via-[#D4AF37]/30
+          to-transparent
         "
       />
 
-      <div className="relative">
-        {/* Top identity row */}
-        <div className="flex items-start justify-between gap-5">
-          <div className="flex items-center gap-3">
+      <div className="relative px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+        {/* Header */}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            {/* Product badge */}
             <div
-              className="
-                flex
-                h-10
-                w-10
-                shrink-0
-                items-center
-                justify-center
-                rounded-xl
-                border
-                border-[#D4AF37]/20
-                bg-[#D4AF37]/[0.08]
-                shadow-[0_0_25px_rgba(212,175,55,0.04)]
-              "
-            >
-              <WandSparkles
-                className="h-[18px] w-[18px] text-[#D4AF37]"
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-            </div>
-
-            <div>
-              <p
-                className="
-                  text-[10px]
-                  font-semibold
-                  uppercase
-                  tracking-[0.2em]
-                  text-[#D4AF37]
-                "
-              >
-                ANVIX AI BUILDER
-              </p>
-
-              <p className="mt-1 text-[11px] text-zinc-600">
-                From idea to intelligent workspace
-              </p>
-            </div>
-          </div>
-
-          {/* Live state */}
-          <div
-            className="
-              hidden
-              items-center
-              gap-2
-              rounded-full
-              border
-              border-zinc-800
-              bg-[#0D0D0F]/80
-              px-3
-              py-1.5
-              sm:flex
-            "
-          >
-            <span
-              className={`
-                h-1.5
-                w-1.5
-                rounded-full
-                ${
-                  promptActive
-                    ? "bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.65)]"
-                    : "bg-zinc-700"
-                }
-              `}
-            />
-
-            <span className="text-[10px] font-medium text-zinc-600">
-              {promptActive
-                ? "Ready to build"
-                : "Builder ready"}
-            </span>
-          </div>
-        </div>
-
-        {/* Main heading */}
-        <div className="mt-7 max-w-4xl">
-          <h1
-            id="generate-hero-title"
-            className="
-              text-3xl
-              font-semibold
-              tracking-[-0.035em]
-              text-white
-              sm:text-5xl
-              sm:leading-[1.08]
-            "
-          >
-            What do you want to{" "}
-            <span
-              className="
-                bg-gradient-to-r
-                from-[#D4AF37]
-                via-[#E4C766]
-                to-[#D4AF37]
-                bg-clip-text
-                text-transparent
-              "
-            >
-              build?
-            </span>
-          </h1>
-
-          <p
-            className="
-              mt-4
-              max-w-2xl
-              text-sm
-              leading-6
-              text-zinc-400
-              sm:text-[15px]
-              sm:leading-7
-            "
-          >
-            Describe your product, workflow, or idea in plain
-            language. ANVIX will transform your vision into the
-            foundation of a structured workspace.
-          </p>
-        </div>
-
-        {/* Capability pills */}
-        <div className="mt-6 flex flex-wrap gap-2">
-          {capabilities.map((capability) => (
-            <div
-              key={capability}
               className="
                 inline-flex
                 items-center
                 gap-2
                 rounded-full
                 border
-                border-zinc-800
-                bg-[#0D0D0F]/80
+                border-[#D4AF37]/20
+                bg-[#D4AF37]/[0.055]
+                px-3
+                py-1.5
+              "
+            >
+              <Sparkles
+                className="h-3.5 w-3.5 text-[#D4AF37]"
+                strokeWidth={1.8}
+                aria-hidden="true"
+              />
+
+              <span
+                className="
+                  text-[10px]
+                  font-semibold
+                  uppercase
+                  tracking-[0.18em]
+                  text-[#D4AF37]
+                "
+              >
+                ANVIX AI Builder
+              </span>
+            </div>
+
+            {/* Heading */}
+            <h1
+              id="generate-hero-title"
+              className="
+                mt-5
+                text-3xl
+                font-semibold
+                tracking-[-0.035em]
+                text-white
+                sm:text-4xl
+                lg:text-5xl
+              "
+            >
+              Turn an idea into
+              <br className="hidden sm:block" />{" "}
+              <span
+                className="
+                  bg-gradient-to-r
+                  from-[#D4AF37]
+                  via-[#E4C766]
+                  to-[#D4AF37]
+                  bg-clip-text
+                  text-transparent
+                "
+              >
+                something real.
+              </span>
+            </h1>
+
+            <p
+              className="
+                mt-4
+                max-w-2xl
+                text-sm
+                leading-7
+                text-zinc-400
+                sm:text-base
+              "
+            >
+              Describe the product you have in mind. ANVIX
+              transforms your requirements into a structured
+              workspace you can continue building.
+            </p>
+          </div>
+
+          {/* AI status */}
+          <div
+            className="
+              hidden
+              shrink-0
+              items-center
+              gap-3
+              rounded-2xl
+              border
+              border-zinc-800
+              bg-[#0B0B0D]/80
+              px-4
+              py-3
+              sm:flex
+            "
+          >
+            <div
+              className="
+                flex
+                h-8
+                w-8
+                items-center
+                justify-center
+                rounded-xl
+                border
+                border-emerald-500/15
+                bg-emerald-500/[0.06]
+              "
+            >
+              <span
+                className="
+                  h-2
+                  w-2
+                  animate-pulse
+                  rounded-full
+                  bg-emerald-400
+                "
+                aria-hidden="true"
+              />
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium text-zinc-300">
+                AI Builder ready
+              </p>
+
+              <p className="mt-0.5 text-[10px] text-zinc-600">
+                Waiting for your idea
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Benefits */}
+        <div className="mt-7 flex flex-wrap gap-2.5">
+          {benefits.map((benefit) => (
+            <div
+              key={benefit}
+              className="
+                inline-flex
+                items-center
+                gap-2
+                rounded-full
+                border
+                border-zinc-800/90
+                bg-[#0B0B0D]/70
                 px-3
                 py-1.5
               "
@@ -231,7 +248,7 @@ export default function GenerateHero({
                   items-center
                   justify-center
                   rounded-full
-                  bg-[#D4AF37]/[0.08]
+                  bg-[#D4AF37]/10
                 "
               >
                 <Check
@@ -241,37 +258,117 @@ export default function GenerateHero({
                 />
               </span>
 
-              <span className="text-[10px] font-medium text-zinc-500">
-                {capability}
+              <span className="text-[11px] text-zinc-400">
+                {benefit}
               </span>
             </div>
           ))}
         </div>
 
-        {/* Bottom product hint */}
+        {/* Builder hint */}
         <div
           className="
-            mt-7
+            mt-8
             flex
-            items-center
-            gap-3
+            flex-col
+            gap-4
             border-t
             border-zinc-800/70
             pt-5
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
           "
         >
-          <Sparkles
-            className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]"
-            aria-hidden="true"
-          />
+          <div className="flex items-center gap-3">
+            <div
+              className="
+                flex
+                h-9
+                w-9
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                border
+                border-[#D4AF37]/15
+                bg-[#D4AF37]/[0.06]
+              "
+            >
+              <WandSparkles
+                className="h-4 w-4 text-[#D4AF37]"
+                strokeWidth={1.7}
+                aria-hidden="true"
+              />
+            </div>
 
-          <p className="text-[11px] leading-5 text-zinc-600">
-            <span className="text-zinc-400">
-              Better context → better generation.
-            </span>{" "}
-            Tell ANVIX what you're building, who it's for,
-            and what it needs to do.
-          </p>
+            <div>
+              <p className="text-xs font-medium text-zinc-300">
+                Your prompt is the blueprint
+              </p>
+
+              <p className="mt-0.5 text-[10px] text-zinc-600">
+                More context usually means a more useful first build.
+              </p>
+            </div>
+          </div>
+
+          {/* Character progress */}
+          <div className="min-w-40">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[10px] text-zinc-600">
+                Prompt capacity
+              </span>
+
+              <span className="text-[10px] text-zinc-600">
+                {promptLength.toLocaleString()} /{" "}
+                {maxChars.toLocaleString()}
+              </span>
+            </div>
+
+            <div
+              className="
+                h-1
+                overflow-hidden
+                rounded-full
+                bg-zinc-800
+              "
+              role="progressbar"
+              aria-label="Prompt capacity"
+              aria-valuemin={0}
+              aria-valuemax={maxChars}
+              aria-valuenow={promptLength}
+            >
+              <div
+                className="
+                  h-full
+                  rounded-full
+                  bg-[#D4AF37]
+                  transition-all
+                  duration-300
+                "
+                style={{
+                  width: `${progress}%`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile scroll hint */}
+        <div
+          className="
+            mt-5
+            flex
+            items-center
+            gap-2
+            text-[10px]
+            text-zinc-700
+            sm:hidden
+          "
+        >
+          <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          Start below to describe your idea
         </div>
       </div>
     </section>
