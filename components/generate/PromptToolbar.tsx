@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -19,10 +20,12 @@ import {
   Plus,
   Settings2,
   Sparkles,
-  X,
 } from "lucide-react";
 
 const MAX_CHARS = 2200;
+
+const MIN_PROMPT_HEIGHT = 140;
+const MAX_PROMPT_HEIGHT = 300;
 
 const FRAMEWORKS = [
   {
@@ -68,32 +71,88 @@ export default function PromptBuilder({
   onGenerate,
   isSubmitting = false,
 }: PromptBuilderProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef =
+    useRef<HTMLTextAreaElement>(null);
 
-  const [showSettings, setShowSettings] = useState(false);
-  const [showFrameworks, setShowFrameworks] = useState(false);
-  const [showModels, setShowModels] = useState(false);
+  const [showSettings, setShowSettings] =
+    useState(false);
 
-  const [framework, setFramework] = useState("nextjs");
-  const [model, setModel] = useState("anvix-pro");
+  const [showFrameworks, setShowFrameworks] =
+    useState(false);
+
+  const [showModels, setShowModels] =
+    useState(false);
+
+  const [framework, setFramework] =
+    useState("nextjs");
+
+  const [model, setModel] =
+    useState("anvix-pro");
 
   const trimmedPrompt = prompt.trim();
-  const remainingChars = MAX_CHARS - prompt.length;
+
+  const remainingChars =
+    MAX_CHARS - prompt.length;
+
   const canGenerate =
-    trimmedPrompt.length > 0 && !isSubmitting;
+    trimmedPrompt.length > 0 &&
+    !isSubmitting;
 
   const selectedFramework =
-    FRAMEWORKS.find((item) => item.id === framework) ??
-    FRAMEWORKS[0];
+    FRAMEWORKS.find(
+      (item) => item.id === framework
+    ) ?? FRAMEWORKS[0];
 
   const selectedModel =
-    MODELS.find((item) => item.id === model) ??
-    MODELS[0];
+    MODELS.find(
+      (item) => item.id === model
+    ) ?? MODELS[0];
+
+  /*
+   * Automatically resize the prompt editor.
+   *
+   * Empty prompt:
+   * 140px
+   *
+   * Short/medium prompt:
+   * grows with content
+   *
+   * Long prompt:
+   * stops at 300px and becomes scrollable
+   */
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+
+    const contentHeight =
+      textarea.scrollHeight;
+
+    const nextHeight = Math.min(
+      Math.max(
+        contentHeight,
+        MIN_PROMPT_HEIGHT
+      ),
+      MAX_PROMPT_HEIGHT
+    );
+
+    textarea.style.height =
+      `${nextHeight}px`;
+
+    textarea.style.overflowY =
+      contentHeight > MAX_PROMPT_HEIGHT
+        ? "auto"
+        : "hidden";
+  }, [prompt]);
 
   const handlePromptChange = useCallback(
     (value: string) => {
       if (value.length > MAX_CHARS) {
-        setPrompt(value.slice(0, MAX_CHARS));
+        setPrompt(
+          value.slice(0, MAX_CHARS)
+        );
         return;
       }
 
@@ -103,7 +162,9 @@ export default function PromptBuilder({
   );
 
   const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    (
+      event: KeyboardEvent<HTMLTextAreaElement>
+    ) => {
       if (
         event.key === "Enter" &&
         (event.metaKey || event.ctrlKey)
@@ -123,8 +184,10 @@ export default function PromptBuilder({
   }, []);
 
   const handleAttachment = useCallback(() => {
-    // File attachment will be connected to the generation
-    // context system in the next iteration.
+    /*
+     * File attachment will be connected to the
+     * generation context system in the next iteration.
+     */
     focusPrompt();
   }, [focusPrompt]);
 
@@ -205,25 +268,55 @@ export default function PromptBuilder({
               <Sparkles
                 className="h-4 w-4 text-[#D4AF37]"
                 strokeWidth={1.8}
+                aria-hidden="true"
               />
             </div>
 
             <div className="min-w-0">
               <h2
                 id="builder-title"
-                className="truncate text-sm font-semibold text-white"
+                className="
+                  truncate
+                  text-sm
+                  font-semibold
+                  text-white
+                "
               >
                 Build with ANVIX
               </h2>
 
-              <p className="mt-0.5 hidden text-[11px] text-zinc-600 sm:block">
+              <p
+                className="
+                  mt-0.5
+                  hidden
+                  text-[11px]
+                  text-zinc-600
+                  sm:block
+                "
+              >
                 Describe your idea and let the agent build it.
               </p>
             </div>
           </div>
 
-          <div className="hidden items-center gap-2 rounded-full border border-zinc-800 bg-[#0D0D0F] px-3 py-1.5 md:flex">
-            <Keyboard className="h-3.5 w-3.5 text-zinc-600" />
+          <div
+            className="
+              hidden
+              items-center
+              gap-2
+              rounded-full
+              border
+              border-zinc-800
+              bg-[#0D0D0F]
+              px-3
+              py-1.5
+              md:flex
+            "
+          >
+            <Keyboard
+              className="h-3.5 w-3.5 text-zinc-600"
+              aria-hidden="true"
+            />
 
             <span className="text-[10px] text-zinc-600">
               Ctrl / ⌘ + Enter
@@ -241,11 +334,13 @@ export default function PromptBuilder({
               bg-[#0B0B0D]
               transition-all
               duration-200
+
               ${
                 trimmedPrompt
                   ? "border-[#D4AF37]/35 shadow-[0_0_35px_rgba(212,175,55,0.045)]"
                   : "border-zinc-800"
               }
+
               ${
                 isSubmitting
                   ? "pointer-events-none opacity-80"
@@ -253,40 +348,53 @@ export default function PromptBuilder({
               }
             `}
           >
+            {/* Textarea */}
             <textarea
               ref={textareaRef}
               id="generate-prompt"
               name="prompt"
               value={prompt}
               onChange={(event) =>
-                handlePromptChange(event.target.value)
+                handlePromptChange(
+                  event.target.value
+                )
               }
               onKeyDown={handleKeyDown}
               maxLength={MAX_CHARS}
-              rows={8}
+              rows={1}
               disabled={isSubmitting}
               spellCheck
               autoComplete="off"
               aria-label="Describe the application you want ANVIX to build"
               aria-describedby="prompt-helper prompt-counter"
-              placeholder="Build a premium SaaS dashboard for a design agency with authentication, project management, team collaboration, analytics, billing, and a clean dark interface..."
+              placeholder="
+Build a premium SaaS dashboard for a design agency with authentication, project management, team collaboration, analytics, billing, and a clean dark interface...
+              "
               className="
                 block
-                min-h-[200px]
                 w-full
                 resize-none
+                overflow-y-hidden
                 bg-transparent
                 px-5
-                py-5
+                py-4
                 text-sm
-                leading-7
+                leading-6
                 text-zinc-100
                 outline-none
                 placeholder:text-zinc-600
                 disabled:cursor-not-allowed
-                sm:min-h-[220px]
+                disabled:opacity-50
+                sm:px-5
+                sm:py-5
                 sm:text-[15px]
               "
+              style={{
+                minHeight:
+                  `${MIN_PROMPT_HEIGHT}px`,
+                maxHeight:
+                  `${MAX_PROMPT_HEIGHT}px`,
+              }}
             />
 
             {/* Prompt footer */}
@@ -342,7 +450,14 @@ export default function PromptBuilder({
                 py-2.5
               "
             >
-              <div className="flex min-w-0 items-center gap-1.5">
+              <div
+                className="
+                  flex
+                  min-w-0
+                  items-center
+                  gap-1.5
+                "
+              >
                 {/* Attachment */}
                 <button
                   type="button"
@@ -365,7 +480,11 @@ export default function PromptBuilder({
                   "
                   aria-label="Add context"
                 >
-                  <Paperclip className="h-3.5 w-3.5" />
+                  <Paperclip
+                    className="h-3.5 w-3.5"
+                    aria-hidden="true"
+                  />
+
                   <span className="hidden sm:inline">
                     Add context
                   </span>
@@ -381,6 +500,7 @@ export default function PromptBuilder({
                       setShowFrameworks(
                         (current) => !current
                       );
+
                       setShowModels(false);
                     }}
                     disabled={isSubmitting}
@@ -401,15 +521,23 @@ export default function PromptBuilder({
                       disabled:opacity-40
                     "
                     aria-haspopup="listbox"
-                    aria-expanded={showFrameworks}
+                    aria-expanded={
+                      showFrameworks
+                    }
                   >
-                    <Code2 className="h-3.5 w-3.5 shrink-0" />
+                    <Code2
+                      className="h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
 
                     <span className="truncate">
                       {selectedFramework.label}
                     </span>
 
-                    <ChevronDown className="h-3 w-3 shrink-0" />
+                    <ChevronDown
+                      className="h-3 w-3 shrink-0"
+                      aria-hidden="true"
+                    />
                   </button>
 
                   {showFrameworks && (
@@ -430,57 +558,68 @@ export default function PromptBuilder({
                         shadow-[0_20px_50px_rgba(0,0,0,0.45)]
                       "
                     >
-                      {FRAMEWORKS.map((item) => {
-                        const active =
-                          item.id === framework;
+                      {FRAMEWORKS.map(
+                        (item) => {
+                          const active =
+                            item.id ===
+                            framework;
 
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => {
-                              setFramework(item.id);
-                              setShowFrameworks(false);
-                            }}
-                            className="
-                              flex
-                              w-full
-                              items-center
-                              justify-between
-                              rounded-lg
-                              px-3
-                              py-2.5
-                              text-left
-                              transition
-                              hover:bg-zinc-800/60
-                            "
-                          >
-                            <div>
-                              <p
-                                className={`
-                                  text-xs
-                                  font-medium
-                                  ${
-                                    active
-                                      ? "text-[#D4AF37]"
-                                      : "text-zinc-300"
-                                  }
-                                `}
-                              >
-                                {item.label}
-                              </p>
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setFramework(
+                                  item.id
+                                );
 
-                              <p className="mt-0.5 text-[10px] text-zinc-600">
-                                {item.description}
-                              </p>
-                            </div>
+                                setShowFrameworks(
+                                  false
+                                );
+                              }}
+                              className="
+                                flex
+                                w-full
+                                items-center
+                                justify-between
+                                rounded-lg
+                                px-3
+                                py-2.5
+                                text-left
+                                transition
+                                hover:bg-zinc-800/60
+                              "
+                            >
+                              <div>
+                                <p
+                                  className={`
+                                    text-xs
+                                    font-medium
+                                    ${
+                                      active
+                                        ? "text-[#D4AF37]"
+                                        : "text-zinc-300"
+                                    }
+                                  `}
+                                >
+                                  {item.label}
+                                </p>
 
-                            {active && (
-                              <Check className="h-3.5 w-3.5 text-[#D4AF37]" />
-                            )}
-                          </button>
-                        );
-                      })}
+                                <p className="mt-0.5 text-[10px] text-zinc-600">
+                                  {item.description}
+                                </p>
+                              </div>
+
+                              {active && (
+                                <Check
+                                  className="h-3.5 w-3.5 text-[#D4AF37]"
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </button>
+                          );
+                        }
+                      )}
                     </div>
                   )}
                 </div>
@@ -490,7 +629,10 @@ export default function PromptBuilder({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowModels((current) => !current);
+                      setShowModels(
+                        (current) => !current
+                      );
+
                       setShowFrameworks(false);
                     }}
                     disabled={isSubmitting}
@@ -513,13 +655,19 @@ export default function PromptBuilder({
                     aria-haspopup="listbox"
                     aria-expanded={showModels}
                   >
-                    <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                    <Sparkles
+                      className="h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
 
                     <span className="truncate">
                       {selectedModel.label}
                     </span>
 
-                    <ChevronDown className="h-3 w-3 shrink-0" />
+                    <ChevronDown
+                      className="h-3 w-3 shrink-0"
+                      aria-hidden="true"
+                    />
                   </button>
 
                   {showModels && (
@@ -540,56 +688,65 @@ export default function PromptBuilder({
                         shadow-[0_20px_50px_rgba(0,0,0,0.45)]
                       "
                     >
-                      {MODELS.map((item) => {
-                        const active = item.id === model;
+                      {MODELS.map(
+                        (item) => {
+                          const active =
+                            item.id === model;
 
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => {
-                              setModel(item.id);
-                              setShowModels(false);
-                            }}
-                            className="
-                              flex
-                              w-full
-                              items-center
-                              justify-between
-                              rounded-lg
-                              px-3
-                              py-2.5
-                              text-left
-                              transition
-                              hover:bg-zinc-800/60
-                            "
-                          >
-                            <div>
-                              <p
-                                className={`
-                                  text-xs
-                                  font-medium
-                                  ${
-                                    active
-                                      ? "text-[#D4AF37]"
-                                      : "text-zinc-300"
-                                  }
-                                `}
-                              >
-                                {item.label}
-                              </p>
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setModel(item.id);
 
-                              <p className="mt-0.5 text-[10px] text-zinc-600">
-                                {item.description}
-                              </p>
-                            </div>
+                                setShowModels(
+                                  false
+                                );
+                              }}
+                              className="
+                                flex
+                                w-full
+                                items-center
+                                justify-between
+                                rounded-lg
+                                px-3
+                                py-2.5
+                                text-left
+                                transition
+                                hover:bg-zinc-800/60
+                              "
+                            >
+                              <div>
+                                <p
+                                  className={`
+                                    text-xs
+                                    font-medium
+                                    ${
+                                      active
+                                        ? "text-[#D4AF37]"
+                                        : "text-zinc-300"
+                                    }
+                                  `}
+                                >
+                                  {item.label}
+                                </p>
 
-                            {active && (
-                              <Check className="h-3.5 w-3.5 text-[#D4AF37]" />
-                            )}
-                          </button>
-                        );
-                      })}
+                                <p className="mt-0.5 text-[10px] text-zinc-600">
+                                  {item.description}
+                                </p>
+                              </div>
+
+                              {active && (
+                                <Check
+                                  className="h-3.5 w-3.5 text-[#D4AF37]"
+                                  aria-hidden="true"
+                                />
+                              )}
+                            </button>
+                          );
+                        }
+                      )}
                     </div>
                   )}
                 </div>
@@ -629,7 +786,10 @@ export default function PromptBuilder({
                 }
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <ArrowUp
                     className="
@@ -640,6 +800,7 @@ export default function PromptBuilder({
                       group-hover:-translate-y-0.5
                     "
                     strokeWidth={2.5}
+                    aria-hidden="true"
                   />
                 )}
               </button>
@@ -651,7 +812,9 @@ export default function PromptBuilder({
             <button
               type="button"
               onClick={() =>
-                setShowSettings((current) => !current)
+                setShowSettings(
+                  (current) => !current
+                )
               }
               className="
                 inline-flex
@@ -667,15 +830,25 @@ export default function PromptBuilder({
               "
               aria-expanded={showSettings}
             >
-              <Settings2 className="h-3.5 w-3.5" />
+              <Settings2
+                className="h-3.5 w-3.5"
+                aria-hidden="true"
+              />
 
               Advanced build settings
 
               <ChevronDown
                 className={`
-                  h-3 w-3 transition-transform
-                  ${showSettings ? "rotate-180" : ""}
+                  h-3
+                  w-3
+                  transition-transform
+                  ${
+                    showSettings
+                      ? "rotate-180"
+                      : ""
+                  }
                 `}
+                aria-hidden="true"
               />
             </button>
 
@@ -717,12 +890,15 @@ export default function PromptBuilder({
           {/* Keyboard hint */}
           <div className="mt-3 flex items-center justify-between">
             <p className="text-[10px] leading-5 text-zinc-700">
-              Be specific about features, users, integrations,
-              and visual direction.
+              Be specific about features, users,
+              integrations, and visual direction.
             </p>
 
             <span className="hidden items-center gap-1.5 text-[10px] text-zinc-700 sm:flex">
-              <Keyboard className="h-3 w-3" />
+              <Keyboard
+                className="h-3 w-3"
+                aria-hidden="true"
+              />
               Ctrl + Enter
             </span>
           </div>
@@ -733,7 +909,9 @@ export default function PromptBuilder({
 }
 
 interface SettingProps {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{
+    className?: string;
+  }>;
   label: string;
   value: string;
 }
@@ -757,7 +935,10 @@ function Setting({
         py-2.5
       "
     >
-      <Icon className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
+      <Icon
+        className="h-3.5 w-3.5 shrink-0 text-zinc-600"
+        aria-hidden="true"
+      />
 
       <div className="min-w-0">
         <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-700">
