@@ -30,6 +30,23 @@ export default function PromptBuilder({
   const remainingChars = maxChars - value.length;
   const hasPrompt = value.trim().length > 0;
 
+  /*
+   * The textarea stays compact when empty and grows as the
+   * prompt gets longer. Once it reaches the maximum height,
+   * the textarea itself becomes scrollable.
+   */
+  const lineCount = Math.max(
+    1,
+    value.split("\n").length
+  );
+
+  const estimatedHeight = hasPrompt
+    ? Math.min(
+        Math.max(120, 96 + lineCount * 24),
+        300
+      )
+    : 140;
+
   return (
     <section
       aria-labelledby="prompt-builder-title"
@@ -106,8 +123,8 @@ export default function PromptBuilder({
           </div>
 
           <p className="mt-2 text-xs text-zinc-600">
-            Tell ANVIX what you want to build. Be as specific as
-            you want.
+            Tell ANVIX what you want to build. Be as specific as you
+            want.
           </p>
         </div>
 
@@ -168,28 +185,34 @@ export default function PromptBuilder({
               )
             }
             onKeyDown={onKeyDown}
-            rows={10}
             maxLength={maxChars}
             disabled={isSubmitting}
             placeholder="Example: Build a premium AI workspace for design teams with multi-project views, team collaboration, analytics, authentication, billing, and a clean dark interface..."
             aria-label="Describe your application"
             className="
-              min-h-[240px]
+              block
               w-full
-              resize-y
+              resize-none
+              overflow-y-auto
               bg-transparent
               px-5
-              py-5
+              py-4
               text-sm
-              leading-7
+              leading-6
               text-white
               outline-none
               placeholder:text-zinc-700
               disabled:cursor-not-allowed
               disabled:opacity-60
-              sm:min-h-[260px]
+              sm:px-5
+              sm:py-5
               sm:text-base
             "
+            style={{
+              height: `${estimatedHeight}px`,
+              minHeight: "140px",
+              maxHeight: "300px",
+            }}
           />
 
           {/* Editor footer */}
@@ -259,8 +282,8 @@ export default function PromptBuilder({
         >
           <div>
             <p className="text-xs text-zinc-600">
-              Describe the product, users, features and
-              experience you have in mind.
+              Describe the product, users, features and experience
+              you have in mind.
             </p>
 
             <p className="mt-1 text-[10px] text-zinc-700">
