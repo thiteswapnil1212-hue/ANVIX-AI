@@ -9,6 +9,7 @@ import {
 
 interface GenerateProgressProps {
   currentStep?: number;
+  completed?: boolean;
 }
 
 const steps = [
@@ -31,12 +32,20 @@ const steps = [
 ];
 
 export default function GenerateProgress({
-  currentStep = 2,
+  currentStep = 1,
+  completed = false,
 }: GenerateProgressProps) {
   const safeStep = Math.min(
     Math.max(currentStep, 0),
     steps.length
   );
+
+  const progress = completed
+    ? 100
+    : Math.min(
+        Math.round((safeStep / steps.length) * 100),
+        100
+      );
 
   return (
     <section
@@ -69,61 +78,128 @@ export default function GenerateProgress({
         "
       />
 
-      <div className="relative p-5 sm:p-6">
+      <div
+        aria-hidden="true"
+        className="
+          absolute
+          inset-x-0
+          top-0
+          h-px
+          bg-gradient-to-r
+          from-transparent
+          via-[#D4AF37]/30
+          to-transparent
+        "
+      />
 
+      <div className="relative p-5 sm:p-6 lg:p-7">
         {/* Header */}
-        <div className="flex items-start gap-4">
+        <div
+          className="
+            flex
+            flex-col
+            gap-4
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
+          "
+        >
+          <div className="flex items-start gap-4">
+            <div
+              className="
+                flex
+                h-11
+                w-11
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                border
+                border-[#D4AF37]/20
+                bg-[#D4AF37]/[0.08]
+              "
+            >
+              <Sparkles
+                className="h-5 w-5 text-[#D4AF37]"
+                strokeWidth={1.8}
+                aria-hidden="true"
+              />
+            </div>
+
+            <div className="min-w-0">
+              <h2
+                id="generation-progress-title"
+                className="text-sm font-semibold text-white sm:text-base"
+              >
+                {completed
+                  ? "Your workspace is ready"
+                  : "ANVIX is building your workspace"}
+              </h2>
+
+              <p className="mt-1 text-xs leading-5 text-zinc-600">
+                {completed
+                  ? "Your initial application has been prepared successfully."
+                  : "We're turning your idea and configuration into a structured application."}
+              </p>
+            </div>
+          </div>
+
+          {/* Percentage */}
           <div
             className="
               flex
-              h-11
-              w-11
               shrink-0
               items-center
-              justify-center
-              rounded-xl
+              gap-2
+              self-start
+              rounded-full
               border
-              border-[#D4AF37]/20
-              bg-[#D4AF37]/[0.08]
+              border-zinc-800
+              bg-[#0D0D0F]
+              px-3
+              py-1.5
+              sm:self-center
             "
           >
-            <Sparkles
-              className="h-5 w-5 text-[#D4AF37]"
-              strokeWidth={1.8}
-              aria-hidden="true"
-            />
-          </div>
+            {!completed && (
+              <span
+                className="
+                  h-1.5
+                  w-1.5
+                  animate-pulse
+                  rounded-full
+                  bg-[#D4AF37]
+                "
+                aria-hidden="true"
+              />
+            )}
 
-          <div className="min-w-0">
-            <h2
-              id="generation-progress-title"
-              className="text-sm font-semibold text-white"
+            {completed && (
+              <Check
+                className="h-3 w-3 text-emerald-400"
+                strokeWidth={2.5}
+                aria-hidden="true"
+              />
+            )}
+
+            <span
+              className={`
+                text-[10px]
+                font-medium
+                ${
+                  completed
+                    ? "text-emerald-400"
+                    : "text-[#D4AF37]"
+                }
+              `}
             >
-              ANVIX is building your workspace
-            </h2>
-
-            <p className="mt-1 text-xs leading-5 text-zinc-600">
-              We're turning your idea and configuration into
-              a structured application.
-            </p>
+              {progress}%
+            </span>
           </div>
         </div>
 
         {/* Progress bar */}
         <div className="mt-6">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-medium text-zinc-500">
-              Generation progress
-            </span>
-
-            <span className="text-[10px] font-medium text-[#D4AF37]">
-              {Math.round(
-                (safeStep / steps.length) * 100
-              )}
-              %
-            </span>
-          </div>
-
           <div
             className="
               h-1
@@ -131,6 +207,11 @@ export default function GenerateProgress({
               rounded-full
               bg-zinc-800
             "
+            role="progressbar"
+            aria-label="Generation progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
           >
             <div
               className="
@@ -138,37 +219,71 @@ export default function GenerateProgress({
                 rounded-full
                 bg-[#D4AF37]
                 transition-all
-                duration-500
+                duration-700
+                ease-out
               "
               style={{
-                width: `${
-                  (safeStep / steps.length) * 100
-                }%`,
+                width: `${progress}%`,
               }}
             />
           </div>
         </div>
 
         {/* Steps */}
-        <div className="mt-6 space-y-3">
+        <div
+          className="
+            mt-6
+            grid
+            gap-2.5
+            lg:grid-cols-4
+          "
+        >
           {steps.map((step, index) => {
-            const isComplete = index < safeStep - 1;
-            const isCurrent = index === safeStep - 1;
+            const stepNumber = index + 1;
+
+            const isComplete =
+              completed || stepNumber < safeStep;
+
+            const isCurrent =
+              !completed && stepNumber === safeStep;
+
+            const isUpcoming =
+              !isComplete && !isCurrent;
 
             return (
               <div
                 key={step.title}
-                className="
+                className={`
+                  relative
                   flex
+                  min-w-0
                   items-center
                   gap-3
                   rounded-xl
                   border
-                  border-zinc-800/70
-                  bg-[#0D0D0F]/70
                   px-3
                   py-3
-                "
+                  transition-all
+                  duration-300
+
+                  ${
+                    isComplete
+                      ? `
+                        border-emerald-500/15
+                        bg-emerald-500/[0.035]
+                      `
+                      : isCurrent
+                        ? `
+                          border-[#D4AF37]/20
+                          bg-[#D4AF37]/[0.045]
+                          shadow-[0_0_25px_rgba(212,175,55,0.035)]
+                        `
+                        : `
+                          border-zinc-800/70
+                          bg-[#0D0D0F]/60
+                        `
+                  }
+                `}
               >
                 {/* Step indicator */}
                 <div
@@ -228,38 +343,63 @@ export default function GenerateProgress({
 
                 {/* Step content */}
                 <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p
+                      className={`
+                        truncate
+                        text-xs
+                        font-medium
+
+                        ${
+                          isComplete
+                            ? "text-zinc-300"
+                            : isCurrent
+                              ? "text-white"
+                              : "text-zinc-600"
+                        }
+                      `}
+                    >
+                      {step.title}
+                    </p>
+
+                    {/* Status */}
+                    <span
+                      className={`
+                        shrink-0
+                        text-[9px]
+                        font-medium
+
+                        ${
+                          isComplete
+                            ? "text-emerald-400/70"
+                            : isCurrent
+                              ? "text-[#D4AF37]"
+                              : "text-zinc-800"
+                        }
+                      `}
+                    >
+                      {isComplete
+                        ? "Done"
+                        : isCurrent
+                          ? "Working"
+                          : "Queued"}
+                    </span>
+                  </div>
+
                   <p
                     className={`
-                      text-xs
-                      font-medium
+                      mt-0.5
+                      truncate
+                      text-[10px]
                       ${
-                        isComplete || isCurrent
-                          ? "text-zinc-300"
-                          : "text-zinc-600"
+                        isCurrent
+                          ? "text-zinc-600"
+                          : "text-zinc-700"
                       }
                     `}
                   >
-                    {step.title}
-                  </p>
-
-                  <p className="mt-0.5 text-[10px] text-zinc-700">
                     {step.description}
                   </p>
-                </div>
-
-                {/* Status */}
-                <div className="shrink-0">
-                  {isComplete && (
-                    <span className="text-[9px] font-medium text-emerald-400/70">
-                      Done
-                    </span>
-                  )}
-
-                  {isCurrent && (
-                    <span className="text-[9px] font-medium text-[#D4AF37]">
-                      Working
-                    </span>
-                  )}
                 </div>
               </div>
             );
@@ -271,8 +411,8 @@ export default function GenerateProgress({
           className="
             mt-5
             flex
-            items-center
-            gap-2
+            items-start
+            gap-2.5
             rounded-xl
             border
             border-zinc-800/60
@@ -282,13 +422,20 @@ export default function GenerateProgress({
           "
         >
           <Sparkles
-            className="h-3 w-3 text-[#D4AF37]/70"
+            className="
+              mt-0.5
+              h-3
+              w-3
+              shrink-0
+              text-[#D4AF37]/70
+            "
             aria-hidden="true"
           />
 
-          <p className="text-[10px] text-zinc-700">
-            This usually takes a few moments. Please don't
-            close the page.
+          <p className="text-[10px] leading-4 text-zinc-700">
+            {completed
+              ? "Your workspace is ready. You can continue editing and refining it."
+              : "ANVIX is preparing your first workspace. You can continue once generation is complete."}
           </p>
         </div>
       </div>
