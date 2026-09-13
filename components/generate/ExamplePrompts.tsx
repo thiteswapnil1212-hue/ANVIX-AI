@@ -2,10 +2,10 @@
 
 import {
   ArrowRight,
+  BrainCircuit,
   Layers3,
   Sparkles,
   WandSparkles,
-  Zap,
 } from "lucide-react";
 
 interface ExamplePrompt {
@@ -25,29 +25,29 @@ const examples: ExamplePrompt[] = [
   {
     title: "AI Recruiting",
     description:
-      "Candidate scoring, analytics and intelligent hiring workflows.",
+      "Build a hiring platform with candidate scoring, recruiter analytics, search, and AI-assisted evaluation.",
     prompt:
-      "Build a premium AI recruiting platform with candidate profiles, intelligent candidate scoring, recruiter dashboards, analytics, authentication, search, filtering, and an AI assistant that helps recruiters evaluate candidates.",
+      "Build a production-style AI recruiting platform for modern hiring teams. Include recruiter authentication, candidate profiles, candidate search and filtering, job management, an applicant pipeline, AI-powered candidate scoring, recruiter dashboards, hiring analytics, and an AI assistant that helps recruiters evaluate candidates. Use a clean premium interface with responsive layouts, clear navigation, useful empty states, loading states, and realistic sample data.",
     icon: WandSparkles,
-    tag: "AI + Analytics",
+    tag: "AI + SaaS",
   },
   {
     title: "Developer Workspace",
     description:
-      "A complete workspace for shipping and managing internal tools.",
+      "A complete workspace for teams to manage projects, deployments, analytics, and collaboration.",
     prompt:
-      "Create a developer workspace for shipping internal tools with authentication, project management, team collaboration, billing, analytics, deployment status, and a clean professional dark interface.",
+      "Create a premium developer workspace for shipping and managing internal applications. Include authentication, a dashboard, project management, team members, activity history, deployment status, analytics, billing, notifications, and project settings. Add realistic sample data and useful states for empty projects, active deployments, failed deployments, and completed deployments. Use a professional dark interface with a fixed sidebar and responsive layouts.",
     icon: Layers3,
     tag: "SaaS",
   },
   {
-    title: "AI Research Cockpit",
+    title: "AI Research Hub",
     description:
-      "Knowledge, notebooks and AI-powered research workflows.",
+      "Organize research, documents, notes, and AI-powered insights in one workspace.",
     prompt:
-      "Design a private AI research cockpit with knowledge graphs, research documents, AI-powered summaries, shared notebooks, project organization, search, collaboration, and a premium dark interface.",
-    icon: Zap,
-    tag: "Research",
+      "Design an AI-powered research workspace for researchers and knowledge teams. Include projects, research documents, notes, searchable knowledge, document summaries, AI-generated insights, saved sources, tags, and collaboration features. Create a dashboard showing recent research activity and project progress. Use a premium dark interface with clear information hierarchy, realistic sample content, responsive layouts, and polished loading and empty states.",
+    icon: BrainCircuit,
+    tag: "AI + Research",
   },
 ];
 
@@ -61,35 +61,44 @@ export default function ExamplePrompts({
       className="relative"
     >
       {/* Header */}
-      <div className="mb-4 flex items-end justify-between gap-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p
-            className="
-              text-[10px]
-              font-semibold
-              uppercase
-              tracking-[0.18em]
-              text-[#D4AF37]
-            "
-          >
-            Need inspiration?
-          </p>
+          <div className="flex items-center gap-2">
+            <Sparkles
+              className="h-3.5 w-3.5 text-[#D4AF37]"
+              strokeWidth={1.8}
+              aria-hidden="true"
+            />
+
+            <p
+              className="
+                text-[10px]
+                font-semibold
+                uppercase
+                tracking-[0.18em]
+                text-[#D4AF37]
+              "
+            >
+              Quick start
+            </p>
+          </div>
 
           <h2
             id="example-prompts-title"
             className="
-              mt-1
+              mt-1.5
               text-lg
               font-semibold
               tracking-tight
               text-white
             "
           >
-            Start with a blueprint
+            Start with an example
           </h2>
 
-          <p className="mt-1 text-xs text-zinc-600">
-            Choose an example and customize it for your idea.
+          <p className="mt-1 text-xs leading-5 text-zinc-600">
+            Pick a blueprint, then customize the prompt for your
+            application.
           </p>
         </div>
 
@@ -104,21 +113,18 @@ export default function ExamplePrompts({
             bg-[#0D0D0F]
             px-3
             py-1.5
-            sm:flex
+            sm:inline-flex
           "
         >
-          <Sparkles
-            className="h-3 w-3 text-[#D4AF37]"
-            aria-hidden="true"
-          />
+          <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]/70" />
 
           <span className="text-[10px] text-zinc-600">
-            One click to use
+            Ready-to-use prompts
           </span>
         </div>
       </div>
 
-      {/* Cards */}
+      {/* Example cards */}
       <div className="grid gap-3 md:grid-cols-3">
         {examples.map((example) => {
           const Icon = example.icon;
@@ -129,9 +135,11 @@ export default function ExamplePrompts({
               type="button"
               disabled={disabled}
               onClick={() => onSelect(example.prompt)}
+              aria-label={`Use ${example.title} example`}
               className="
                 group
                 relative
+                min-w-0
                 overflow-hidden
                 rounded-2xl
                 border
@@ -139,33 +147,36 @@ export default function ExamplePrompts({
                 bg-[#111113]
                 p-5
                 text-left
+                outline-none
                 transition-all
                 duration-200
                 hover:-translate-y-0.5
                 hover:border-[#D4AF37]/25
                 hover:bg-[#141416]
-                hover:shadow-[0_15px_40px_rgba(0,0,0,0.18)]
-                focus:outline-none
-                focus:ring-2
-                focus:ring-[#D4AF37]/30
+                hover:shadow-[0_18px_45px_rgba(0,0,0,0.2)]
+                focus-visible:ring-2
+                focus-visible:ring-[#D4AF37]/35
+                focus-visible:ring-offset-2
+                focus-visible:ring-offset-[#0D0D0F]
+                active:translate-y-0
                 disabled:cursor-not-allowed
                 disabled:opacity-50
               "
             >
-              {/* Hover glow */}
+              {/* Background glow */}
               <div
                 aria-hidden="true"
                 className="
                   pointer-events-none
                   absolute
-                  -right-16
-                  -top-16
-                  h-32
-                  w-32
+                  -right-20
+                  -top-20
+                  h-40
+                  w-40
                   rounded-full
-                  bg-[#D4AF37]/[0.05]
+                  bg-[#D4AF37]/[0.055]
                   opacity-0
-                  blur-[50px]
+                  blur-[55px]
                   transition-opacity
                   duration-300
                   group-hover:opacity-100
@@ -173,7 +184,7 @@ export default function ExamplePrompts({
               />
 
               <div className="relative">
-                {/* Top row */}
+                {/* Card top */}
                 <div className="flex items-center justify-between">
                   <div
                     className="
@@ -193,24 +204,48 @@ export default function ExamplePrompts({
                     "
                   >
                     <Icon
-                      className="h-4.5 w-4.5 text-[#D4AF37]"
+                      className="
+                        h-4.5
+                        w-4.5
+                        text-[#D4AF37]
+                        transition-transform
+                        duration-200
+                        group-hover:scale-105
+                      "
                       strokeWidth={1.7}
                       aria-hidden="true"
                     />
                   </div>
 
-                  <ArrowRight
+                  <div
                     className="
-                      h-4
-                      w-4
-                      text-zinc-700
+                      flex
+                      h-7
+                      w-7
+                      items-center
+                      justify-center
+                      rounded-full
+                      border
+                      border-zinc-800
+                      bg-[#0D0D0F]
                       transition-all
                       duration-200
-                      group-hover:translate-x-0.5
-                      group-hover:text-[#D4AF37]
+                      group-hover:border-[#D4AF37]/20
                     "
-                    aria-hidden="true"
-                  />
+                  >
+                    <ArrowRight
+                      className="
+                        h-3.5
+                        w-3.5
+                        text-zinc-700
+                        transition-all
+                        duration-200
+                        group-hover:translate-x-0.5
+                        group-hover:text-[#D4AF37]
+                      "
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
 
                 {/* Tag */}
@@ -229,18 +264,38 @@ export default function ExamplePrompts({
                       uppercase
                       tracking-[0.08em]
                       text-zinc-600
+                      transition-colors
+                      duration-200
+                      group-hover:border-zinc-700
+                      group-hover:text-zinc-500
                     "
                   >
                     {example.tag}
                   </span>
                 </div>
 
-                {/* Content */}
-                <h3 className="mt-3 text-sm font-semibold text-white">
+                {/* Title */}
+                <h3
+                  className="
+                    mt-3
+                    text-sm
+                    font-semibold
+                    text-white
+                  "
+                >
                   {example.title}
                 </h3>
 
-                <p className="mt-1.5 min-h-[40px] text-xs leading-5 text-zinc-500">
+                {/* Description */}
+                <p
+                  className="
+                    mt-1.5
+                    min-h-[60px]
+                    text-xs
+                    leading-5
+                    text-zinc-500
+                  "
+                >
                   {example.description}
                 </p>
 
@@ -259,9 +314,15 @@ export default function ExamplePrompts({
                     group-hover:text-[#D4AF37]
                   "
                 >
-                  Use this blueprint
+                  Use example
+
                   <ArrowRight
-                    className="h-3 w-3"
+                    className="
+                      h-3 w-3
+                      transition-transform
+                      duration-200
+                      group-hover:translate-x-0.5
+                    "
                     aria-hidden="true"
                   />
                 </div>
