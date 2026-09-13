@@ -49,9 +49,9 @@ export default function GeneratePage() {
     setIsSubmitting(true);
 
     /*
-     * Temporary generation flow.
+     * Temporary frontend generation flow.
      *
-     * Later this will become:
+     * Later this will be replaced with:
      *
      * POST /api/build
      *
@@ -60,7 +60,7 @@ export default function GeneratePage() {
      *   buildConfig
      * }
      *
-     * The backend will then create the actual project,
+     * The backend will create the actual project,
      * files, workspace and preview.
      */
 
@@ -103,18 +103,14 @@ export default function GeneratePage() {
         >
           <div className="space-y-6 lg:space-y-7">
 
-            {/* =====================================================
-                GENERATE HERO
-            ===================================================== */}
+            {/* Generate Hero */}
 
             <GenerateHero
               promptLength={prompt.length}
               maxChars={MAX_CHARS}
             />
 
-            {/* =====================================================
-                PROMPT BUILDER
-            ===================================================== */}
+            {/* Prompt Builder */}
 
             <PromptBuilder
               value={prompt}
@@ -126,18 +122,14 @@ export default function GeneratePage() {
               canGenerate={canGenerate}
             />
 
-            {/* =====================================================
-                EXAMPLE PROMPTS
-            ===================================================== */}
+            {/* Example Prompts */}
 
             <ExamplePrompts
               onSelect={setPrompt}
               disabled={isSubmitting}
             />
 
-            {/* =====================================================
-                BUILD OPTIONS
-            ===================================================== */}
+            {/* Build Options */}
 
             <BuildOptions
               value={buildConfig}
@@ -145,17 +137,13 @@ export default function GeneratePage() {
               disabled={isSubmitting}
             />
 
-            {/* =====================================================
-                GENERATION PROGRESS
-            ===================================================== */}
+            {/* Generation Progress */}
 
             {isSubmitting && (
               <GenerateProgress />
             )}
 
-            {/* =====================================================
-                BUILDER FOOTER
-            ===================================================== */}
+            {/* Builder Footer */}
 
             <div
               className="
