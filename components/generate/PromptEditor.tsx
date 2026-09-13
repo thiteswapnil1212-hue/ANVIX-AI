@@ -6,6 +6,7 @@ import {
   FileCode2,
   Sparkles,
 } from "lucide-react";
+import { useLayoutEffect, useRef } from "react";
 
 interface PromptEditorProps {
   value: string;
@@ -20,6 +21,9 @@ interface PromptEditorProps {
 
 const DEFAULT_MAX_CHARS = 2200;
 
+const MIN_EDITOR_HEIGHT = 140;
+const MAX_EDITOR_HEIGHT = 300;
+
 export default function PromptEditor({
   value,
   onChange,
@@ -33,8 +37,15 @@ Build a premium AI workspace for design teams with authentication, project manag
 Include the main user flows, important features, and the overall experience you want.`,
   onKeyDown,
 }: PromptEditorProps) {
+  const textareaRef =
+    useRef<HTMLTextAreaElement>(null);
+
   const characterCount = value.length;
-  const remainingChars = Math.max(maxChars - characterCount, 0);
+
+  const remainingChars = Math.max(
+    maxChars - characterCount,
+    0
+  );
 
   const usagePercentage = Math.min(
     (characterCount / maxChars) * 100,
@@ -44,12 +55,80 @@ Include the main user flows, important features, and the overall experience you 
   const isNearLimit = remainingChars < 200;
   const hasContent = value.trim().length > 0;
 
+  /*
+   * Automatically resize the editor based on its
+   * actual content.
+   *
+   * Empty:
+   * ~140px
+   *
+   * Normal prompt:
+   * grows naturally
+   *
+   * Long prompt:
+   * stops at 300px and becomes internally scrollable
+   */
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+
+    const contentHeight = textarea.scrollHeight;
+
+    const nextHeight = Math.min(
+      Math.max(contentHeight, MIN_EDITOR_HEIGHT),
+      MAX_EDITOR_HEIGHT
+    );
+
+    textarea.style.height = `${nextHeight}px`;
+
+    textarea.style.overflowY =
+      contentHeight > MAX_EDITOR_HEIGHT
+        ? "auto"
+        : "hidden";
+  }, [value]);
+
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-[#0B0B0D] transition-all duration-200 focus-within:border-[#D4AF37]/35 focus-within:shadow-[0_0_40px_rgba(212,175,55,0.045)]">
+    <div
+      className="
+        relative
+        overflow-hidden
+        rounded-2xl
+        border
+        border-zinc-800
+        bg-[#0B0B0D]
+        transition-all
+        duration-200
+        focus-within:border-[#D4AF37]/35
+        focus-within:shadow-[0_0_40px_rgba(212,175,55,0.045)]
+      "
+    >
       {/* Editor header */}
-      <div className="flex items-center justify-between border-b border-zinc-800/70 px-4 py-2.5">
+      <div
+        className="
+          flex
+          items-center
+          justify-between
+          border-b
+          border-zinc-800/70
+          px-4
+          py-2.5
+        "
+      >
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-zinc-800/70">
+          <div
+            className="
+              flex
+              h-6
+              w-6
+              items-center
+              justify-center
+              rounded-md
+              bg-zinc-800/70
+            "
+          >
             <Code2
               className="h-3.5 w-3.5 text-zinc-500"
               strokeWidth={1.7}
@@ -57,18 +136,29 @@ Include the main user flows, important features, and the overall experience you 
             />
           </div>
 
-          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-600">
+          <span
+            className="
+              text-[10px]
+              font-medium
+              uppercase
+              tracking-[0.12em]
+              text-zinc-600
+            "
+          >
             Build prompt
           </span>
         </div>
 
         <div className="flex items-center gap-2">
           <span
-            className={`text-[10px] ${
-              isNearLimit
-                ? "text-[#D4AF37]"
-                : "text-zinc-700"
-            }`}
+            className={`
+              text-[10px]
+              ${
+                isNearLimit
+                  ? "text-[#D4AF37]"
+                  : "text-zinc-700"
+              }
+            `}
           >
             {characterCount.toLocaleString()} /{" "}
             {maxChars.toLocaleString()}
@@ -105,20 +195,26 @@ Include the main user flows, important features, and the overall experience you 
         </div>
 
         <textarea
+          ref={textareaRef}
           id="generate-prompt-editor"
           name="generate-prompt"
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) =>
+            onChange(
+              event.target.value.slice(0, maxChars)
+            )
+          }
           onKeyDown={onKeyDown}
           maxLength={maxChars}
           disabled={disabled}
           spellCheck
           autoComplete="off"
+          rows={1}
           aria-label="Describe the application you want to build"
           className="
-            min-h-[260px]
+            block
             w-full
-            resize-y
+            resize-none
             bg-transparent
             px-5
             pb-5
@@ -131,9 +227,12 @@ Include the main user flows, important features, and the overall experience you 
             placeholder:text-zinc-700
             disabled:cursor-not-allowed
             disabled:opacity-50
-            sm:min-h-[290px]
             sm:text-[15px]
           "
+          style={{
+            minHeight: `${MIN_EDITOR_HEIGHT}px`,
+            maxHeight: `${MAX_EDITOR_HEIGHT}px`,
+          }}
           placeholder={placeholder}
         />
 
@@ -166,14 +265,32 @@ Include the main user flows, important features, and the overall experience you 
       </div>
 
       {/* Editor footer */}
-      <div className="flex flex-col gap-2 border-t border-zinc-800/70 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className="
+          flex
+          flex-col
+          gap-2
+          border-t
+          border-zinc-800/70
+          px-4
+          py-2.5
+          sm:flex-row
+          sm:items-center
+          sm:justify-between
+        "
+      >
         <div className="flex items-center gap-2">
           <div
-            className={`h-1.5 w-1.5 rounded-full ${
-              hasContent
-                ? "bg-emerald-400"
-                : "bg-zinc-700"
-            }`}
+            className={`
+              h-1.5
+              w-1.5
+              rounded-full
+              ${
+                hasContent
+                  ? "bg-emerald-400"
+                  : "bg-zinc-700"
+              }
+            `}
             aria-hidden="true"
           />
 
@@ -184,7 +301,15 @@ Include the main user flows, important features, and the overall experience you 
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-[10px] text-zinc-700">
+        <div
+          className="
+            flex
+            items-center
+            gap-2
+            text-[10px]
+            text-zinc-700
+          "
+        >
           <CornerDownLeft
             className="h-3 w-3"
             strokeWidth={1.6}
@@ -200,7 +325,13 @@ Include the main user flows, important features, and the overall experience you 
       {/* Character progress */}
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-px bg-zinc-900"
+        className="
+          absolute
+          inset-x-0
+          bottom-0
+          h-px
+          bg-zinc-900
+        "
       >
         <div
           className="
