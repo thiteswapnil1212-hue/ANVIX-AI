@@ -1,10 +1,10 @@
 "use client";
 
 import {
+  ArrowDown,
   Check,
   Sparkles,
   WandSparkles,
-  ArrowDown,
 } from "lucide-react";
 
 interface GenerateHeroProps {
@@ -24,10 +24,17 @@ export default function GenerateHero({
   promptLength = 0,
   maxChars = DEFAULT_MAX_CHARS,
 }: GenerateHeroProps) {
-  const progress = Math.min(
-    (promptLength / maxChars) * 100,
-    100
+  const safePromptLength = Math.max(
+    0,
+    Math.min(promptLength, maxChars)
   );
+
+  const progress =
+    maxChars > 0
+      ? Math.min((safePromptLength / maxChars) * 100, 100)
+      : 0;
+
+  const hasPrompt = safePromptLength > 0;
 
   return (
     <section
@@ -38,22 +45,22 @@ export default function GenerateHero({
         rounded-[28px]
         border
         border-zinc-800/80
-        bg-[#0F0F11]/95
+        bg-[#0F0F11]
         shadow-[0_20px_70px_rgba(0,0,0,0.24)]
       "
     >
-      {/* Ambient background glow */}
+      {/* Ambient glow */}
       <div
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
-          -right-32
-          -top-32
+          -right-40
+          -top-40
           h-80
           w-80
           rounded-full
-          bg-[#D4AF37]/[0.08]
+          bg-[#D4AF37]/[0.07]
           blur-[110px]
         "
       />
@@ -68,12 +75,12 @@ export default function GenerateHero({
           h-72
           w-72
           rounded-full
-          bg-[#D4AF37]/[0.045]
+          bg-[#D4AF37]/[0.035]
           blur-[100px]
         "
       />
 
-      {/* Subtle top line */}
+      {/* Top accent */}
       <div
         aria-hidden="true"
         className="
@@ -88,11 +95,30 @@ export default function GenerateHero({
         "
       />
 
-      <div className="relative px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
+      <div
+        className="
+          relative
+          px-5
+          py-8
+          sm:px-8
+          sm:py-10
+          lg:px-10
+          lg:py-11
+        "
+      >
         {/* Header */}
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div
+          className="
+            flex
+            flex-col
+            gap-6
+            lg:flex-row
+            lg:items-start
+            lg:justify-between
+          "
+        >
           <div className="max-w-3xl">
-            {/* Product badge */}
+            {/* Badge */}
             <div
               className="
                 inline-flex
@@ -132,13 +158,14 @@ export default function GenerateHero({
                 mt-5
                 text-3xl
                 font-semibold
-                tracking-[-0.035em]
+                leading-[1.08]
+                tracking-[-0.04em]
                 text-white
                 sm:text-4xl
                 lg:text-5xl
               "
             >
-              Turn an idea into
+              Turn your idea into
               <br className="hidden sm:block" />{" "}
               <span
                 className="
@@ -150,7 +177,7 @@ export default function GenerateHero({
                   text-transparent
                 "
               >
-                something real.
+                a working app.
               </span>
             </h1>
 
@@ -164,13 +191,13 @@ export default function GenerateHero({
                 sm:text-base
               "
             >
-              Describe the product you have in mind. ANVIX
-              transforms your requirements into a structured
-              workspace you can continue building.
+              Describe what you want to build. ANVIX uses your
+              requirements to create a structured application
+              workspace that you can continue editing and improving.
             </p>
           </div>
 
-          {/* AI status */}
+          {/* Builder status */}
           <div
             className="
               hidden
@@ -213,18 +240,20 @@ export default function GenerateHero({
 
             <div>
               <p className="text-[11px] font-medium text-zinc-300">
-                AI Builder ready
+                Builder ready
               </p>
 
               <p className="mt-0.5 text-[10px] text-zinc-600">
-                Waiting for your idea
+                {hasPrompt
+                  ? "Prompt detected"
+                  : "Waiting for your idea"}
               </p>
             </div>
           </div>
         </div>
 
         {/* Benefits */}
-        <div className="mt-7 flex flex-wrap gap-2.5">
+        <div className="mt-7 flex flex-wrap gap-2">
           {benefits.map((benefit) => (
             <div
               key={benefit}
@@ -265,13 +294,13 @@ export default function GenerateHero({
           ))}
         </div>
 
-        {/* Builder hint */}
+        {/* Prompt guidance + capacity */}
         <div
           className="
             mt-8
             flex
             flex-col
-            gap-4
+            gap-5
             border-t
             border-zinc-800/70
             pt-5
@@ -280,7 +309,8 @@ export default function GenerateHero({
             sm:justify-between
           "
         >
-          <div className="flex items-center gap-3">
+          {/* Guidance */}
+          <div className="flex items-start gap-3">
             <div
               className="
                 flex
@@ -307,21 +337,31 @@ export default function GenerateHero({
                 Your prompt is the blueprint
               </p>
 
-              <p className="mt-0.5 text-[10px] text-zinc-600">
-                More context usually means a more useful first build.
+              <p className="mt-0.5 max-w-md text-[10px] leading-5 text-zinc-600">
+                Mention your users, features, pages, workflows,
+                and preferred experience for a stronger first build.
               </p>
             </div>
           </div>
 
-          {/* Character progress */}
-          <div className="min-w-40">
+          {/* Character capacity */}
+          <div className="w-full sm:w-48">
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-[10px] text-zinc-600">
                 Prompt capacity
               </span>
 
-              <span className="text-[10px] text-zinc-600">
-                {promptLength.toLocaleString()} /{" "}
+              <span
+                className={`
+                  text-[10px]
+                  ${
+                    progress >= 90
+                      ? "text-[#D4AF37]"
+                      : "text-zinc-600"
+                  }
+                `}
+              >
+                {safePromptLength.toLocaleString()} /{" "}
                 {maxChars.toLocaleString()}
               </span>
             </div>
@@ -337,7 +377,7 @@ export default function GenerateHero({
               aria-label="Prompt capacity"
               aria-valuemin={0}
               aria-valuemax={maxChars}
-              aria-valuenow={promptLength}
+              aria-valuenow={safePromptLength}
             >
               <div
                 className="
@@ -355,7 +395,7 @@ export default function GenerateHero({
           </div>
         </div>
 
-        {/* Mobile scroll hint */}
+        {/* Mobile hint */}
         <div
           className="
             mt-5
@@ -367,7 +407,11 @@ export default function GenerateHero({
             sm:hidden
           "
         >
-          <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          <ArrowDown
+            className="h-3 w-3"
+            aria-hidden="true"
+          />
+
           Start below to describe your idea
         </div>
       </div>
