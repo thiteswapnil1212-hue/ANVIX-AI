@@ -25,7 +25,7 @@ export default function Workspace({
   projectName = "Untitled Project",
 }: WorkspaceProps) {
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-800/80 bg-[#0B0B0D] text-white">
+    <div className="flex h-[calc(100vh-2rem)] min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-800/80 bg-[#0B0B0D] text-white">
 
       {/* =========================================================
           TOP BAR
