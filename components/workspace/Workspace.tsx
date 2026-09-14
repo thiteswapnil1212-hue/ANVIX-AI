@@ -29,7 +29,7 @@ export default function Workspace({
   const [activeView, setActiveView] = useState<"code" | "preview">("code");
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-800/80 bg-[#0B0B0D] text-white">
+   <div className="flex h-[calc(100vh-64px)] min-h-0 flex-col overflow-hidden ...">
 
       {/* TOP BAR */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800/80 bg-[#0F0F11] px-4">
