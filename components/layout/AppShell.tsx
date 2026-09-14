@@ -11,7 +11,7 @@ export default function AppShell({
   children,
 }: AppShellProps) {
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#09090B] text-white">
+    <div className="relative min-h-screen w-full bg-[#09090B] text-white">
       {/* Background video */}
       <video
         autoPlay
@@ -21,10 +21,10 @@ export default function AppShell({
         preload="auto"
         className="
           pointer-events-none
-          absolute
+          fixed
           inset-0
           z-0
-          h-full
+          h-screen
           w-full
           object-cover
         "
@@ -32,11 +32,11 @@ export default function AppShell({
         <source src="/anvix-bg.mp4" type="video/mp4" />
       </video>
 
-      {/* Subtle video overlay */}
+      {/* Background overlay */}
       <div
         className="
           pointer-events-none
-          absolute
+          fixed
           inset-0
           z-0
           bg-black/[0.18]
@@ -44,21 +44,12 @@ export default function AppShell({
       />
 
       {/* Navbar */}
-      <div className="relative z-50 shrink-0">
+      <div className="relative z-50">
         <Navbar />
       </div>
 
-      {/* Page Content */}
-      <main
-        className="
-          relative
-          z-10
-          min-h-0
-          flex-1
-          overflow-y-auto
-          overflow-x-hidden
-        "
-      >
+      {/* Page content */}
+      <main className="relative z-10 w-full">
         {children}
       </main>
     </div>
