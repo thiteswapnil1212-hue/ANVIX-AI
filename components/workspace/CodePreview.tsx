@@ -16,201 +16,62 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { ProjectFile } from "@/lib/project/project-schema";
+
 interface CodePreviewProps {
-  fileName?: string;
+  file?: ProjectFile | null;
   view?: "code" | "preview";
+  isDirty?: boolean;
+  onContentChange?: (content: string) => void;
+  onSave?: () => void;
+  onReset?: () => void;
 }
 
-const initialFileContents: Record<string, string> = {
-  "page.tsx": `import { ArrowRight, Sparkles } from "lucide-react";
+const binaryExtensions = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "gif",
+  "ico",
+]);
 
-export default function Home() {
-  return (
-    <main className="min-h-screen bg-[#0B0B0D]">
-      <section className="mx-auto max-w-6xl px-6 py-24">
-        <div className="max-w-3xl">
-          <p className="text-sm text-[#D4AF37]">
-            Built with ANVIX AI
-          </p>
+function getLanguage(file?: ProjectFile | null) {
+  if (!file) return "Text";
 
-          <h1 className="mt-5 text-5xl font-semibold text-white">
-            Build something remarkable.
-          </h1>
+  const language = file.language.trim();
 
-          <p className="mt-6 text-lg text-zinc-400">
-            Turn your idea into a working application
-            with natural language.
-          </p>
+  if (language) return language;
 
-          <button className="mt-8 rounded-xl bg-[#D4AF37] px-5 py-3">
-            Start building
-            <ArrowRight className="ml-2 inline h-4 w-4" />
-          </button>
-        </div>
-      </section>
-    </main>
-  );
-}`,
-
-  "layout.tsx": `import type { Metadata } from "next";
-import "./globals.css";
-
-export const metadata: Metadata = {
-  title: "ANVIX Generated App",
-  description: "Generated with ANVIX AI",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
-}`,
-
-  "globals.css": `@import "tailwindcss";
-
-:root {
-  --background: #0B0B0D;
-  --foreground: #ffffff;
-  --accent: #D4AF37;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-  min-height: 100%;
-  background: var(--background);
-  color: var(--foreground);
-}`,
-
-  "navbar.tsx": `"use client";
-
-import Link from "next/link";
-import { Sparkles } from "lucide-react";
-
-export default function Navbar() {
-  return (
-    <nav className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
-      <Link href="/" className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-[#D4AF37]" />
-        <span className="font-semibold text-white">
-          ANVIX
-        </span>
-      </Link>
-
-      <div className="flex items-center gap-5 text-sm text-zinc-500">
-        <Link href="#features">Features</Link>
-        <Link href="#pricing">Pricing</Link>
-        <Link href="#about">About</Link>
-      </div>
-    </nav>
-  );
-}`,
-
-  "hero.tsx": `import { ArrowRight, Sparkles } from "lucide-react";
-
-export default function Hero() {
-  return (
-    <section className="px-6 py-24">
-      <div className="mx-auto max-w-3xl text-center">
-        <Sparkles className="mx-auto text-[#D4AF37]" />
-
-        <h1 className="mt-6 text-5xl font-semibold text-white">
-          Build something remarkable.
-        </h1>
-
-        <p className="mt-5 text-zinc-500">
-          Turn your idea into a working application
-          with natural language.
-        </p>
-
-        <button className="mt-8 rounded-xl bg-[#D4AF37] px-5 py-3 text-black">
-          Start building
-          <ArrowRight className="ml-2 inline h-4 w-4" />
-        </button>
-      </div>
-    </section>
-  );
-}`,
-
-  "footer.tsx": `export default function Footer() {
-  return (
-    <footer className="border-t border-zinc-800 px-6 py-8">
-      <p className="text-sm text-zinc-600">
-        Built with ANVIX AI
-      </p>
-    </footer>
-  );
-}`,
-
-  "package.json": `{
-  "name": "anvix-generated-app",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "next": "16.3.1",
-    "react": "19.2.8",
-    "lucide-react": "latest"
-  }
-}`,
-
-  "README.md": `# ANVIX Generated Application
-
-This project was generated using ANVIX AI.
-
-## Getting Started
-
-Install dependencies:
-
-npm install
-
-Start the development server:
-
-npm run dev`,
-
-  "logo.png": `[Binary image file]
-
-Preview is not available for binary files.`,
-};
-
-function getInitialContent(fileName: string) {
-  return (
-    initialFileContents[fileName] ??
-    `// ${fileName}
-
-// This file is ready for generated content.
-`
-  );
-}
-
-function getLanguage(fileName: string) {
-  if (fileName.endsWith(".tsx")) return "TypeScript React";
-  if (fileName.endsWith(".ts")) return "TypeScript";
-  if (fileName.endsWith(".css")) return "CSS";
-  if (fileName.endsWith(".json")) return "JSON";
-  if (fileName.endsWith(".md")) return "Markdown";
-  if (fileName.endsWith(".png")) return "Binary";
+  if (file.path.endsWith(".tsx")) return "TypeScript React";
+  if (file.path.endsWith(".ts")) return "TypeScript";
+  if (file.path.endsWith(".css")) return "CSS";
+  if (file.path.endsWith(".json")) return "JSON";
+  if (file.path.endsWith(".md")) return "Markdown";
   return "Text";
 }
 
+function isBinaryFile(file?: ProjectFile | null) {
+  if (!file) return false;
+
+  const extension =
+    file.path.split(".").pop()?.toLowerCase() ?? "";
+
+  return (
+    binaryExtensions.has(extension) ||
+    ["image", "binary", "asset"].includes(
+      file.language.toLowerCase()
+    )
+  );
+}
+
 export default function CodePreview({
-  fileName = "page.tsx",
+  file,
   view = "code",
+  isDirty = false,
+  onContentChange,
+  onSave,
+  onReset,
 }: CodePreviewProps) {
   const [device, setDevice] = useState<
     "desktop" | "tablet" | "mobile"
@@ -218,53 +79,32 @@ export default function CodePreview({
 
   const [copied, setCopied] = useState(false);
 
-  const [fileContents, setFileContents] =
-    useState<Record<string, string>>(initialFileContents);
-
-  const [savedContents, setSavedContents] =
-    useState<Record<string, string>>(initialFileContents);
-
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
-  const content =
-    fileContents[fileName] ?? getInitialContent(fileName);
-
-  const savedContent =
-    savedContents[fileName] ?? getInitialContent(fileName);
-
-  const isDirty = content !== savedContent;
+  const fileName = file?.path ?? "No file selected";
+  const content = file?.content ?? "";
 
   const lines = useMemo(
     () => content.split("\n"),
     [content]
   );
 
-  const language = getLanguage(fileName);
-
-  const isBinary = language === "Binary";
+  const language = getLanguage(file);
+  const isBinary = isBinaryFile(file);
 
   function handleChange(
     event: React.ChangeEvent<HTMLTextAreaElement>
   ) {
-    const nextValue = event.target.value;
-
-    setFileContents((current) => ({
-      ...current,
-      [fileName]: nextValue,
-    }));
+    onContentChange?.(event.target.value);
   }
 
   function handleSave() {
     if (!isDirty) return;
-
-    setSavedContents((current) => ({
-      ...current,
-      [fileName]: content,
-    }));
+    onSave?.();
   }
 
   function handleCopy() {
-    if (!navigator.clipboard) return;
+    if (!navigator.clipboard || !file || isBinary) return;
 
     navigator.clipboard.writeText(content);
 
@@ -284,12 +124,7 @@ export default function CodePreview({
       if (!confirmed) return;
     }
 
-    setFileContents((current) => ({
-      ...current,
-      [fileName]:
-        savedContents[fileName] ??
-        getInitialContent(fileName),
-    }));
+    onReset?.();
   }
 
   function handleKeyDown(
@@ -316,10 +151,7 @@ export default function CodePreview({
         "  " +
         content.substring(end);
 
-      setFileContents((current) => ({
-        ...current,
-        [fileName]: nextValue,
-      }));
+      onContentChange?.(nextValue);
 
       requestAnimationFrame(() => {
         textarea.selectionStart = start + 2;
@@ -347,7 +179,7 @@ export default function CodePreview({
         handleGlobalSave
       );
     };
-  }, [content, fileName, isDirty]);
+  }, [content, isDirty]);
 
   const deviceWidth =
     device === "desktop"
@@ -378,7 +210,7 @@ export default function CodePreview({
           ) : (
             <>
               <span className="hidden text-[9px] text-zinc-700 sm:inline">
-                •
+                -
               </span>
 
               <span className="hidden text-[9px] text-zinc-700 sm:inline">
@@ -409,8 +241,9 @@ export default function CodePreview({
           <button
             type="button"
             onClick={handleCopy}
+            disabled={!file || isBinary}
             aria-label="Copy code"
-            className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[9px] text-zinc-600 transition hover:bg-zinc-800/60 hover:text-zinc-300"
+            className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[9px] text-zinc-600 transition hover:bg-zinc-800/60 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-30"
           >
             {copied ? (
               <>
@@ -432,8 +265,9 @@ export default function CodePreview({
           <button
             type="button"
             onClick={handleRefresh}
+            disabled={!file}
             aria-label="Reset file"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-600 transition hover:bg-zinc-800/60 hover:text-zinc-300"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-600 transition hover:bg-zinc-800/60 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-30"
           >
             <RefreshCw className="h-3 w-3" />
           </button>
@@ -521,7 +355,7 @@ export default function CodePreview({
       {/* CODE */}
       {view === "code" && (
         <div className="relative min-h-0 flex-1 overflow-auto bg-[#09090B]">
-          {isBinary ? (
+          {!file ? (
             <div className="flex h-full items-center justify-center p-8">
               <div className="max-w-sm text-center">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-800 bg-[#0D0D0F]">
@@ -529,13 +363,28 @@ export default function CodePreview({
                 </div>
 
                 <h3 className="mt-4 text-sm font-medium text-zinc-300">
-                  Binary file
+                  No file selected
                 </h3>
 
                 <p className="mt-2 text-xs leading-5 text-zinc-600">
-                  This file cannot be edited in the text editor.
-                  A real asset preview will be available when
-                  ANVIX connects to the project sandbox.
+                  Select a generated project file from the explorer.
+                </p>
+              </div>
+            </div>
+          ) : isBinary ? (
+            <div className="flex h-full items-center justify-center p-8">
+              <div className="max-w-sm text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-800 bg-[#0D0D0F]">
+                  <FileCode2 className="h-5 w-5 text-zinc-600" />
+                </div>
+
+                <h3 className="mt-4 text-sm font-medium text-zinc-300">
+                  Binary / asset file
+                </h3>
+
+                <p className="mt-2 text-xs leading-5 text-zinc-600">
+                  This generated asset cannot be edited in the text
+                  editor yet.
                 </p>
               </div>
             </div>
@@ -670,15 +519,15 @@ export default function CodePreview({
                   </h2>
 
                   <p className="mx-auto mt-5 max-w-lg text-xs leading-6 text-zinc-500 sm:text-sm">
-                    A working application generated from your
-                    natural-language requirements.
+                    Generated project preview will run here after
+                    ANVIX connects to a project sandbox.
                   </p>
 
                   <button
                     type="button"
                     className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-3 text-[10px] font-semibold text-black"
                   >
-                    Start building
+                    Continue editing
                     <ExternalLink className="h-3 w-3" />
                   </button>
                 </div>
@@ -690,11 +539,11 @@ export default function CodePreview({
 
                   <div>
                     <p className="text-[10px] font-medium text-zinc-300">
-                      Preview ready
+                      Preview placeholder
                     </p>
 
                     <p className="mt-0.5 text-[8px] text-zinc-700">
-                      Live sandbox preview will connect here.
+                      The generated project is not running yet.
                     </p>
                   </div>
                 </div>
