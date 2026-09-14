@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Bot,
   ChevronDown,
@@ -24,18 +25,15 @@ interface WorkspaceProps {
 export default function Workspace({
   projectName = "Untitled Project",
 }: WorkspaceProps) {
+  const [selectedFile, setSelectedFile] = useState("page.tsx");
+  const [activeView, setActiveView] = useState<"code" | "preview">("code");
+
   return (
-    <div className="flex h-[calc(100vh-2rem)] min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-800/80 bg-[#0B0B0D] text-white">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-800/80 bg-[#0B0B0D] text-white">
 
-      {/* =========================================================
-          TOP BAR
-      ========================================================= */}
-
+      {/* TOP BAR */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800/80 bg-[#0F0F11] px-4">
-
         <div className="flex min-w-0 items-center gap-3">
-
-          {/* Project */}
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4AF37]/15 bg-[#D4AF37]/[0.06]">
               <Sparkles
@@ -61,7 +59,6 @@ export default function Workspace({
 
           <div className="hidden h-5 w-px bg-zinc-800 sm:block" />
 
-          {/* Status */}
           <div className="hidden items-center gap-2 rounded-full border border-zinc-800 bg-[#0B0B0D] px-2.5 py-1 sm:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
 
@@ -71,9 +68,7 @@ export default function Workspace({
           </div>
         </div>
 
-        {/* Top actions */}
         <div className="flex items-center gap-1.5">
-
           <button
             type="button"
             className="hidden items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 sm:flex"
@@ -87,6 +82,7 @@ export default function Workspace({
             className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200"
           >
             <Play className="h-3 w-3" />
+
             <span className="hidden sm:inline">
               Run
             </span>
@@ -97,6 +93,7 @@ export default function Workspace({
             className="flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-[10px] font-semibold text-black transition hover:bg-[#E2C259]"
           >
             <Rocket className="h-3 w-3" />
+
             <span className="hidden sm:inline">
               Deploy
             </span>
@@ -112,17 +109,11 @@ export default function Workspace({
         </div>
       </header>
 
-      {/* =========================================================
-          WORKSPACE BODY
-      ========================================================= */}
-
+      {/* WORKSPACE BODY */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
 
-        {/* =======================================================
-            LEFT SIDEBAR
-        ======================================================= */}
-
-        <aside className="hidden w-[220px] shrink-0 border-r border-zinc-800/80 bg-[#0D0D0F] lg:flex lg:flex-col">
+        {/* LEFT SIDEBAR */}
+        <aside className="hidden min-h-0 w-[220px] shrink-0 flex-col overflow-hidden border-r border-zinc-800/80 bg-[#0D0D0F] lg:flex">
 
           {/* Explorer header */}
           <div className="flex h-11 shrink-0 items-center justify-between border-b border-zinc-800/60 px-3">
@@ -143,9 +134,12 @@ export default function Workspace({
             </button>
           </div>
 
-          {/* File explorer */}
+          {/* FILE EXPLORER */}
           <div className="min-h-0 flex-1 overflow-hidden">
-            <FileExplorer />
+            <FileExplorer
+              selectedFile={selectedFile}
+              onFileSelect={setSelectedFile}
+            />
           </div>
 
           {/* Sidebar bottom */}
@@ -166,20 +160,22 @@ export default function Workspace({
           </div>
         </aside>
 
-        {/* =======================================================
-            MAIN AREA
-        ======================================================= */}
+        {/* MAIN AREA */}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-
-          {/* Editor / Preview toolbar */}
+          {/* TOOLBAR */}
           <div className="flex h-11 shrink-0 items-center justify-between border-b border-zinc-800/70 bg-[#0F0F11] px-3">
 
             <div className="flex items-center gap-1">
 
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-lg bg-[#D4AF37]/[0.07] px-3 py-1.5 text-[10px] font-medium text-[#D4AF37]"
+                onClick={() => setActiveView("code")}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[10px] font-medium transition ${
+                  activeView === "code"
+                    ? "bg-[#D4AF37]/[0.07] text-[#D4AF37]"
+                    : "text-zinc-600 hover:text-zinc-300"
+                }`}
               >
                 <Code2 className="h-3 w-3" />
                 Code
@@ -187,7 +183,12 @@ export default function Workspace({
 
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[10px] font-medium text-zinc-600 transition hover:text-zinc-300"
+                onClick={() => setActiveView("preview")}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[10px] font-medium transition ${
+                  activeView === "preview"
+                    ? "bg-[#D4AF37]/[0.07] text-[#D4AF37]"
+                    : "text-zinc-600 hover:text-zinc-300"
+                }`}
               >
                 <Eye className="h-3 w-3" />
                 Preview
@@ -208,17 +209,16 @@ export default function Workspace({
             </div>
           </div>
 
-          {/* Code / Preview */}
+          {/* CODE / PREVIEW */}
           <div className="min-h-0 flex-1 overflow-hidden">
-            <CodePreview />
+            <CodePreview
+              fileName={selectedFile}
+              view={activeView}
+            />
           </div>
 
-          {/* =====================================================
-              AI COMMAND BAR
-          ===================================================== */}
-
+          {/* AI COMMAND BAR */}
           <div className="shrink-0 border-t border-zinc-800/80 bg-[#0D0D0F] p-3">
-
             <div className="rounded-xl border border-zinc-800 bg-[#0B0B0D] transition focus-within:border-[#D4AF37]/25">
 
               <div className="flex items-end gap-2 px-3 py-2.5">
@@ -246,7 +246,6 @@ export default function Workspace({
               </div>
 
               <div className="flex items-center justify-between border-t border-zinc-800/60 px-3 py-1.5">
-
                 <span className="text-[8px] text-zinc-700">
                   Describe a change in natural language
                 </span>
