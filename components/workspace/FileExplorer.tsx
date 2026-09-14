@@ -12,7 +12,9 @@ import {
   Image,
   Package,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+import type { ProjectFile } from "@/lib/project/project-schema";
 
 type FileType =
   | "folder"
@@ -21,74 +23,102 @@ type FileType =
   | "json"
   | "css"
   | "md"
-  | "image";
+  | "image"
+  | "text";
 
-interface FileItem {
+interface TreeItem {
   name: string;
+  path: string;
   type: FileType;
-  children?: FileItem[];
+  children?: TreeItem[];
 }
 
-const fileTree: FileItem[] = [
-  {
-    name: "app",
-    type: "folder",
-    children: [
-      {
-        name: "layout.tsx",
-        type: "tsx",
-      },
-      {
-        name: "page.tsx",
-        type: "tsx",
-      },
-      {
-        name: "globals.css",
-        type: "css",
-      },
-    ],
-  },
-  {
-    name: "components",
-    type: "folder",
-    children: [
-      {
-        name: "navbar.tsx",
-        type: "tsx",
-      },
-      {
-        name: "hero.tsx",
-        type: "tsx",
-      },
-      {
-        name: "footer.tsx",
-        type: "tsx",
-      },
-    ],
-  },
-  {
-    name: "public",
-    type: "folder",
-    children: [
-      {
-        name: "logo.png",
-        type: "image",
-      },
-    ],
-  },
-  {
-    name: "package.json",
-    type: "json",
-  },
-  {
-    name: "README.md",
-    type: "md",
-  },
-];
-
 interface FileExplorerProps {
-  onFileSelect?: (fileName: string) => void;
+  files: ProjectFile[];
+  projectName?: string;
+  onFileSelect?: (filePath: string) => void;
   selectedFile?: string;
+}
+
+const imageExtensions = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "gif",
+  "ico",
+]);
+
+function getFileType(filePath: string): FileType {
+  const extension =
+    filePath.split(".").pop()?.toLowerCase() ?? "";
+
+  if (imageExtensions.has(extension)) return "image";
+  if (extension === "tsx") return "tsx";
+  if (extension === "ts") return "ts";
+  if (extension === "json") return "json";
+  if (extension === "css") return "css";
+  if (extension === "md") return "md";
+  return "text";
+}
+
+function sortTreeItems(items: TreeItem[]): TreeItem[] {
+  return items
+    .map((item) => ({
+      ...item,
+      children: item.children
+        ? sortTreeItems(item.children)
+        : undefined,
+    }))
+    .sort((a, b) => {
+      const aIsFolder = a.type === "folder";
+      const bIsFolder = b.type === "folder";
+
+      if (aIsFolder !== bIsFolder) {
+        return aIsFolder ? -1 : 1;
+      }
+
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function buildFileTree(files: ProjectFile[]) {
+  const rootItems: TreeItem[] = [];
+
+  for (const file of files) {
+    const parts = file.path.split("/").filter(Boolean);
+    let currentLevel = rootItems;
+    let currentPath = "";
+
+    parts.forEach((part, index) => {
+      currentPath = currentPath
+        ? `${currentPath}/${part}`
+        : part;
+
+      const isFile = index === parts.length - 1;
+      let item = currentLevel.find(
+        (candidate) => candidate.name === part
+      );
+
+      if (!item) {
+        item = {
+          name: part,
+          path: currentPath,
+          type: isFile ? getFileType(file.path) : "folder",
+          children: isFile ? undefined : [],
+        };
+
+        currentLevel.push(item);
+      }
+
+      if (!isFile) {
+        item.children ??= [];
+        currentLevel = item.children;
+      }
+    });
+  }
+
+  return sortTreeItems(rootItems);
 }
 
 function FileIcon({ type }: { type: FileType }) {
@@ -151,15 +181,15 @@ function FileTreeItem({
   selectedFile,
   onFileSelect,
 }: {
-  item: FileItem;
+  item: TreeItem;
   depth?: number;
   selectedFile?: string;
-  onFileSelect?: (fileName: string) => void;
+  onFileSelect?: (filePath: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(depth < 1);
 
   const isFolder = item.type === "folder";
-  const isSelected = selectedFile === item.name;
+  const isSelected = selectedFile === item.path;
 
   function handleClick() {
     if (isFolder) {
@@ -167,7 +197,7 @@ function FileTreeItem({
       return;
     }
 
-    onFileSelect?.(item.name);
+    onFileSelect?.(item.path);
   }
 
   return (
@@ -230,7 +260,7 @@ function FileTreeItem({
         <div>
           {item.children.map((child) => (
             <FileTreeItem
-              key={`${item.name}/${child.name}`}
+              key={child.path}
               item={child}
               depth={depth + 1}
               selectedFile={selectedFile}
@@ -244,17 +274,15 @@ function FileTreeItem({
 }
 
 export default function FileExplorer({
+  files,
+  projectName = "Generated Project",
   onFileSelect,
   selectedFile,
 }: FileExplorerProps) {
-  const [activeFile, setActiveFile] = useState(
-    selectedFile ?? "page.tsx"
+  const fileTree = useMemo(
+    () => buildFileTree(files),
+    [files]
   );
-
-  function handleFileSelect(fileName: string) {
-    setActiveFile(fileName);
-    onFileSelect?.(fileName);
-  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -273,21 +301,23 @@ export default function FileExplorer({
 
       {/* Tree */}
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-800">
-        {fileTree.map((item) => (
-          <FileTreeItem
-            key={item.name}
-            item={item}
-            selectedFile={activeFile}
-            onFileSelect={handleFileSelect}
-          />
-        ))}
+        <FileTreeItem
+          item={{
+            name: `${projectName}/`,
+            path: "",
+            type: "folder",
+            children: fileTree,
+          }}
+          selectedFile={selectedFile}
+          onFileSelect={onFileSelect}
+        />
       </div>
 
       {/* Bottom status */}
       <div className="shrink-0 border-t border-zinc-800/60 px-3 py-2.5">
         <div className="flex items-center justify-between">
           <span className="text-[8px] text-zinc-700">
-            10 files
+            {files.length} {files.length === 1 ? "file" : "files"}
           </span>
 
           <span className="flex items-center gap-1.5 text-[8px] text-emerald-400/60">
