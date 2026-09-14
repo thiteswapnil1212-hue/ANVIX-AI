@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bot,
   CheckCircle2,
@@ -17,6 +18,11 @@ import {
   Terminal,
 } from "lucide-react";
 
+import {
+  isGeneratedProject,
+  type GeneratedProject,
+} from "@/lib/project/project-schema";
+
 import FileExplorer from "./FileExplorer";
 import CodePreview from "./CodePreview";
 
@@ -24,14 +30,98 @@ interface WorkspaceProps {
   projectName?: string;
 }
 
+const GENERATED_PROJECT_STORAGE_KEY = "anvix.generatedProject";
+
+function cloneProject(project: GeneratedProject) {
+  return JSON.parse(JSON.stringify(project)) as GeneratedProject;
+}
+
+function readStoredProject(): GeneratedProject | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawProject = window.sessionStorage.getItem(
+    GENERATED_PROJECT_STORAGE_KEY
+  );
+
+  if (!rawProject) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawProject) as unknown;
+    const normalizedProject = isGeneratedProject(parsed)
+      ? {
+          name: parsed.name.trim(),
+          framework: "nextjs" as const,
+          files: parsed.files.map((file) => ({
+            path: file.path.trim(),
+            content: file.content,
+            language: file.language.trim(),
+          })),
+        }
+      : null;
+
+    if (!normalizedProject || normalizedProject.files.length === 0) {
+      return null;
+    }
+
+    return normalizedProject;
+  } catch {
+    return null;
+  }
+}
+
+function getFirstFilePath(files: GeneratedProject["files"]) {
+  return files.find((file) => file.path.trim().length > 0)?.path ?? null;
+}
+
 export default function Workspace({
   projectName = "Untitled Project",
 }: WorkspaceProps) {
-  const [selectedFile, setSelectedFile] = useState("page.tsx");
+  const router = useRouter();
+  const [project, setProject] = useState<GeneratedProject | null>(null);
+  const [savedProject, setSavedProject] = useState<GeneratedProject | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"code" | "preview">("code");
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    const storedProject = readStoredProject();
+
+    if (!storedProject || storedProject.files.length === 0) {
+      setProject(null);
+      setSavedProject(null);
+      setSelectedFilePath(null);
+      return;
+    }
+
+    const nextProject = cloneProject(storedProject);
+    setProject(nextProject);
+    setSavedProject(cloneProject(nextProject));
+    setSelectedFilePath(getFirstFilePath(nextProject.files));
+  }, []);
+
+  const selectedFile = useMemo(() => {
+    if (!project || !selectedFilePath) {
+      return null;
+    }
+
+    return (
+      project.files.find((file) => file.path === selectedFilePath) ?? null
+    );
+  }, [project, selectedFilePath]);
+
+  const isDirty = useMemo(() => {
+    if (!project || !savedProject) {
+      return false;
+    }
+
+    return JSON.stringify(project) !== JSON.stringify(savedProject);
+  }, [project, savedProject]);
 
   function handleRun() {
     if (isRunning) return;
@@ -63,6 +153,93 @@ export default function Workspace({
       event.preventDefault();
       handleAiSubmit();
     }
+  }
+
+  function handleFileSelect(filePath: string) {
+    setSelectedFilePath(filePath);
+  }
+
+  function handleContentChange(nextContent: string) {
+    if (!project || !selectedFilePath) return;
+
+    setProject((currentProject) => {
+      if (!currentProject) {
+        return currentProject;
+      }
+
+      return {
+        ...currentProject,
+        files: currentProject.files.map((file) =>
+          file.path === selectedFilePath
+            ? { ...file, content: nextContent }
+            : file
+        ),
+      };
+    });
+  }
+
+  function handleSave() {
+    if (!project) return;
+
+    const serializedProject = JSON.stringify(project);
+    window.sessionStorage.setItem(
+      GENERATED_PROJECT_STORAGE_KEY,
+      serializedProject
+    );
+    setSavedProject(cloneProject(project));
+  }
+
+  function handleReset() {
+    if (!project || !savedProject || !selectedFilePath) return;
+
+    const savedFile = savedProject.files.find(
+      (file) => file.path === selectedFilePath
+    );
+
+    if (!savedFile) return;
+
+    setProject((currentProject) => {
+      if (!currentProject) {
+        return currentProject;
+      }
+
+      return {
+        ...currentProject,
+        files: currentProject.files.map((file) =>
+          file.path === selectedFilePath
+            ? { ...file, content: savedFile.content }
+            : file
+        ),
+      };
+    });
+  }
+
+  if (!project || !project.files.length) {
+    return (
+      <div className="flex h-[calc(100vh-64px)] min-h-0 w-full items-center justify-center overflow-hidden bg-[#0B0B0D] px-6 text-white">
+        <div className="max-w-md rounded-2xl border border-zinc-800 bg-[#0D0D0F] p-8 text-center shadow-2xl">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-[#D4AF37]/15 bg-[#D4AF37]/[0.06]">
+            <Sparkles className="h-5 w-5 text-[#D4AF37]" strokeWidth={1.8} />
+          </div>
+
+          <h2 className="mt-5 text-lg font-semibold text-zinc-100">
+            No generated project found.
+          </h2>
+
+          <p className="mt-3 text-sm leading-6 text-zinc-500">
+            Go back to Generate and create a project first.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => router.push("/generate")}
+            className="mt-6 inline-flex items-center justify-center rounded-lg bg-[#D4AF37] px-4 py-2 text-xs font-semibold text-black transition hover:bg-[#E2C259]"
+          >
+            Go to Generate
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -118,7 +295,7 @@ export default function Workspace({
               <>
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 <span className="text-[9px] font-medium text-zinc-500">
-                  Ready
+                  {isDirty ? "Unsaved" : "Ready"}
                 </span>
               </>
             )}
@@ -149,6 +326,28 @@ export default function Workspace({
             <span className="hidden sm:inline">
               {isRunning ? "Running" : "Run"}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-[10px] font-semibold text-black transition hover:bg-[#E2C259] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!isDirty}
+          >
+            <CheckCircle2 className="h-3 w-3" />
+
+            <span className="hidden sm:inline">
+              Save
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={handleReset}
+            disabled={!isDirty || !selectedFilePath}
+          >
+            <span className="hidden sm:inline">Reset</span>
           </button>
 
           <button
@@ -196,8 +395,10 @@ export default function Workspace({
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <FileExplorer
-              selectedFile={selectedFile}
-              onFileSelect={setSelectedFile}
+              files={project.files}
+              projectName={project.name}
+              selectedFile={selectedFilePath ?? undefined}
+              onFileSelect={handleFileSelect}
             />
           </div>
 
@@ -207,7 +408,7 @@ export default function Workspace({
 
               <div className="min-w-0">
                 <p className="truncate text-[9px] font-medium text-zinc-400">
-                  Next.js
+                  {project.framework === "nextjs" ? "Next.js" : project.framework}
                 </p>
 
                 <p className="text-[8px] text-zinc-700">
@@ -260,7 +461,7 @@ export default function Workspace({
 
               <div className="flex items-center gap-1.5 text-[9px] text-zinc-600">
                 <CheckCircle2 className="h-3 w-3 text-emerald-400/70" />
-                Ready
+                {isDirty ? "Unsaved" : "Ready"}
               </div>
             </div>
           </div>
@@ -268,8 +469,12 @@ export default function Workspace({
           {/* EDITOR / PREVIEW */}
           <div className="min-h-0 flex-1 overflow-hidden">
             <CodePreview
-              fileName={selectedFile}
+              file={selectedFile}
               view={activeView}
+              isDirty={isDirty}
+              onContentChange={handleContentChange}
+              onSave={handleSave}
+              onReset={handleReset}
             />
           </div>
 
