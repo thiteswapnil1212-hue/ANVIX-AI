@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
+import type { BuildApiResponse } from "@/lib/project/project-schema";
 
 import GenerateHero from "@/components/generate/GenerateHero";
 import PromptBuilder from "@/components/generate/PromptBuilder";
@@ -16,12 +17,24 @@ import BuildOptions, {
 import GenerateProgress from "@/components/generate/GenerationProgress";
 
 const MAX_CHARS = 2200;
+const GENERATED_PROJECT_STORAGE_KEY = "anvix.generatedProject";
+
+function createProjectSlug(projectName: string) {
+  const slug = projectName
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || "anvix-generated";
+}
 
 export default function GeneratePage() {
   const router = useRouter();
 
   const [prompt, setPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [buildConfig, setBuildConfig] =
     useState<BuildConfiguration>(
@@ -43,30 +56,51 @@ export default function GeneratePage() {
     }));
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
     if (!canGenerate) return;
 
     setIsSubmitting(true);
+    setErrorMessage("");
 
-    /*
-     * Temporary frontend generation flow.
-     *
-     * Later this will be replaced with:
-     *
-     * POST /api/build
-     *
-     * {
-     *   prompt,
-     *   buildConfig
-     * }
-     *
-     * The backend will create the actual project,
-     * files, workspace and preview.
-     */
+    try {
+      const response = await fetch("/api/build", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: trimmedPrompt,
+        }),
+      });
 
-    setTimeout(() => {
-      router.push("/workspace/anvix-generated");
-    }, 1600);
+      const data = (await response.json()) as BuildApiResponse;
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.success
+            ? "Project generation failed"
+            : data.error
+        );
+      }
+
+      sessionStorage.setItem(
+        GENERATED_PROJECT_STORAGE_KEY,
+        JSON.stringify(data.project)
+      );
+
+      router.push(
+        `/workspace/${createProjectSlug(data.project.name)}`
+      );
+    } catch (error) {
+      console.error("ANVIX build generation failed:", error);
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to generate the project right now."
+      );
+      setIsSubmitting(false);
+    }
   }
 
   function handleKeyDown(
@@ -141,6 +175,25 @@ export default function GeneratePage() {
 
             {isSubmitting && (
               <GenerateProgress />
+            )}
+
+            {errorMessage && (
+              <div
+                role="alert"
+                className="
+                  rounded-2xl
+                  border
+                  border-red-500/20
+                  bg-red-500/[0.06]
+                  px-4
+                  py-3
+                  text-xs
+                  leading-5
+                  text-red-200
+                "
+              >
+                {errorMessage}
+              </div>
             )}
 
             {/* Builder Footer */}
