@@ -48,16 +48,17 @@ export default function AppShell({
         <Navbar />
       </div>
 
-      {/* Scrollable Content */}
+      {/* Page Content */}
       <main
-  className="
-    relative
-    z-10
-    min-h-0
-    flex-1
-    overflow-hidden
-  "
->
+        className="
+          relative
+          z-10
+          min-h-0
+          flex-1
+          overflow-y-auto
+          overflow-x-hidden
+        "
+      >
         {children}
       </main>
     </div>
