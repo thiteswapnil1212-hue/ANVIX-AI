@@ -11,7 +11,7 @@ export default function AppShell({
   children,
 }: AppShellProps) {
   return (
-    <div className="relative min-h-screen w-full bg-[#09090B] text-white">
+    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-[#09090B] text-white">
       {/* Background video */}
       <video
         autoPlay
@@ -44,12 +44,10 @@ export default function AppShell({
       />
 
       {/* Navbar */}
-      <div className="relative z-50">
-        <Navbar />
-      </div>
+      <Navbar />
 
       {/* Page content */}
-      <main className="relative z-10 w-full">
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
         {children}
       </main>
     </div>
