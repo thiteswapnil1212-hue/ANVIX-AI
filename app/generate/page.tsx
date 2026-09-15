@@ -18,6 +18,7 @@ import GenerateProgress from "@/components/generate/GenerationProgress";
 
 const MAX_CHARS = 2200;
 const GENERATED_PROJECT_STORAGE_KEY = "anvix.generatedProject";
+const AGENT_PROMPT_STORAGE_KEY = "anvix.agentPrompt";
 
 function createProjectSlug(projectName: string) {
   const slug = projectName
@@ -86,6 +87,10 @@ export default function GeneratePage() {
       sessionStorage.setItem(
         GENERATED_PROJECT_STORAGE_KEY,
         JSON.stringify(data.project)
+      );
+      sessionStorage.setItem(
+        AGENT_PROMPT_STORAGE_KEY,
+        trimmedPrompt
       );
 
       router.push(
