@@ -27,6 +27,11 @@ const models: Model[] = [
     locked: true,
   },
   {
+    name: "GPT-6 (Astra)",
+    provider: "OpenAI",
+    locked: true,
+  },
+  {
     name: "Gemini 2.5 Flash",
     provider: "Google Gemini",
     locked: false,
