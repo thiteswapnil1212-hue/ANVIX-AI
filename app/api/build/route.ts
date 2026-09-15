@@ -16,9 +16,37 @@ type GeminiProjectPayload = {
   project?: unknown;
 };
 
+const PROJECT_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    project: {
+      type: "OBJECT",
+      properties: {
+        name: { type: "STRING" },
+        framework: { type: "STRING" },
+        files: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              path: { type: "STRING" },
+              content: { type: "STRING" },
+              language: { type: "STRING" },
+            },
+            required: ["path", "content", "language"],
+          },
+        },
+      },
+      required: ["name", "framework", "files"],
+    },
+  },
+  required: ["project"],
+} as const;
+
 const MODEL_NAME = "gemini-2.5-flash";
 const MAX_PROMPT_LENGTH = 20000;
 const GEMINI_TIMEOUT_MS = 60000;
+const MAX_RETRIES = 2;
 const REQUIRED_PROJECT_FILES = [
   "package.json",
   "app/layout.tsx",
@@ -97,6 +125,61 @@ function stripJsonCodeFence(text: string) {
   return fencedMatch ? fencedMatch[1].trim() : trimmed;
 }
 
+function findJsonFragments(text: string): string[] {
+  const trimmed = text.trim();
+  const fragments: string[] = [];
+
+  if (!trimmed) {
+    return fragments;
+  }
+
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const character = trimmed[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (character === "{") {
+      if (depth === 0) {
+        start = index;
+      }
+      depth += 1;
+      continue;
+    }
+
+    if (character === "}") {
+      if (depth > 0) {
+        depth -= 1;
+      }
+
+      if (depth === 0 && start !== -1) {
+        fragments.push(trimmed.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return fragments;
+}
+
 function validateAndNormalizePath(filePath: string) {
   const trimmedPath = filePath.trim();
 
@@ -164,14 +247,19 @@ function validateProjectFile(file: unknown): ProjectFile {
 
   const normalizedPath = validateAndNormalizePath(candidate.path);
   const language = candidate.language.trim();
+  const content = candidate.content;
 
   if (!language) {
     throw new Error("Generated project contains an empty file language");
   }
 
+  if (!content.trim()) {
+    throw new Error(`Generated project file contains empty content: ${normalizedPath}`);
+  }
+
   return {
     path: normalizedPath,
-    content: candidate.content,
+    content,
     language,
   };
 }
@@ -181,8 +269,11 @@ function validateGeneratedProject(payload: unknown): GeneratedProject {
     throw new Error("Gemini returned malformed project data");
   }
 
-  const candidate = payload as GeminiProjectPayload;
-  const project = candidate.project;
+  const candidate = payload as Record<string, unknown>;
+  const project =
+    candidate.project && typeof candidate.project === "object"
+      ? (candidate.project as Record<string, unknown>)
+      : candidate;
 
   if (!project || typeof project !== "object") {
     throw new Error("Gemini response is missing project data");
@@ -244,13 +335,32 @@ function validateGeneratedProject(payload: unknown): GeneratedProject {
 }
 
 function parseGeminiJson(text: string) {
-  const jsonText = stripJsonCodeFence(text);
+  const variations = new Set<string>();
+  const stripped = stripJsonCodeFence(text);
 
-  try {
-    return JSON.parse(jsonText) as unknown;
-  } catch {
-    throw new Error("Gemini returned malformed JSON");
+  if (stripped) {
+    variations.add(stripped);
   }
+
+  for (const fragment of findJsonFragments(text)) {
+    variations.add(fragment);
+  }
+
+  for (const candidate of variations) {
+    const trimmed = candidate.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      // Keep trying any candidate fragments until we find a valid JSON object.
+    }
+  }
+
+  throw new Error("Gemini returned malformed JSON");
 }
 
 async function withTimeout<T>(
@@ -270,6 +380,38 @@ async function withTimeout<T>(
   } finally {
     clearTimeout(timeoutId!);
   }
+}
+
+async function generateProjectText(
+  model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>,
+  prompt: string
+) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      const result = await withTimeout(
+        model.generateContent(`The user's prompt is:\n\n${prompt}`),
+        GEMINI_TIMEOUT_MS
+      );
+
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+      console.warn("[api/build] Gemini request failed", {
+        attempt,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+
+      if (attempt < MAX_RETRIES) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError ?? new Error("Gemini request failed");
 }
 
 export async function POST(req: Request) {
@@ -310,20 +452,29 @@ export async function POST(req: Request) {
   }
 
   try {
+    console.info("[api/build] Starting Gemini generation", {
+      model: MODEL_NAME,
+      promptLength: normalizedPrompt.length,
+    });
+
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: MODEL_NAME,
       systemInstruction: SYSTEM_INSTRUCTION,
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: PROJECT_RESPONSE_SCHEMA as never,
+        temperature: 0.2,
+        maxOutputTokens: 12000,
+      },
     });
 
-    const result = await withTimeout(
-      model.generateContent(
-        `The user's prompt is:\n\n${normalizedPrompt}`
-      ),
-      GEMINI_TIMEOUT_MS
-    );
+    const text = await generateProjectText(model, normalizedPrompt);
+    console.info("[api/build] Gemini response received", {
+      responseLength: text.length,
+      model: MODEL_NAME,
+    });
 
-    const text = result.response.text();
     const parsedResponse = parseGeminiJson(text);
     const project = validateGeneratedProject(parsedResponse);
 
@@ -332,7 +483,11 @@ export async function POST(req: Request) {
       project,
     });
   } catch (error) {
-    console.error("Project build generation failed:", error);
+    console.error("[api/build] Project build generation failed", {
+      model: MODEL_NAME,
+      promptLength: normalizedPrompt.length,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
 
     const message =
       error instanceof Error
