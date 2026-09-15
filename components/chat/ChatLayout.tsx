@@ -38,7 +38,6 @@ export default function ChatLayout() {
       return false;
     }
 
-    // Add user message immediately
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -111,13 +110,21 @@ export default function ChatLayout() {
 
   return (
     <AppShell>
-      <div className="flex h-full min-h-0 w-full overflow-hidden bg-transparent">
-        {/* Desktop Sidebar */}
+      {/* =====================================================
+          CHAT APPLICATION AREA
+          Navbar stays outside this area.
+          Only sidebar and messages are independently scrollable.
+      ===================================================== */}
+      <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
+        {/* ===================================================
+            DESKTOP SIDEBAR
+        =================================================== */}
         <aside
           className="
             hidden
             h-full
             w-64
+            min-h-0
             shrink-0
             overflow-hidden
             border-r
@@ -127,10 +134,29 @@ export default function ChatLayout() {
             md:flex-col
           "
         >
-          <ChatSidebar />
+          {/* Independent sidebar scroll area */}
+          <div
+            className="
+              min-h-0
+              flex-1
+              overflow-y-auto
+              overscroll-contain
+              [scrollbar-color:#3f3f46_transparent]
+              [scrollbar-width:thin]
+              [&::-webkit-scrollbar]:w-1.5
+              [&::-webkit-scrollbar-track]:bg-transparent
+              [&::-webkit-scrollbar-thumb]:rounded-full
+              [&::-webkit-scrollbar-thumb]:bg-zinc-800
+              hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
+            "
+          >
+            <ChatSidebar />
+          </div>
         </aside>
 
-        {/* Mobile Sidebar */}
+        {/* ===================================================
+            MOBILE SIDEBAR
+        =================================================== */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
             <div
@@ -145,6 +171,7 @@ export default function ChatLayout() {
                 flex
                 h-full
                 w-72
+                min-h-0
                 flex-col
                 overflow-hidden
                 border-r
@@ -152,6 +179,7 @@ export default function ChatLayout() {
                 bg-[#18181B]
               "
             >
+              {/* Mobile sidebar header */}
               <div
                 className="
                   flex
@@ -206,19 +234,35 @@ export default function ChatLayout() {
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden">
+              {/* Independent mobile sidebar scroll */}
+              <div
+                className="
+                  min-h-0
+                  flex-1
+                  overflow-y-auto
+                  overscroll-contain
+                  [scrollbar-color:#3f3f46_transparent]
+                  [scrollbar-width:thin]
+                  [&::-webkit-scrollbar]:w-1.5
+                  [&::-webkit-scrollbar-track]:bg-transparent
+                  [&::-webkit-scrollbar-thumb]:rounded-full
+                  [&::-webkit-scrollbar-thumb]:bg-zinc-800
+                  hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
+                "
+              >
                 <ChatSidebar />
               </div>
             </aside>
           </div>
         )}
 
-        {/* Main Chat */}
+        {/* ===================================================
+            MAIN CHAT
+        =================================================== */}
         <main
           className="
             relative
             flex
-            h-full
             min-h-0
             min-w-0
             flex-1
@@ -247,10 +291,11 @@ export default function ChatLayout() {
             <source src="/anvix-bg.mp4" type="video/mp4" />
           </video>
 
-          {/* No dark overlay */}
-
+          {/* Main chat content */}
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Mobile Header */}
+            {/* =================================================
+                MOBILE HEADER
+            ================================================= */}
             <header
               className="
                 flex
@@ -309,7 +354,10 @@ export default function ChatLayout() {
               </button>
             </header>
 
-            {/* Messages / Empty State */}
+            {/* =================================================
+                MAIN MESSAGE SCROLL AREA
+                MessageList owns the actual chat scrollbar.
+            ================================================= */}
             <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
               {messages.length === 0 && !isTyping ? (
                 <div
@@ -323,10 +371,14 @@ export default function ChatLayout() {
                     items-center
                     justify-center
                     px-4
-                    py-10
+                    pb-6
+                    pt-16
                     text-center
                     sm:px-6
+                    sm:pb-8
+                    sm:pt-20
                     lg:px-8
+                    lg:pt-24
                   "
                 >
                   <div
@@ -401,7 +453,10 @@ export default function ChatLayout() {
               )}
             </div>
 
-            {/* Transparent Composer Area */}
+            {/* =================================================
+                CHAT COMPOSER
+                Fixed to bottom of chat area.
+            ================================================= */}
             <div
               className="
                 relative
@@ -411,7 +466,6 @@ export default function ChatLayout() {
                 border-white/[0.06]
                 bg-transparent
                 px-3
-                pb-[max(env(safe-area-inset-bottom),1.1rem)]
                 pt-4
                 sm:px-6
                 sm:py-4
