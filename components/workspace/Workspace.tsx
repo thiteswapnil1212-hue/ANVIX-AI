@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot,
@@ -31,6 +31,30 @@ interface WorkspaceProps {
 }
 
 const GENERATED_PROJECT_STORAGE_KEY = "anvix.generatedProject";
+const AGENT_PROMPT_STORAGE_KEY = "anvix.agentPrompt";
+
+type AgentStreamEvent =
+  | { type: "agent_start" }
+  | { type: "planning"; message: string }
+  | {
+      type: "tool_start";
+      tool: string;
+      path?: string;
+    }
+  | {
+      type: "tool_complete";
+      tool: string;
+      path?: string;
+    }
+  | { type: "agent_message"; message: string }
+  | { type: "agent_complete" }
+  | { type: "error"; message: string };
+
+type AgentActivity = {
+  id: string;
+  text: string;
+  status: "active" | "complete" | "error";
+};
 
 function cloneProject(project: GeneratedProject) {
   return JSON.parse(JSON.stringify(project)) as GeneratedProject;
@@ -88,9 +112,21 @@ export default function Workspace({
 
   const [aiPrompt, setAiPrompt] = useState("");
   const [isRunning, setIsRunning] = useState(false);
+  const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([]);
+  const [isAgentStreaming, setIsAgentStreaming] = useState(false);
+  const [initialAgentPrompt, setInitialAgentPrompt] = useState("");
+  const agentAbortControllerRef = useRef<AbortController | null>(null);
+  const agentStreamingRef = useRef(false);
+  const activityIdRef = useRef(
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
 
   useEffect(() => {
     const storedProject = readStoredProject();
+    const storedPrompt = window.sessionStorage.getItem(
+      AGENT_PROMPT_STORAGE_KEY
+    )?.trim() ?? "";
+    window.sessionStorage.removeItem(AGENT_PROMPT_STORAGE_KEY);
 
     if (!storedProject || storedProject.files.length === 0) {
       setProject(null);
@@ -103,7 +139,203 @@ export default function Workspace({
     setProject(nextProject);
     setSavedProject(cloneProject(nextProject));
     setSelectedFilePath(getFirstFilePath(nextProject.files));
+    setInitialAgentPrompt(storedPrompt);
   }, []);
+
+  function addAgentActivity(
+    text: string,
+    status: AgentActivity["status"]
+  ) {
+    setAgentActivities((current) => [
+      ...current,
+      {
+        id: `${activityIdRef.current}-${current.length}`,
+        text,
+        status,
+      },
+    ]);
+  }
+
+  function getToolStartMessage(tool: string, filePath?: string) {
+    const pathLabel = filePath ? ` ${filePath}` : "";
+
+    switch (tool) {
+      case "write_file":
+        return `Creating${pathLabel}`;
+      case "edit_file":
+        return `Editing${pathLabel}`;
+      case "read_file":
+        return `Reading${pathLabel}`;
+      case "list_files":
+        return "Inspecting project files";
+      case "delete_file":
+        return `Deleting${pathLabel}`;
+      default:
+        return `Running ${tool}`;
+    }
+  }
+
+  function getToolCompleteMessage(tool: string, filePath?: string) {
+    const pathLabel = filePath ? ` ${filePath}` : "";
+
+    switch (tool) {
+      case "write_file":
+        return `File created${pathLabel}`;
+      case "edit_file":
+        return `File updated${pathLabel}`;
+      case "read_file":
+        return `File read${pathLabel}`;
+      case "list_files":
+        return "Project files inspected";
+      case "delete_file":
+        return `File deleted${pathLabel}`;
+      default:
+        return `${tool} completed`;
+    }
+  }
+
+  function handleAgentEvent(event: AgentStreamEvent) {
+    switch (event.type) {
+      case "agent_start":
+        addAgentActivity("Agent started", "active");
+        return;
+      case "planning":
+        addAgentActivity(event.message, "active");
+        return;
+      case "tool_start":
+        addAgentActivity(
+          getToolStartMessage(event.tool, event.path),
+          "active"
+        );
+        return;
+      case "tool_complete":
+        addAgentActivity(
+          getToolCompleteMessage(event.tool, event.path),
+          "complete"
+        );
+        return;
+      case "agent_message":
+        addAgentActivity(event.message, "complete");
+        return;
+      case "agent_complete":
+        addAgentActivity("Generation complete", "complete");
+        setIsAgentStreaming(false);
+        agentStreamingRef.current = false;
+        return;
+      case "error":
+        addAgentActivity(event.message, "error");
+        setIsAgentStreaming(false);
+        agentStreamingRef.current = false;
+        return;
+    }
+  }
+
+  async function streamAgent(prompt: string, currentProject: GeneratedProject) {
+    if (agentStreamingRef.current) return;
+
+    const controller = new AbortController();
+    agentAbortControllerRef.current = controller;
+    agentStreamingRef.current = true;
+    setIsAgentStreaming(true);
+
+    try {
+      const response = await fetch("/api/agent/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt,
+          project: currentProject,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let message = `Agent request failed (${response.status})`;
+
+        try {
+          const data = (await response.json()) as { error?: unknown };
+          if (typeof data.error === "string" && data.error.trim()) {
+            message = data.error;
+          }
+        } catch {
+          // Keep the HTTP status message when the error body is not JSON.
+        }
+
+        throw new Error(message);
+      }
+
+      if (!response.body) {
+        throw new Error("Agent stream returned no response body");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+
+          try {
+            handleAgentEvent(JSON.parse(trimmedLine) as AgentStreamEvent);
+          } catch {
+            addAgentActivity("Received an invalid agent event", "error");
+          }
+        }
+      }
+
+      const remainingLine = buffer.trim();
+      if (remainingLine) {
+        try {
+          handleAgentEvent(JSON.parse(remainingLine) as AgentStreamEvent);
+        } catch {
+          addAgentActivity("Received an invalid agent event", "error");
+        }
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        addAgentActivity(
+          error instanceof Error
+            ? error.message
+            : "Unable to connect to ANVIX Agent",
+          "error"
+        );
+      }
+    } finally {
+      if (agentAbortControllerRef.current === controller) {
+        agentAbortControllerRef.current = null;
+      }
+      agentStreamingRef.current = false;
+      setIsAgentStreaming(false);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      agentAbortControllerRef.current?.abort();
+      agentAbortControllerRef.current = null;
+      agentStreamingRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!project || !initialAgentPrompt) return;
+
+    const prompt = initialAgentPrompt;
+    setInitialAgentPrompt("");
+    void streamAgent(prompt, project);
+  }, [initialAgentPrompt, project]);
 
   const selectedFile = useMemo(() => {
     if (!project || !selectedFilePath) {
@@ -136,11 +368,11 @@ export default function Workspace({
   function handleAiSubmit() {
     const prompt = aiPrompt.trim();
 
-    if (!prompt) return;
-
-    console.log("ANVIX request:", prompt);
+    if (!prompt || !project || agentStreamingRef.current) return;
 
     setAiPrompt("");
+    setAgentActivities([]);
+    void streamAgent(prompt, project);
   }
 
   function handleAiKeyDown(
@@ -480,6 +712,57 @@ export default function Workspace({
 
           {/* AI BAR */}
           <div className="shrink-0 border-t border-zinc-800/80 bg-[#0D0D0F] p-3">
+            {agentActivities.length > 0 && (
+              <div className="mb-3 rounded-xl border border-zinc-800 bg-[#0B0B0D] px-3 py-2.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Bot className="h-3 w-3 text-[#D4AF37]" />
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                      ANVIX Agent
+                    </span>
+                  </div>
+
+                  <span className="text-[8px] text-zinc-700">
+                    {isAgentStreaming ? "Working" : "Idle"}
+                  </span>
+                </div>
+
+                <div className="max-h-28 space-y-1 overflow-y-auto">
+                  {agentActivities.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-start gap-1.5 text-[9px] leading-4"
+                    >
+                      <span
+                        className={
+                          activity.status === "error"
+                            ? "text-red-400"
+                            : activity.status === "complete"
+                              ? "text-emerald-400"
+                              : "text-[#D4AF37]"
+                        }
+                      >
+                        {activity.status === "error"
+                          ? "!"
+                          : activity.status === "complete"
+                            ? "✓"
+                            : "●"}
+                      </span>
+                      <span
+                        className={
+                          activity.status === "error"
+                            ? "text-red-300"
+                            : "text-zinc-400"
+                        }
+                      >
+                        {activity.text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-zinc-800 bg-[#0B0B0D] transition focus-within:border-[#D4AF37]/25">
               <div className="flex items-end gap-2 px-3 py-2.5">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#D4AF37]/15 bg-[#D4AF37]/[0.06]">
@@ -503,7 +786,7 @@ export default function Workspace({
                 <button
                   type="button"
                   onClick={handleAiSubmit}
-                  disabled={!aiPrompt.trim()}
+                  disabled={!aiPrompt.trim() || isAgentStreaming}
                   aria-label="Send AI request"
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#D4AF37] text-black transition hover:bg-[#E2C259] disabled:cursor-not-allowed disabled:opacity-30"
                 >
