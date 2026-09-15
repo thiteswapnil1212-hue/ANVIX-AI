@@ -12,7 +12,15 @@ import type { GeneratedProject } from "@/lib/project/project-schema";
 export interface AgentRequest {
   prompt: string;
   project: GeneratedProject;
+  signal?: AbortSignal;
+  onEvent?: (event: AgentProgressEvent) => void;
 }
+
+export type AgentProgressEvent =
+  | { type: "planning"; message: string }
+  | { type: "tool_start"; tool: AgentToolName; path?: string }
+  | { type: "tool_complete"; tool: AgentToolName; path?: string }
+  | { type: "agent_message"; message: string };
 
 export interface AgentResponse {
   success: boolean;
@@ -257,7 +265,9 @@ async function generateStructuredActions(request: AgentRequest) {
   });
 
   const result = await withTimeout(
-    model.generateContent(buildAgentPrompt(request)),
+    model.generateContent(buildAgentPrompt(request), {
+      signal: request.signal,
+    }),
     GEMINI_TIMEOUT_MS
   );
 
@@ -297,6 +307,11 @@ export async function runAgentService(
 
     const currentProject = request.project;
 
+    request.onEvent?.({
+      type: "planning",
+      message: "Understanding the request...",
+    });
+
     if (currentProject.framework !== "nextjs") {
       return {
         success: false,
@@ -315,9 +330,27 @@ export async function runAgentService(
     const toolCalls: AgentToolCall[] = [];
 
     for (const action of structured.actions) {
+      request.onEvent?.({
+        type: "tool_start",
+        tool: action.tool,
+        path:
+          typeof action.input.path === "string"
+            ? action.input.path
+            : undefined,
+      });
+
       toolCalls.push(action);
 
       const result = runAgentTool(action.tool, workingProject, action.input);
+
+      request.onEvent?.({
+        type: "tool_complete",
+        tool: action.tool,
+        path:
+          typeof action.input.path === "string"
+            ? action.input.path
+            : undefined,
+      });
 
       if (!result.success) {
         return {
@@ -336,6 +369,11 @@ export async function runAgentService(
         }
       }
     }
+
+    request.onEvent?.({
+      type: "agent_message",
+      message: structured.message || "Updated the project.",
+    });
 
     return {
       success: true,
