@@ -33,6 +33,9 @@ export default function ChatInput({ onSend }: ChatInputProps) {
 
   const hasMessage = value.trim().length > 0;
   const canSend = hasMessage && !isSubmitting;
+  const selectedModelConfig =
+    CHAT_MODELS.find((model) => model.id === selectedModel) ??
+    CHAT_MODELS[0];
 
   /* --------------------------------
      AUTO RESIZE
@@ -303,7 +306,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                 aria-expanded={modelOpen}
               >
                 <span className="truncate whitespace-nowrap">
-                  {selectedModel}
+                  {selectedModelConfig.name}
                 </span>
 
                 <ChevronDown
