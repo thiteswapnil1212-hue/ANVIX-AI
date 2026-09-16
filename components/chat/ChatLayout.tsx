@@ -48,7 +48,7 @@ export default function ChatLayout() {
     setIsTyping(true);
 
     try {
-      const response = await fetch("/api/generate", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
