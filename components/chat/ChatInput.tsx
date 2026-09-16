@@ -350,7 +350,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                     </p>
                   </div>
 
-                  <div className="space-y-0.5">
+                  <div className="max-h-80 space-y-0.5 overflow-y-auto">
                     {CHAT_MODELS.map((model) => {
                       const selected =
                         selectedModel === model.id;
