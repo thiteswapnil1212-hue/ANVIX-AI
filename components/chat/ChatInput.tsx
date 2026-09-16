@@ -33,6 +33,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
 
   const hasMessage = value.trim().length > 0;
   const canSend = hasMessage && !isSubmitting;
+
   const selectedModelConfig =
     CHAT_MODELS.find((model) => model.id === selectedModel) ??
     CHAT_MODELS[0];
@@ -331,8 +332,10 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                     bottom-[43px]
                     right-0
                     z-[9999]
+                    max-h-[360px]
                     w-[250px]
-                    overflow-hidden
+                    overflow-y-auto
+                    overflow-x-hidden
                     rounded-xl
                     border
                     border-zinc-800
@@ -350,7 +353,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                     </p>
                   </div>
 
-                  <div className="max-h-80 space-y-0.5 overflow-y-auto">
+                  <div className="space-y-0.5">
                     {CHAT_MODELS.map((model) => {
                       const selected =
                         selectedModel === model.id;
