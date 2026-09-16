@@ -8,35 +8,11 @@ import {
   Check,
   Paperclip,
 } from "lucide-react";
-
-type Model = {
-  name: string;
-  provider: string;
-  locked: boolean;
-};
-
-const models: Model[] = [
-  {
-    name: "GPT-5.5",
-    provider: "OpenAI",
-    locked: true,
-  },
-  {
-    name: "GPT-4.1",
-    provider: "OpenAI",
-    locked: true,
-  },
-  {
-    name: "GPT-6 (Astra)",
-    provider: "OpenAI",
-    locked: true,
-  },
-  {
-    name: "Gemini 2.5 Flash",
-    provider: "Google Gemini",
-    locked: false,
-  },
-];
+import {
+  CHAT_MODELS,
+  DEFAULT_CHAT_MODEL_ID,
+  type ChatModel,
+} from "@/lib/chat-models";
 
 type ChatInputProps = {
   onSend: (
@@ -50,7 +26,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
   const [modelOpen, setModelOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedModel, setSelectedModel] =
-    useState("Gemini 2.5 Flash");
+    useState(DEFAULT_CHAT_MODEL_ID);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
@@ -130,10 +106,10 @@ export default function ChatInput({ onSend }: ChatInputProps) {
   /* --------------------------------
      MODEL SELECT
   -------------------------------- */
-  function handleModelSelect(model: Model) {
+  function handleModelSelect(model: ChatModel) {
     if (model.locked) return;
 
-    setSelectedModel(model.name);
+    setSelectedModel(model.id);
     setModelOpen(false);
 
     textareaRef.current?.focus();
@@ -372,9 +348,9 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                   </div>
 
                   <div className="space-y-0.5">
-                    {models.map((model) => {
+                    {CHAT_MODELS.map((model) => {
                       const selected =
-                        selectedModel === model.name;
+                        selectedModel === model.id;
 
                       return (
                         <button
