@@ -1,3 +1,4 @@
+
 export type ChatModel = {
   id: string;
   name: string;
@@ -7,6 +8,7 @@ export type ChatModel = {
 };
 
 export const CHAT_MODELS: ChatModel[] = [
+  // OpenAI — locked
   {
     id: "gpt-5.5",
     name: "GPT-5.5",
@@ -28,6 +30,77 @@ export const CHAT_MODELS: ChatModel[] = [
     locked: true,
     apiModelId: null,
   },
+  {
+    id: "gpt-4o",
+    name: "GPT-4o",
+    provider: "OpenAI",
+    locked: true,
+    apiModelId: null,
+  },
+  {
+    id: "o3",
+    name: "OpenAI o3",
+    provider: "OpenAI",
+    locked: true,
+    apiModelId: null,
+  },
+
+  // Anthropic Claude — locked
+  {
+    id: "claude-opus",
+    name: "Claude Opus",
+    provider: "Anthropic Claude",
+    locked: true,
+    apiModelId: null,
+  },
+  {
+    id: "claude-sonnet",
+    name: "Claude Sonnet",
+    provider: "Anthropic Claude",
+    locked: true,
+    apiModelId: null,
+  },
+  {
+    id: "claude-haiku",
+    name: "Claude Haiku",
+    provider: "Anthropic Claude",
+    locked: true,
+    apiModelId: null,
+  },
+
+  // DeepSeek — locked
+  {
+    id: "deepseek-chat",
+    name: "DeepSeek Chat",
+    provider: "DeepSeek",
+    locked: true,
+    apiModelId: null,
+  },
+  {
+    id: "deepseek-reasoner",
+    name: "DeepSeek Reasoner",
+    provider: "DeepSeek",
+    locked: true,
+    apiModelId: null,
+  },
+
+  // xAI Grok — locked
+  {
+    id: "grok",
+    name: "Grok",
+    provider: "xAI",
+    locked: true,
+    apiModelId: null,
+  },
+  {
+    id: "grok-fast",
+    name: "Grok Fast",
+    provider: "xAI",
+    locked: true,
+    apiModelId: null,
+  },
+
+  // Google Gemini — working models
   {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
@@ -69,7 +142,10 @@ export const DEFAULT_CHAT_MODEL_ID = "gemini-2.5-flash";
 
 export const CHAT_API_MODEL_IDS = new Set(
   CHAT_MODELS.filter(
-    (model) => model.provider === "Google Gemini" && model.apiModelId
+    (model) =>
+      model.provider === "Google Gemini" &&
+      !model.locked &&
+      model.apiModelId !== null
   ).map((model) => model.id)
 );
 
