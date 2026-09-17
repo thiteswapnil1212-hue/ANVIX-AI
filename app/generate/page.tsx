@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import type { KeyboardEvent } from "react";
-import { Sparkles } from "lucide-react";
+import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import type { BuildApiResponse } from "@/lib/project/project-schema";
@@ -63,7 +63,6 @@ export default function GeneratePage() {
       defaultBuildConfiguration
     );
 
-  // Prevent duplicate requests from rapid clicks or shortcuts.
   const submissionLock = useRef(false);
 
   const trimmedPrompt = prompt.trim();
@@ -78,12 +77,9 @@ export default function GeneratePage() {
   const handlePromptChange = useCallback(
     (nextPrompt: string) => {
       setPrompt(nextPrompt);
-
-      if (errorMessage) {
-        setErrorMessage("");
-      }
+      setErrorMessage("");
     },
-    [errorMessage]
+    []
   );
 
   const handleBuildConfigChange = useCallback(
@@ -129,9 +125,7 @@ export default function GeneratePage() {
         data = (await response.json()) as BuildApiResponse;
       } catch {
         throw new Error(
-          response.ok
-            ? "The server returned an invalid response. Please try again."
-            : "The server could not complete your request. Please try again."
+          "The server returned an invalid response. Please try again."
         );
       }
 
@@ -139,14 +133,14 @@ export default function GeneratePage() {
         const message =
           data.success === false && data.error
             ? data.error
-            : "Project generation failed. Please try again.";
+            : "Unable to generate your project. Please try again.";
 
         throw new Error(message);
       }
 
       if (!data.project?.name) {
         throw new Error(
-          "The generated project response is incomplete. Please try again."
+          "The project response is incomplete. Please try again."
         );
       }
 
@@ -164,10 +158,7 @@ export default function GeneratePage() {
         `/workspace/${createProjectSlug(data.project.name)}`
       );
     } catch (error) {
-      console.error(
-        "ANVIX build generation failed:",
-        error
-      );
+      console.error("ANVIX build generation failed:", error);
 
       setErrorMessage(getErrorMessage(error));
       submissionLock.current = false;
@@ -195,8 +186,8 @@ export default function GeneratePage() {
 
   return (
     <AppShell
-      title="Generate App"
-      description="Describe what you want to build and ANVIX will turn your idea into a structured workspace."
+      title="Generate"
+      description="Turn your idea into an app."
     >
       <main className="w-full">
         <div
@@ -205,11 +196,11 @@ export default function GeneratePage() {
             w-full
             max-w-[1400px]
             px-4
-            py-6
+            py-5
             sm:px-6
-            sm:py-8
+            sm:py-7
             lg:px-8
-            lg:py-10
+            lg:py-9
             xl:px-10
           "
         >
@@ -221,38 +212,37 @@ export default function GeneratePage() {
               maxChars={MAX_CHARS}
             />
 
-            {/* Prompt builder */}
+            {/* Prompt */}
 
-            <PromptBuilder
-              value={prompt}
-              maxChars={MAX_CHARS}
-              onChange={handlePromptChange}
-              onGenerate={handleGenerate}
-              onKeyDown={handleKeyDown}
-              isSubmitting={isSubmitting}
-              canGenerate={canGenerate}
-            />
+            <section className="space-y-3">
+              <PromptBuilder
+                value={prompt}
+                maxChars={MAX_CHARS}
+                onChange={handlePromptChange}
+                onGenerate={handleGenerate}
+                onKeyDown={handleKeyDown}
+                isSubmitting={isSubmitting}
+                canGenerate={canGenerate}
+              />
 
-            {/* Validation feedback */}
+              {isPromptTooLong && (
+                <p
+                  role="alert"
+                  className="text-xs text-amber-300"
+                >
+                  Character limit exceeded ({MAX_CHARS}).
+                </p>
+              )}
+            </section>
 
-            {isPromptTooLong && (
-              <p
-                role="alert"
-                className="text-xs text-amber-300"
-              >
-                Your prompt is over the {MAX_CHARS} character
-                limit. Please shorten it before generating.
-              </p>
-            )}
-
-            {/* Example prompts */}
+            {/* Examples */}
 
             <ExamplePrompts
               onSelect={handlePromptChange}
               disabled={isSubmitting}
             />
 
-            {/* Build options */}
+            {/* Build configuration */}
 
             <BuildOptions
               value={buildConfig}
@@ -260,63 +250,52 @@ export default function GeneratePage() {
               disabled={isSubmitting}
             />
 
-            {/* Generation progress */}
+            {/* Progress */}
 
             {isSubmitting && (
               <div
                 aria-live="polite"
                 aria-busy="true"
+                className="
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-[#D4AF37]/15
+                  bg-[#0D0D0F]
+                "
               >
                 <GenerateProgress />
               </div>
             )}
 
-            {/* Error state */}
+            {/* Error */}
 
-            {errorMessage && (
+            {errorMessage && !isSubmitting && (
               <div
                 role="alert"
                 className="
                   flex
                   items-start
                   gap-3
-                  rounded-2xl
+                  rounded-xl
                   border
                   border-red-500/20
                   bg-red-500/[0.06]
                   px-4
-                  py-3.5
-                  text-sm
-                  leading-5
-                  text-red-200
+                  py-3
                 "
               >
-                <span
-                  className="
-                    mt-0.5
-                    flex
-                    h-5
-                    w-5
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-full
-                    border
-                    border-red-400/30
-                    text-xs
-                    font-semibold
-                  "
+                <AlertCircle
+                  className="mt-0.5 h-4 w-4 shrink-0 text-red-300"
                   aria-hidden="true"
-                >
-                  !
-                </span>
+                />
 
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">
-                    Generation couldn’t be completed
+                  <p className="text-sm font-medium text-red-200">
+                    Generation failed
                   </p>
 
-                  <p className="mt-1 break-words text-red-200/80">
+                  <p className="mt-1 break-words text-xs leading-5 text-red-200/70">
                     {errorMessage}
                   </p>
 
@@ -326,75 +305,41 @@ export default function GeneratePage() {
                     disabled={!canGenerate}
                     className="
                       mt-3
-                      rounded-lg
-                      border
-                      border-red-400/20
-                      px-3
-                      py-1.5
+                      inline-flex
+                      items-center
+                      gap-1.5
                       text-xs
-                      font-medium
-                      text-red-100
+                      font-semibold
+                      text-red-200
                       transition
-                      hover:bg-red-400/10
+                      hover:text-white
                       disabled:cursor-not-allowed
                       disabled:opacity-40
                     "
                   >
                     Try again
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Builder footer */}
+            {/* Minimal keyboard hint */}
 
-            <div
-              className="
-                flex
-                items-start
-                gap-3
-                rounded-2xl
-                border
-                border-zinc-800/70
-                bg-[#0D0D0F]
-                px-4
-                py-3.5
-                lg:px-5
-              "
-            >
-              <div
-                className="
-                  flex
-                  h-8
-                  w-8
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-lg
-                  border
-                  border-[#D4AF37]/10
-                  bg-[#D4AF37]/[0.06]
-                "
-              >
-                <Sparkles
-                  className="h-3.5 w-3.5 text-[#D4AF37]"
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
-              </div>
-
-              <div className="min-w-0">
-                <p className="text-xs leading-5 text-zinc-500">
-                  <span className="font-medium text-zinc-300">
-                    Pro tip:
-                  </span>{" "}
-                  Describe your users, key features, integrations,
-                  workflows, and the experience you want. A
-                  clear prompt gives ANVIX more context for
-                  your first build.
+            {!isSubmitting && !errorMessage && (
+              <div className="flex justify-center">
+                <p className="text-[11px] text-zinc-600">
+                  <span className="text-zinc-500">
+                    Ctrl
+                  </span>
+                  {" + "}
+                  <span className="text-zinc-500">
+                    Enter
+                  </span>
+                  {" to generate"}
                 </p>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </main>
