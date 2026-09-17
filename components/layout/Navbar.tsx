@@ -1,10 +1,11 @@
+
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Settings,
+  UserPlus,
   Menu,
   X,
   ChevronRight,
@@ -215,41 +216,40 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* Desktop Settings */}
+          {/* Desktop Sign Up */}
 
           <Link
-            href="/settings"
+            href="/signup"
             aria-current={
-              pathname === "/settings"
+              pathname === "/signup"
                 ? "page"
                 : undefined
             }
-            className={`
+            className="
               hidden
               items-center
               gap-2
               rounded-lg
               border
-              px-3.5
+              border-[#D4AF37]/40
+              bg-[#D4AF37]
+              px-4
               py-2
               text-[13px]
-              font-medium
+              font-semibold
+              text-black
               transition-all
               duration-200
+              hover:bg-[#E5C65C]
               md:flex
-              ${
-                pathname === "/settings"
-                  ? "border-white/[0.16] bg-white/[0.08] text-white"
-                  : "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white"
-              }
-            `}
+            "
           >
-            <Settings
+            <UserPlus
               className="h-4 w-4"
               strokeWidth={1.8}
             />
 
-            <span>Settings</span>
+            <span>Sign Up</span>
           </Link>
 
           {/* Mobile Menu Button */}
@@ -341,6 +341,9 @@ export default function Navbar() {
                     <Link
                       key={link.href}
                       href={link.href}
+                      aria-current={
+                        active ? "page" : undefined
+                      }
                       className={`
                         flex
                         min-h-12
@@ -382,34 +385,42 @@ export default function Navbar() {
                 })}
               </div>
 
+              {/* Mobile Sign Up */}
+
               <div className="mt-2 border-t border-white/[0.07] pt-2">
                 <Link
-                  href="/settings"
+                  href="/signup"
+                  aria-current={
+                    pathname === "/signup"
+                      ? "page"
+                      : undefined
+                  }
                   className="
                     flex
                     min-h-12
                     items-center
                     justify-between
                     rounded-xl
+                    bg-[#D4AF37]/10
                     px-4
                     text-sm
-                    font-medium
-                    text-zinc-400
+                    font-semibold
+                    text-[#D4AF37]
                     transition-all
-                    hover:bg-white/[0.045]
-                    hover:text-white
+                    hover:bg-[#D4AF37]/15
                   "
                 >
                   <span className="flex items-center gap-2.5">
-                    <Settings
+                    <UserPlus
                       className="h-4 w-4"
                       strokeWidth={1.8}
                     />
-                    Settings
+
+                    Sign Up
                   </span>
 
                   <ChevronRight
-                    className="h-4 w-4 text-zinc-600"
+                    className="h-4 w-4 text-[#D4AF37]/70"
                     strokeWidth={1.8}
                   />
                 </Link>
