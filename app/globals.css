@@ -4,13 +4,18 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* =========================================================
+   ANVIX THEME CONFIGURATION
+   ========================================================= */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-heading: var(--font-sans);
+  /* Safe font fallbacks; custom fonts can be mapped in layout.tsx */
+  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, ui-monospace, monospace);
+  --font-heading: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -64,14 +69,25 @@
    ========================================================= */
 
 :root {
+  color-scheme: dark;
+
   /* Brand */
   --gold: #d4af37;
   --gold-light: #f3d46b;
   --gold-dark: #9c7b17;
 
+  --gold-soft: rgba(212, 175, 55, 0.12);
+  --gold-border: rgba(212, 175, 55, 0.28);
+  --gold-glow: rgba(212, 175, 55, 0.16);
+
   /* Background */
   --background: #080808;
   --foreground: #fafafa;
+
+  /* Surfaces */
+  --surface: #111111;
+  --surface-hover: #181818;
+  --surface-elevated: #151515;
 
   /* Cards */
   --card: #111111;
@@ -82,7 +98,7 @@
   --popover-foreground: #fafafa;
 
   /* Primary */
-  --primary: #d4af37;
+  --primary: var(--gold);
   --primary-foreground: #090909;
 
   /* Secondary */
@@ -99,11 +115,13 @@
 
   /* Status */
   --destructive: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
 
   /* UI */
   --border: #2a2a2a;
   --input: #262626;
-  --ring: #d4af37;
+  --ring: var(--gold);
 
   /* Radius */
   --radius: 1rem;
@@ -111,12 +129,16 @@
   /* Sidebar */
   --sidebar: #111111;
   --sidebar-foreground: #fafafa;
-  --sidebar-primary: #d4af37;
+  --sidebar-primary: var(--gold);
   --sidebar-primary-foreground: #090909;
   --sidebar-accent: #181818;
   --sidebar-accent-foreground: #fafafa;
   --sidebar-border: #262626;
-  --sidebar-ring: #d4af37;
+  --sidebar-ring: var(--gold);
+
+  /* Motion */
+  --transition-fast: 150ms ease;
+  --transition-normal: 220ms ease;
 }
 
 /* =========================================================
@@ -127,27 +149,35 @@
   *,
   *::before,
   *::after {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+    box-sizing: border-box;
   }
 
   html {
     @apply font-sans;
+
+    min-height: 100%;
     scroll-behavior: smooth;
     background: var(--background);
     color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+
     min-height: 100vh;
     min-height: 100dvh;
+    margin: 0;
+    overflow-x: clip;
+
     font-family: var(--font-sans);
-    overflow-x: hidden;
     background:
       radial-gradient(
-        circle at 50% -20%,
-        rgba(212, 175, 55, 0.035),
-        transparent 35%
+        ellipse at 50% -20%,
+        rgba(212, 175, 55, 0.045),
+        transparent 42%
       ),
       var(--background);
   }
@@ -159,11 +189,17 @@
   h5,
   h6 {
     font-family: var(--font-heading);
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   code,
   pre,
-  textarea {
+  kbd,
+  samp {
     font-family: var(--font-mono);
   }
 
@@ -179,12 +215,29 @@
   }
 
   textarea {
-    resize: none;
+    resize: vertical;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
   }
 
   img,
   svg {
     user-select: none;
+  }
+
+  a {
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
   }
 }
 
@@ -195,6 +248,26 @@
 ::selection {
   background: var(--gold);
   color: #090909;
+}
+
+/* =========================================================
+   FOCUS ACCESSIBILITY
+   ========================================================= */
+
+:where(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+:where(input, textarea, select):focus-visible {
+  outline-offset: 1px;
 }
 
 /* =========================================================
@@ -216,16 +289,19 @@
 }
 
 ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
   border-radius: 999px;
   background: #2a2a2d;
-  border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #3a3a3e;
-  border: 2px solid transparent;
   background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* =========================================================
@@ -233,10 +309,13 @@
    ========================================================= */
 
 .chat-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #303033 transparent;
+  min-height: 0;
+  overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+
+  scrollbar-width: thin;
+  scrollbar-color: #303033 transparent;
 }
 
 .chat-scroll::-webkit-scrollbar {
@@ -256,6 +335,16 @@
   background: #3a3a3e;
 }
 
+/* Optional: hide scrollbar while keeping scrolling enabled */
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* =========================================================
    FORM ELEMENTS
    ========================================================= */
@@ -268,7 +357,7 @@ select {
 
 input::placeholder,
 textarea::placeholder {
-  color: #52525b;
+  color: #71717a;
   opacity: 1;
 }
 
@@ -279,8 +368,13 @@ textarea:-webkit-autofill,
 textarea:-webkit-autofill:hover,
 textarea:-webkit-autofill:focus {
   -webkit-text-fill-color: #fafafa;
-  -webkit-box-shadow: 0 0 0px 1000px #151518 inset;
+  caret-color: #fafafa;
+  -webkit-box-shadow: 0 0 0 1000px #151518 inset;
   transition: background-color 9999s ease-in-out 0s;
+}
+
+input[type="search"]::-webkit-search-cancel-button {
+  cursor: pointer;
 }
 
 /* =========================================================
@@ -291,39 +385,96 @@ pre {
   max-width: 100%;
   overflow-x: auto;
   border-radius: 0.875rem;
+  tab-size: 2;
+  -webkit-overflow-scrolling: touch;
 }
 
 code {
   font-size: 0.9em;
+  overflow-wrap: break-word;
 }
 
 pre code {
   display: block;
   min-width: max-content;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+.markdown-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+
+.markdown-content pre {
+  overflow-wrap: normal;
+}
+
+.markdown-content img {
+  height: auto;
+  border-radius: 0.75rem;
+}
+
+.markdown-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
 }
 
 /* =========================================================
-   FOCUS
+   ANVIX UI UTILITIES
    ========================================================= */
 
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
+/* Subtle gold glow for selected components */
+.gold-glow {
+  box-shadow: 0 0 32px var(--gold-glow);
 }
 
-/* =========================================================
-   INTERACTION
-   ========================================================= */
-
-button:disabled {
-  cursor: not-allowed;
+/* Soft gold border */
+.gold-border {
+  border-color: var(--gold-border);
 }
 
-a {
-  -webkit-tap-highlight-color: transparent;
+/* Surface hover effect */
+.surface-hover {
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.surface-hover:hover {
+  background-color: var(--surface-hover);
+}
+
+/* Reusable smooth interaction */
+.transition-ui {
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+/* Prevent flex children from forcing overflow */
+.min-w-0 {
+  min-width: 0;
+}
+
+.min-h-0 {
+  min-height: 0;
+}
+
+/* Safe area for fixed mobile controls */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* =========================================================
@@ -337,6 +488,10 @@ a {
 
   body {
     min-width: 320px;
+  }
+
+  pre {
+    max-width: calc(100vw - 2rem);
   }
 }
 
