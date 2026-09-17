@@ -39,24 +39,18 @@ export default function Navbar() {
     document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener(
-        "keydown",
-        handleEscape
-      );
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [mobileOpen]);
 
   useEffect(() => {
     if (!mobileOpen) return;
 
-    const originalOverflow =
-      document.body.style.overflow;
-
+    const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     return () => {
-      document.body.style.overflow =
-        originalOverflow;
+      document.body.style.overflow = originalOverflow;
     };
   }, [mobileOpen]);
 
@@ -75,29 +69,18 @@ export default function Navbar() {
     <>
       <header
         className="
-          sticky
-          top-0
-          z-50
-          w-full
-          border-b
-          border-white/[0.10]
+          sticky top-0 z-50 w-full
+          border-b border-white/[0.10]
           bg-black/[0.52]
-          backdrop-blur-xl
-          backdrop-saturate-150
+          backdrop-blur-xl backdrop-saturate-150
           shadow-[0_8px_30px_rgba(0,0,0,0.18)]
         "
       >
         <div
           className="
-            mx-auto
-            flex
-            h-[68px]
-            max-w-7xl
-            items-center
-            justify-between
-            px-4
-            sm:px-6
-            lg:px-8
+            mx-auto flex h-[68px] max-w-7xl
+            items-center justify-between
+            px-4 sm:px-6 lg:px-8
           "
         >
           {/* Logo */}
@@ -105,12 +88,8 @@ export default function Navbar() {
           <Link
             href="/"
             className="
-              flex
-              shrink-0
-              items-center
-              gap-2.5
-              rounded-lg
-              outline-none
+              flex shrink-0 items-center gap-2.5
+              rounded-lg outline-none
               focus-visible:ring-2
               focus-visible:ring-[#D4AF37]/50
             "
@@ -121,25 +100,11 @@ export default function Navbar() {
               alt="ANVIX AI Logo"
               width={40}
               height={40}
-              className="
-                h-9
-                w-9
-                object-contain
-                sm:h-10
-                sm:w-10
-              "
+              className="h-9 w-9 object-contain sm:h-10 sm:w-10"
               priority
             />
 
-            <span
-              className="
-                text-[16px]
-                font-semibold
-                tracking-tight
-                text-white
-                sm:text-[17px]
-              "
-            >
+            <span className="text-[16px] font-semibold tracking-tight text-white sm:text-[17px]">
               ANVIX AI
             </span>
           </Link>
@@ -147,25 +112,14 @@ export default function Navbar() {
           {/* Desktop Navigation */}
 
           <nav
-            className="
-              absolute
-              left-1/2
-              hidden
-              -translate-x-1/2
-              md:block
-            "
+            className="absolute left-1/2 hidden -translate-x-1/2 md:block"
             aria-label="Main navigation"
           >
             <div
               className="
-                flex
-                items-center
-                gap-1
-                rounded-xl
-                border
-                border-white/[0.08]
-                bg-white/[0.025]
-                p-1
+                flex items-center gap-1
+                rounded-xl border border-white/[0.08]
+                bg-white/[0.025] p-1
                 shadow-[0_4px_18px_rgba(0,0,0,0.12)]
               "
             >
@@ -176,18 +130,11 @@ export default function Navbar() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    aria-current={
-                      active ? "page" : undefined
-                    }
+                    aria-current={active ? "page" : undefined}
                     className={`
-                      relative
-                      rounded-lg
-                      px-4
-                      py-2
-                      text-[13px]
-                      font-medium
-                      transition-all
-                      duration-200
+                      relative rounded-lg px-4 py-2
+                      text-[13px] font-medium
+                      transition-all duration-200
                       ${
                         active
                           ? "bg-white/[0.09] text-white"
@@ -200,12 +147,8 @@ export default function Navbar() {
                     {active && (
                       <span
                         className="
-                          absolute
-                          bottom-0
-                          left-1/2
-                          h-px
-                          w-5
-                          -translate-x-1/2
+                          absolute bottom-0 left-1/2
+                          h-px w-5 -translate-x-1/2
                           bg-[#D4AF37]
                         "
                       />
@@ -220,35 +163,18 @@ export default function Navbar() {
 
           <Link
             href="/signup"
-            aria-current={
-              pathname === "/signup"
-                ? "page"
-                : undefined
-            }
+            aria-current={pathname === "/signup" ? "page" : undefined}
             className="
-              hidden
-              items-center
-              gap-2
-              rounded-lg
-              border
-              border-[#D4AF37]/40
-              bg-[#D4AF37]
-              px-4
-              py-2
-              text-[13px]
-              font-semibold
-              text-black
-              transition-all
-              duration-200
+              hidden md:flex
+              items-center gap-2
+              rounded-lg border border-[#D4AF37]/40
+              bg-[#D4AF37] px-4 py-2
+              text-[13px] font-semibold text-black
+              transition-all duration-200
               hover:bg-[#E5C65C]
-              md:flex
             "
           >
-            <UserPlus
-              className="h-4 w-4"
-              strokeWidth={1.8}
-            />
-
+            <UserPlus className="h-4 w-4" strokeWidth={1.8} />
             <span>Sign Up</span>
           </Link>
 
@@ -256,47 +182,27 @@ export default function Navbar() {
 
           <button
             type="button"
-            onClick={() =>
-              setMobileOpen((open) => !open)
-            }
+            onClick={() => setMobileOpen((open) => !open)}
             className="
-              flex
-              h-10
-              w-10
-              items-center
-              justify-center
-              rounded-lg
-              border
-              border-white/[0.10]
-              bg-white/[0.035]
-              text-zinc-300
-              transition-all
-              duration-200
+              flex md:hidden
+              h-10 w-10 items-center justify-center
+              rounded-lg border border-white/[0.10]
+              bg-white/[0.035] text-zinc-300
+              transition-all duration-200
               hover:border-white/[0.18]
               hover:bg-white/[0.07]
               hover:text-white
               focus-visible:outline-none
               focus-visible:ring-2
               focus-visible:ring-[#D4AF37]/50
-              md:hidden
             "
-            aria-label={
-              mobileOpen
-                ? "Close navigation"
-                : "Open navigation"
-            }
+            aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={mobileOpen}
           >
             {mobileOpen ? (
-              <X
-                className="h-5 w-5"
-                strokeWidth={1.8}
-              />
+              <X className="h-5 w-5" strokeWidth={1.8} />
             ) : (
-              <Menu
-                className="h-5 w-5"
-                strokeWidth={1.8}
-              />
+              <Menu className="h-5 w-5" strokeWidth={1.8} />
             )}
           </button>
         </div>
@@ -306,13 +212,10 @@ export default function Navbar() {
         <div
           className={`
             overflow-hidden
-            border-t
-            border-white/[0.07]
+            border-t border-white/[0.07]
             bg-black/[0.38]
-            backdrop-blur-xl
-            backdrop-saturate-150
-            transition-[max-height,opacity]
-            duration-200
+            backdrop-blur-xl backdrop-saturate-150
+            transition-[max-height,opacity] duration-200
             md:hidden
             ${
               mobileOpen
@@ -324,11 +227,8 @@ export default function Navbar() {
           <nav className="px-4 py-3 sm:px-6">
             <div
               className="
-                rounded-2xl
-                border
-                border-white/[0.09]
-                bg-black/[0.30]
-                p-2
+                rounded-2xl border border-white/[0.09]
+                bg-black/[0.30] p-2
                 shadow-[0_15px_40px_rgba(0,0,0,0.25)]
                 backdrop-blur-xl
               "
@@ -341,19 +241,11 @@ export default function Navbar() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      aria-current={
-                        active ? "page" : undefined
-                      }
+                      aria-current={active ? "page" : undefined}
                       className={`
-                        flex
-                        min-h-12
-                        items-center
-                        justify-between
-                        rounded-xl
-                        px-4
-                        text-sm
-                        font-medium
-                        transition-all
+                        flex min-h-12 items-center
+                        justify-between rounded-xl px-4
+                        text-sm font-medium transition-all
                         ${
                           active
                             ? "bg-white/[0.08] text-white"
@@ -365,14 +257,7 @@ export default function Navbar() {
 
                       <span className="flex items-center gap-2">
                         {active && (
-                          <span
-                            className="
-                              h-1.5
-                              w-1.5
-                              rounded-full
-                              bg-[#D4AF37]
-                            "
-                          />
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
                         )}
 
                         <ChevronRight
@@ -390,24 +275,13 @@ export default function Navbar() {
               <div className="mt-2 border-t border-white/[0.07] pt-2">
                 <Link
                   href="/signup"
-                  aria-current={
-                    pathname === "/signup"
-                      ? "page"
-                      : undefined
-                  }
+                  aria-current={pathname === "/signup" ? "page" : undefined}
                   className="
-                    flex
-                    min-h-12
-                    items-center
-                    justify-between
-                    rounded-xl
+                    flex min-h-12 items-center
+                    justify-between rounded-xl px-4
                     bg-[#D4AF37]/10
-                    px-4
-                    text-sm
-                    font-semibold
-                    text-[#D4AF37]
-                    transition-all
-                    hover:bg-[#D4AF37]/15
+                    text-sm font-semibold text-[#D4AF37]
+                    transition-all hover:bg-[#D4AF37]/15
                   "
                 >
                   <span className="flex items-center gap-2.5">
@@ -415,7 +289,6 @@ export default function Navbar() {
                       className="h-4 w-4"
                       strokeWidth={1.8}
                     />
-
                     Sign Up
                   </span>
 
@@ -438,11 +311,8 @@ export default function Navbar() {
           aria-label="Close navigation"
           onClick={() => setMobileOpen(false)}
           className="
-            fixed
-            inset-0
-            z-40
-            bg-black/[0.08]
-            md:hidden
+            fixed inset-0 z-40
+            bg-black/[0.08] md:hidden
           "
         />
       )}
