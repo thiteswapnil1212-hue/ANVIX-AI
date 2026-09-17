@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  UserPlus,
+  LogIn,
   Menu,
   X,
   ChevronRight,
@@ -22,6 +22,8 @@ const links = [
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const isAuthPage = pathname === "/auth";
 
   useEffect(() => {
     setMobileOpen(false);
@@ -84,7 +86,6 @@ export default function Navbar() {
           "
         >
           {/* Logo */}
-
           <Link
             href="/"
             className="
@@ -110,7 +111,6 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Navigation */}
-
           <nav
             className="absolute left-1/2 hidden -translate-x-1/2 md:block"
             aria-label="Main navigation"
@@ -159,11 +159,10 @@ export default function Navbar() {
             </div>
           </nav>
 
-          {/* Desktop Sign Up */}
-
+          {/* Desktop Sign In */}
           <Link
-            href="/signup"
-            aria-current={pathname === "/signup" ? "page" : undefined}
+            href="/auth"
+            aria-current={isAuthPage ? "page" : undefined}
             className="
               hidden md:flex
               items-center gap-2
@@ -172,14 +171,16 @@ export default function Navbar() {
               text-[13px] font-semibold text-black
               transition-all duration-200
               hover:bg-[#E5C65C]
+              focus-visible:outline-none
+              focus-visible:ring-2
+              focus-visible:ring-[#D4AF37]/50
             "
           >
-            <UserPlus className="h-4 w-4" strokeWidth={1.8} />
-            <span>Sign Up</span>
+            <LogIn className="h-4 w-4" strokeWidth={1.8} />
+            <span>Sign In</span>
           </Link>
 
           {/* Mobile Menu Button */}
-
           <button
             type="button"
             onClick={() => setMobileOpen((open) => !open)}
@@ -208,7 +209,6 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Navigation */}
-
         <div
           className={`
             overflow-hidden
@@ -270,12 +270,12 @@ export default function Navbar() {
                 })}
               </div>
 
-              {/* Mobile Sign Up */}
-
+              {/* Mobile Sign In */}
               <div className="mt-2 border-t border-white/[0.07] pt-2">
                 <Link
-                  href="/signup"
-                  aria-current={pathname === "/signup" ? "page" : undefined}
+                  href="/auth"
+                  aria-current={isAuthPage ? "page" : undefined}
+                  onClick={() => setMobileOpen(false)}
                   className="
                     flex min-h-12 items-center
                     justify-between rounded-xl px-4
@@ -285,11 +285,11 @@ export default function Navbar() {
                   "
                 >
                   <span className="flex items-center gap-2.5">
-                    <UserPlus
+                    <LogIn
                       className="h-4 w-4"
                       strokeWidth={1.8}
                     />
-                    Sign Up
+                    Sign In
                   </span>
 
                   <ChevronRight
@@ -303,8 +303,7 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* Mobile backdrop */}
-
+      {/* Mobile Backdrop */}
       {mobileOpen && (
         <button
           type="button"
