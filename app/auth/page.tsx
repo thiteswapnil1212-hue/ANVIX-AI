@@ -2,7 +2,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import logo from "../favicon.png";
 import {
   ArrowLeft,
   ArrowRight,
@@ -81,8 +83,15 @@ export default function AuthPage() {
           className="group inline-flex items-center gap-3"
           aria-label="ANVIX AI home"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c9a44c]/30 bg-[#c9a44c]/10 text-[#e2c16e]">
-            <Sparkles size={21} />
+          <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#c9a44c]/30 bg-[#c9a44c]/10">
+            <Image
+              src={logo}
+              alt="ANVIX AI logo"
+              fill
+              priority
+              sizes="40px"
+              className="object-contain p-1"
+            />
           </span>
 
           <span className="text-lg font-semibold tracking-[0.16em]">
@@ -241,8 +250,18 @@ export default function AuthPage() {
             <div className="w-full max-w-md">
 
               {/* Mobile brand */}
-              <div className="mb-8 flex items-center gap-2 lg:hidden">
-                <Sparkles className="text-[#d4b35e]" size={19} />
+              <div className="mb-8 flex items-center gap-3 lg:hidden">
+                <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg">
+                  <Image
+                    src={logo}
+                    alt="ANVIX AI logo"
+                    fill
+                    priority
+                    sizes="36px"
+                    className="object-contain"
+                  />
+                </span>
+
                 <span className="text-sm font-semibold tracking-[0.16em]">
                   ANVIX AI
                 </span>
