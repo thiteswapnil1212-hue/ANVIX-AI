@@ -13,6 +13,8 @@ import {
   Sparkles,
   UserRound,
   CheckCircle2,
+  Zap,
+  BrainCircuit,
 } from "lucide-react";
 
 type AuthMode = "signin" | "signup";
@@ -53,8 +55,8 @@ export default function AuthPage() {
       return;
     }
 
-    // Supabase authentication will be connected here.
-    // Do not show a successful login/signup until the backend confirms it.
+    // Connect Supabase Auth here later.
+    // Do not claim authentication succeeded before backend confirmation.
     setMessage(
       "Authentication is not connected yet. Please try again after setup."
     );
@@ -88,19 +90,29 @@ export default function AuthPage() {
           </span>
         </Link>
 
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm text-white/55 transition hover:text-white"
-        >
-          <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Back to home</span>
-          <span className="sm:hidden">Home</span>
-        </Link>
+        <div className="flex items-center gap-4 sm:gap-6">
+          <Link
+            href="/pricing"
+            className="text-sm font-medium text-[#d4b35e] transition hover:text-[#f0d98d]"
+          >
+            Pricing
+          </Link>
+
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-white/55 transition hover:text-white"
+          >
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Back to home</span>
+            <span className="sm:hidden">Home</span>
+          </Link>
+        </div>
       </header>
 
       {/* Main */}
       <section className="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center px-4 pb-12 pt-4 sm:px-6">
         <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/[0.09] bg-[#101010]/90 shadow-[0_25px_100px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:grid-cols-[1fr_0.95fr]">
+
           {/* Left panel */}
           <aside className="relative hidden flex-col justify-between overflow-hidden border-r border-white/[0.08] bg-[#0d0d0d] p-10 lg:flex xl:p-12">
             <div
@@ -133,18 +145,85 @@ export default function AuthPage() {
               </h1>
 
               <p className="mt-6 max-w-sm text-sm leading-7 text-white/45">
-                Your ideas, tools, and AI conversations — all in one
-                thoughtfully designed workspace.
+                Explore AI models, work on ideas, and bring your projects
+                together in one thoughtfully designed workspace.
               </p>
+
+              {/* AI Models */}
+              <div className="mt-8 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+                  Explore our AI models
+                </p>
+
+                {/* Guest model */}
+                <div className="rounded-xl border border-[#d4b35e]/20 bg-[#d4b35e]/[0.06] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Zap size={16} className="text-[#dfc477]" />
+                      <span className="text-sm font-medium text-white">
+                        Gemini 2.5 Flash
+                      </span>
+                    </div>
+
+                    <span className="shrink-0 rounded-full bg-emerald-400/10 px-2 py-1 text-[10px] font-medium text-emerald-300">
+                      Guest access
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs leading-5 text-white/45">
+                    Start chatting without creating an account.
+                  </p>
+                </div>
+
+                {/* Other models */}
+                <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <BrainCircuit
+                        size={16}
+                        className="text-[#d4b35e]"
+                      />
+                      <span className="text-sm font-medium text-white">
+                        More AI models
+                      </span>
+                    </div>
+
+                    <LockKeyhole
+                      size={15}
+                      className="text-[#d4b35e]"
+                    />
+                  </div>
+
+                  <p className="mt-2 text-xs leading-5 text-white/45">
+                    Sign up to access other models available in the
+                    ANVIX AI model selector.
+                  </p>
+                </div>
+
+                <Link
+                  href="/pricing"
+                  className="group inline-flex items-center gap-2 pt-1 text-sm font-medium text-[#d4b35e] transition hover:text-[#f0d98d]"
+                >
+                  Explore plans and pricing
+                  <ArrowRight
+                    size={16}
+                    className="transition-transform group-hover:translate-x-1"
+                  />
+                </Link>
+              </div>
             </div>
 
-            <div className="relative mt-16 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5">
+            {/* Workspace card */}
+            <div className="relative mt-10 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#d4b35e]/10 text-[#dfc477]">
                   <LockKeyhole size={19} />
                 </div>
+
                 <div>
-                  <p className="text-sm font-medium">Your workspace, your way</p>
+                  <p className="text-sm font-medium">
+                    Your workspace, your way
+                  </p>
                   <p className="mt-1 text-xs text-white/40">
                     Sign in to access your account.
                   </p>
@@ -160,6 +239,7 @@ export default function AuthPage() {
           {/* Right panel */}
           <div className="flex items-center justify-center p-5 sm:p-9 lg:p-10 xl:p-12">
             <div className="w-full max-w-md">
+
               {/* Mobile brand */}
               <div className="mb-8 flex items-center gap-2 lg:hidden">
                 <Sparkles className="text-[#d4b35e]" size={19} />
@@ -211,6 +291,7 @@ export default function AuthPage() {
                 </button>
               </div>
 
+              {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5">
                 {isSignup && (
                   <div>
@@ -226,6 +307,7 @@ export default function AuthPage() {
                         size={18}
                         className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
                       />
+
                       <input
                         id="fullName"
                         type="text"
@@ -254,6 +336,7 @@ export default function AuthPage() {
                       size={18}
                       className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
                     />
+
                     <input
                       id="email"
                       type="email"
@@ -313,7 +396,9 @@ export default function AuthPage() {
 
                     <button
                       type="button"
-                      onClick={() => setShowPassword((current) => !current)}
+                      onClick={() =>
+                        setShowPassword((current) => !current)
+                      }
                       aria-label={
                         showPassword ? "Hide password" : "Show password"
                       }
@@ -339,9 +424,12 @@ export default function AuthPage() {
                     <input
                       type="checkbox"
                       checked={acceptedTerms}
-                      onChange={(e) => setAcceptedTerms(e.target.checked)}
+                      onChange={(e) =>
+                        setAcceptedTerms(e.target.checked)
+                      }
                       className="mt-1 h-4 w-4 shrink-0 accent-[#d4b35e]"
                     />
+
                     <span>
                       I agree to the{" "}
                       <Link
@@ -376,6 +464,7 @@ export default function AuthPage() {
                   className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4b35e] to-[#c6a34a] text-sm font-semibold text-black shadow-lg shadow-[#c9a44c]/10 transition hover:brightness-110 active:scale-[0.99]"
                 >
                   {isSignup ? "Create account" : "Sign in"}
+
                   <ArrowRight
                     size={17}
                     className="transition-transform group-hover:translate-x-1"
@@ -383,6 +472,7 @@ export default function AuthPage() {
                 </button>
               </form>
 
+              {/* Account switch */}
               <div className="my-6 flex items-center gap-3">
                 <div className="h-px flex-1 bg-white/[0.08]" />
                 <span className="text-xs text-white/25">OR</span>
@@ -393,6 +483,7 @@ export default function AuthPage() {
                 {isSignup
                   ? "Already have an account?"
                   : "New to ANVIX AI?"}{" "}
+
                 <button
                   type="button"
                   onClick={() =>
@@ -404,6 +495,18 @@ export default function AuthPage() {
                 </button>
               </p>
 
+              {/* Pricing CTA */}
+              <div className="mt-5 text-center">
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center gap-2 text-sm text-white/45 transition hover:text-[#d4b35e]"
+                >
+                  View ANVIX AI plans
+                  <ArrowRight size={15} />
+                </Link>
+              </div>
+
+              {/* Secure access */}
               <div className="mt-8 flex items-center justify-center gap-2 text-xs text-white/25">
                 <CheckCircle2 size={14} />
                 <span>Secure account access</span>
