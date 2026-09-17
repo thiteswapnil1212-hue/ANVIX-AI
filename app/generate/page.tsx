@@ -1,7 +1,13 @@
+
 "use client";
 
-import { useState } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
+import type { KeyboardEvent } from "react";
 import { Sparkles } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
@@ -11,23 +17,38 @@ import GenerateHero from "@/components/generate/GenerateHero";
 import PromptBuilder from "@/components/generate/PromptBuilder";
 import ExamplePrompts from "@/components/generate/ExamplePrompts";
 import BuildOptions, {
-  BuildConfiguration,
+  type BuildConfiguration,
   defaultBuildConfiguration,
 } from "@/components/generate/BuildOptions";
 import GenerateProgress from "@/components/generate/GenerationProgress";
 
 const MAX_CHARS = 2200;
-const GENERATED_PROJECT_STORAGE_KEY = "anvix.generatedProject";
-const AGENT_PROMPT_STORAGE_KEY = "anvix.agentPrompt";
+
+const GENERATED_PROJECT_STORAGE_KEY =
+  "anvix.generatedProject";
+
+const AGENT_PROMPT_STORAGE_KEY =
+  "anvix.agentPrompt";
 
 function createProjectSlug(projectName: string) {
   const slug = projectName
+    .normalize("NFKD")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80)
+    .replace(/-+$/g, "");
 
   return slug || "anvix-generated";
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Something went wrong. Please try again.";
 }
 
 export default function GeneratePage() {
@@ -42,24 +63,52 @@ export default function GeneratePage() {
       defaultBuildConfiguration
     );
 
+  // Prevent duplicate requests from rapid clicks or shortcuts.
+  const submissionLock = useRef(false);
+
   const trimmedPrompt = prompt.trim();
+  const isPromptEmpty = trimmedPrompt.length === 0;
+  const isPromptTooLong = prompt.length > MAX_CHARS;
 
   const canGenerate =
-    trimmedPrompt.length > 0 && !isSubmitting;
+    !isPromptEmpty &&
+    !isPromptTooLong &&
+    !isSubmitting;
 
-  function handleBuildConfigChange(
-    category: keyof BuildConfiguration,
-    option: string
-  ) {
-    setBuildConfig((current) => ({
-      ...current,
-      [category]: option,
-    }));
-  }
+  const handlePromptChange = useCallback(
+    (nextPrompt: string) => {
+      setPrompt(nextPrompt);
 
-  async function handleGenerate() {
-    if (!canGenerate) return;
+      if (errorMessage) {
+        setErrorMessage("");
+      }
+    },
+    [errorMessage]
+  );
 
+  const handleBuildConfigChange = useCallback(
+    (
+      category: keyof BuildConfiguration,
+      option: string
+    ) => {
+      setBuildConfig((current) => ({
+        ...current,
+        [category]: option,
+      }));
+    },
+    []
+  );
+
+  const handleGenerate = useCallback(async () => {
+    if (
+      submissionLock.current ||
+      isPromptEmpty ||
+      isPromptTooLong
+    ) {
+      return;
+    }
+
+    submissionLock.current = true;
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -74,13 +123,30 @@ export default function GeneratePage() {
         }),
       });
 
-      const data = (await response.json()) as BuildApiResponse;
+      let data: BuildApiResponse;
+
+      try {
+        data = (await response.json()) as BuildApiResponse;
+      } catch {
+        throw new Error(
+          response.ok
+            ? "The server returned an invalid response. Please try again."
+            : "The server could not complete your request. Please try again."
+        );
+      }
 
       if (!response.ok || !data.success) {
+        const message =
+          data.success === false && data.error
+            ? data.error
+            : "Project generation failed. Please try again.";
+
+        throw new Error(message);
+      }
+
+      if (!data.project?.name) {
         throw new Error(
-          data.success
-            ? "Project generation failed"
-            : data.error
+          "The generated project response is incomplete. Please try again."
         );
       }
 
@@ -88,6 +154,7 @@ export default function GeneratePage() {
         GENERATED_PROJECT_STORAGE_KEY,
         JSON.stringify(data.project)
       );
+
       sessionStorage.setItem(
         AGENT_PROMPT_STORAGE_KEY,
         trimmedPrompt
@@ -97,28 +164,34 @@ export default function GeneratePage() {
         `/workspace/${createProjectSlug(data.project.name)}`
       );
     } catch (error) {
-      console.error("ANVIX build generation failed:", error);
-
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to generate the project right now."
+      console.error(
+        "ANVIX build generation failed:",
+        error
       );
+
+      setErrorMessage(getErrorMessage(error));
+      submissionLock.current = false;
       setIsSubmitting(false);
     }
-  }
+  }, [
+    isPromptEmpty,
+    isPromptTooLong,
+    trimmedPrompt,
+    router,
+  ]);
 
-  function handleKeyDown(
-    event: React.KeyboardEvent<HTMLTextAreaElement>
-  ) {
-    if (
-      event.key === "Enter" &&
-      (event.metaKey || event.ctrlKey)
-    ) {
-      event.preventDefault();
-      handleGenerate();
-    }
-  }
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (
+        event.key === "Enter" &&
+        (event.metaKey || event.ctrlKey)
+      ) {
+        event.preventDefault();
+        void handleGenerate();
+      }
+    },
+    [handleGenerate]
+  );
 
   return (
     <AppShell
@@ -141,34 +214,45 @@ export default function GeneratePage() {
           "
         >
           <div className="space-y-6 lg:space-y-7">
-
-            {/* Generate Hero */}
+            {/* Hero */}
 
             <GenerateHero
               promptLength={prompt.length}
               maxChars={MAX_CHARS}
             />
 
-            {/* Prompt Builder */}
+            {/* Prompt builder */}
 
             <PromptBuilder
               value={prompt}
               maxChars={MAX_CHARS}
-              onChange={setPrompt}
+              onChange={handlePromptChange}
               onGenerate={handleGenerate}
               onKeyDown={handleKeyDown}
               isSubmitting={isSubmitting}
               canGenerate={canGenerate}
             />
 
-            {/* Example Prompts */}
+            {/* Validation feedback */}
+
+            {isPromptTooLong && (
+              <p
+                role="alert"
+                className="text-xs text-amber-300"
+              >
+                Your prompt is over the {MAX_CHARS} character
+                limit. Please shorten it before generating.
+              </p>
+            )}
+
+            {/* Example prompts */}
 
             <ExamplePrompts
-              onSelect={setPrompt}
+              onSelect={handlePromptChange}
               disabled={isSubmitting}
             />
 
-            {/* Build Options */}
+            {/* Build options */}
 
             <BuildOptions
               value={buildConfig}
@@ -176,32 +260,93 @@ export default function GeneratePage() {
               disabled={isSubmitting}
             />
 
-            {/* Generation Progress */}
+            {/* Generation progress */}
 
             {isSubmitting && (
-              <GenerateProgress />
+              <div
+                aria-live="polite"
+                aria-busy="true"
+              >
+                <GenerateProgress />
+              </div>
             )}
+
+            {/* Error state */}
 
             {errorMessage && (
               <div
                 role="alert"
                 className="
+                  flex
+                  items-start
+                  gap-3
                   rounded-2xl
                   border
                   border-red-500/20
                   bg-red-500/[0.06]
                   px-4
-                  py-3
-                  text-xs
+                  py-3.5
+                  text-sm
                   leading-5
                   text-red-200
                 "
               >
-                {errorMessage}
+                <span
+                  className="
+                    mt-0.5
+                    flex
+                    h-5
+                    w-5
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-full
+                    border
+                    border-red-400/30
+                    text-xs
+                    font-semibold
+                  "
+                  aria-hidden="true"
+                >
+                  !
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">
+                    Generation couldn’t be completed
+                  </p>
+
+                  <p className="mt-1 break-words text-red-200/80">
+                    {errorMessage}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerate()}
+                    disabled={!canGenerate}
+                    className="
+                      mt-3
+                      rounded-lg
+                      border
+                      border-red-400/20
+                      px-3
+                      py-1.5
+                      text-xs
+                      font-medium
+                      text-red-100
+                      transition
+                      hover:bg-red-400/10
+                      disabled:cursor-not-allowed
+                      disabled:opacity-40
+                    "
+                  >
+                    Try again
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Builder Footer */}
+            {/* Builder footer */}
 
             <div
               className="
@@ -243,13 +388,13 @@ export default function GeneratePage() {
                   <span className="font-medium text-zinc-300">
                     Pro tip:
                   </span>{" "}
-                  The more context you provide about your users,
-                  features, integrations, workflows, and desired
-                  experience, the more useful your first build becomes.
+                  Describe your users, key features, integrations,
+                  workflows, and the experience you want. A
+                  clear prompt gives ANVIX more context for
+                  your first build.
                 </p>
               </div>
             </div>
-
           </div>
         </div>
       </main>
