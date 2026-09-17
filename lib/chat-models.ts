@@ -1,4 +1,3 @@
-
 export type ChatModel = {
   id: string;
   name: string;
@@ -8,6 +7,43 @@ export type ChatModel = {
 };
 
 export const CHAT_MODELS: ChatModel[] = [
+  // Google Gemini — unlocked
+  {
+    id: "gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
+    provider: "Google Gemini",
+    locked: false,
+    apiModelId: "gemini-2.5-flash",
+  },
+  {
+    id: "gemini-3.8-flash",
+    name: "Gemini 3.8 Flash",
+    provider: "Google Gemini",
+    locked: false,
+    apiModelId: "gemini-3.8-flash",
+  },
+  {
+    id: "gemini-3.7-flash",
+    name: "Gemini 3.7 Flash",
+    provider: "Google Gemini",
+    locked: false,
+    apiModelId: "gemini-3.7-flash",
+  },
+  {
+    id: "gemini-3.6-flash",
+    name: "Gemini 3.6 Flash",
+    provider: "Google Gemini",
+    locked: false,
+    apiModelId: "gemini-3.6-flash",
+  },
+  {
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash-Lite",
+    provider: "Google Gemini",
+    locked: false,
+    apiModelId: "gemini-3.5-flash-lite",
+  },
+
   // OpenAI — locked
   {
     id: "gpt-5.5",
@@ -98,43 +134,6 @@ export const CHAT_MODELS: ChatModel[] = [
     provider: "xAI",
     locked: true,
     apiModelId: null,
-  },
-
-  // Google Gemini — working models
-  {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-2.5-flash",
-  },
-  {
-    id: "gemini-3.8-flash",
-    name: "Gemini 3.8 Flash",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-3.8-flash",
-  },
-  {
-    id: "gemini-3.7-flash",
-    name: "Gemini 3.7 Flash",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-3.7-flash",
-  },
-  {
-    id: "gemini-3.6-flash",
-    name: "Gemini 3.6 Flash",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-3.6-flash",
-  },
-  {
-    id: "gemini-3.5-flash-lite",
-    name: "Gemini 3.5 Flash-Lite",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-3.5-flash-lite",
   },
 ];
 
