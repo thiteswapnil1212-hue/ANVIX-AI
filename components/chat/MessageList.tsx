@@ -13,7 +13,7 @@ interface Message {
   id: string;
   role: "assistant" | "user";
   content: string;
-  createdAt?: Date;
+  createdAt?: string | Date;
   status?: "sending" | "sent" | "error";
 }
 
@@ -102,94 +102,90 @@ export default function MessageList({
   ===================================================== */
 
   useEffect(() => {
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
-      typingTimerRef.current = null;
-    }
+    const latestMessage = messages[messages.length - 1];
 
-    const latestMessage =
-      messages[messages.length - 1];
-
-    /*
-     * If AI is still processing and there is no
-     * assistant response yet, show the normal
-     * thinking indicator.
-     */
-    if (
-      isTyping &&
-      (!latestMessage ||
-        latestMessage.role !== "assistant")
-    ) {
+    const resetRevealState = () => {
       setDisplayedContent("");
       setIsRevealing(false);
-      return;
-    }
+    };
 
-    /*
-     * Find the latest assistant response.
-     */
-    if (
-      latestMessage &&
-      latestMessage.role === "assistant"
-    ) {
-      const fullContent = latestMessage.content;
-
-      /*
-       * If this is a new assistant response,
-       * reveal it from the beginning.
-       */
-      if (
-        !displayedContent ||
-        !fullContent.startsWith(displayedContent)
-      ) {
-        setDisplayedContent("");
-        setIsRevealing(true);
-
-        let currentIndex = 0;
-
-        const revealNext = () => {
-          currentIndex += 1;
-
-          setDisplayedContent(
-            fullContent.slice(0, currentIndex)
-          );
-
-          if (currentIndex < fullContent.length) {
-            /*
-             * Small natural variation keeps the
-             * animation from feeling too robotic.
-             */
-            const delay =
-              TYPING_SPEED +
-              Math.random() * 10;
-
-            typingTimerRef.current =
-              setTimeout(revealNext, delay);
-          } else {
-            setIsRevealing(false);
-            typingTimerRef.current = null;
-          }
-        };
-
-        typingTimerRef.current =
-          setTimeout(revealNext, TYPING_SPEED);
-
-        return () => {
-          if (typingTimerRef.current) {
-            clearTimeout(
-              typingTimerRef.current
-            );
-          }
-        };
-      }
-    }
-
-    return () => {
+    const frameId = requestAnimationFrame(() => {
       if (typingTimerRef.current) {
         clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+
+      /*
+       * If AI is still processing and there is no
+       * assistant response yet, show the normal
+       * thinking indicator.
+       */
+      if (
+        isTyping &&
+        (!latestMessage || latestMessage.role !== "assistant")
+      ) {
+        resetRevealState();
+        return;
+      }
+
+      /*
+       * Find the latest assistant response.
+       */
+      if (latestMessage && latestMessage.role === "assistant") {
+        const fullContent = latestMessage.content;
+
+        /*
+         * If this is a new assistant response,
+         * reveal it from the beginning.
+         */
+        if (
+          !displayedContent ||
+          !fullContent.startsWith(displayedContent)
+        ) {
+          setDisplayedContent("");
+          setIsRevealing(true);
+
+          let currentIndex = 0;
+
+          const revealNext = () => {
+            currentIndex += 1;
+
+            setDisplayedContent(
+              fullContent.slice(0, currentIndex)
+            );
+
+            if (currentIndex < fullContent.length) {
+              /*
+               * Small natural variation keeps the
+               * animation from feeling too robotic.
+               */
+              const delay =
+                TYPING_SPEED +
+                Math.random() * 10;
+
+              typingTimerRef.current =
+                setTimeout(revealNext, delay);
+            } else {
+              setIsRevealing(false);
+              typingTimerRef.current = null;
+            }
+          };
+
+          typingTimerRef.current =
+            setTimeout(revealNext, TYPING_SPEED);
+        }
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
       }
     };
-  }, [messages, isTyping]);
+  }, [messages, isTyping, displayedContent]);
 
   /* =====================================================
      NEW MESSAGE / TYPING AUTO SCROLL
