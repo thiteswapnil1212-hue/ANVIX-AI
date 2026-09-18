@@ -1,7 +1,12 @@
+
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 
 interface GenerationStatusProps {
   status: "idle" | "loading" | "success" | "error";
@@ -9,38 +14,79 @@ interface GenerationStatusProps {
   detail?: string;
 }
 
-export default function GenerationStatus({ status, message, detail }: GenerationStatusProps) {
+const statusStyles = {
+  loading: {
+    container: "border-zinc-800 bg-[#111111]",
+    icon: "text-[#D4AF37]",
+    title: "text-zinc-100",
+    detail: "text-zinc-400",
+  },
+  success: {
+    container: "border-emerald-500/20 bg-emerald-500/5",
+    icon: "text-emerald-400",
+    title: "text-emerald-300",
+    detail: "text-emerald-200/70",
+  },
+  error: {
+    container: "border-red-500/20 bg-red-500/5",
+    icon: "text-red-400",
+    title: "text-red-300",
+    detail: "text-red-200/70",
+  },
+};
+
+export default function GenerationStatus({
+  status,
+  message,
+  detail,
+}: GenerationStatusProps) {
+  const styles = status === "idle" ? null : statusStyles[status];
+
+  const Icon =
+    status === "loading"
+      ? Loader2
+      : status === "success"
+        ? CheckCircle2
+        : AlertCircle;
+
   return (
     <AnimatePresence mode="wait">
-      {status !== "idle" ? (
+      {status !== "idle" && styles && (
         <motion.div
           key={status}
-          initial={{ opacity: 0, y: 10 }}
+          role={status === "error" ? "alert" : "status"}
+          aria-live={status === "error" ? "assertive" : "polite"}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className={`mt-6 rounded-2xl border p-4 text-sm ${
-            status === "error"
-              ? "border-red-500/30 bg-red-500/10 text-red-200"
-              : status === "success"
-                ? "border-[#D4AF37]/20 bg-[#D4AF37]/10 text-[#F3D37C]"
-                : "border-zinc-800 bg-[#111111] text-zinc-300"
-          }`}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className={`mt-5 rounded-2xl border px-4 py-3.5 ${styles.container}`}
         >
           <div className="flex items-start gap-3">
-            {status === "loading" ? (
-              <Loader2 className="mt-0.5 h-4 w-4 animate-spin" />
-            ) : status === "success" ? (
-              <CheckCircle2 className="mt-0.5 h-4 w-4" />
-            ) : (
-              <AlertCircle className="mt-0.5 h-4 w-4" />
-            )}
-            <div>
-              <p className="font-medium">{message}</p>
-              {detail ? <p className="mt-1 text-xs opacity-90">{detail}</p> : null}
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black/20">
+              <Icon
+                size={17}
+                className={`${styles.icon} ${
+                  status === "loading" ? "animate-spin" : ""
+                }`}
+                aria-hidden="true"
+              />
+            </div>
+
+            <div className="min-w-0 flex-1 pt-0.5">
+              <p className={`text-sm font-medium ${styles.title}`}>
+                {message}
+              </p>
+
+              {detail && (
+                <p className={`mt-1 text-xs leading-5 ${styles.detail}`}>
+                  {detail}
+                </p>
+              )}
             </div>
           </div>
         </motion.div>
-      ) : null}
+      )}
     </AnimatePresence>
   );
 }
