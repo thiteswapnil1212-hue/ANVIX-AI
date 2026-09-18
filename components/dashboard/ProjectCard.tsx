@@ -1,7 +1,9 @@
+
 import Link from "next/link";
 import {
   ArrowRight,
   Sparkles,
+  Clock3,
 } from "lucide-react";
 
 interface ProjectCardProps {
@@ -22,236 +24,179 @@ export default function ProjectCard({
   return (
     <article
       className="
-        group
-        relative
-        overflow-hidden
-        rounded-3xl
-
-        border
-        border-zinc-800/80
-
-        bg-[#0D0D0D]
-
-        p-5
-
-        transition-all
-        duration-300
-        ease-out
-
+        group relative isolate flex h-full flex-col
+        overflow-hidden rounded-2xl
+        border border-white/[0.08]
+        bg-[#101012]
+        p-5 sm:p-6
+        transition-all duration-300 ease-out
         hover:-translate-y-1
         hover:border-[#D4AF37]/25
-        hover:bg-[#101010]
-        hover:shadow-[0_16px_40px_rgba(0,0,0,0.32)]
+        hover:bg-[#121214]
+        hover:shadow-[0_18px_50px_-24px_rgba(212,175,55,0.14)]
+        motion-reduce:transform-none
+        motion-reduce:transition-none
       "
     >
-      {/* --------------------------------
-          SUBTLE TOP GLOW
-      -------------------------------- */}
-
+      {/* Ambient glow */}
       <div
+        aria-hidden="true"
         className="
-          pointer-events-none
-          absolute
-          inset-x-8
-          top-0
-          h-px
-
-          bg-gradient-to-r
-          from-transparent
-          via-[#D4AF37]/0
-          to-transparent
-
-          transition-all
-          duration-500
-
-          group-hover:via-[#D4AF37]/40
+          pointer-events-none absolute -right-16 -top-20
+          -z-10 h-40 w-40 rounded-full
+          bg-[#D4AF37]/[0.07] blur-[70px]
+          opacity-0 transition-opacity duration-500
+          group-hover:opacity-100
         "
       />
 
-      {/* --------------------------------
-          CONTENT
-      -------------------------------- */}
+      {/* Top accent */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none absolute inset-x-8 top-0 h-px
+          bg-gradient-to-r from-transparent
+          via-[#D4AF37]/0 to-transparent
+          transition-all duration-500
+          group-hover:via-[#D4AF37]/50
+        "
+      />
 
-      <div className="relative z-10">
-        {/* HEADER */}
-
-        <div className="flex items-start justify-between gap-4">
-          {/* PROJECT INFO */}
-
-          <div className="flex min-w-0 items-center gap-3">
-            {/* ICON */}
-
-            <div
-              className="
-                flex
-                h-10
-                w-10
-                shrink-0
-                items-center
-                justify-center
-
-                rounded-2xl
-
-                border
-                border-[#D4AF37]/10
-
-                bg-[#D4AF37]/10
-                text-[#D4AF37]
-
-                transition-all
-                duration-300
-
-                group-hover:scale-105
-                group-hover:border-[#D4AF37]/20
-                group-hover:bg-[#D4AF37]/15
-                group-hover:shadow-[0_0_20px_rgba(212,175,55,0.10)]
-              "
-            >
-              <Sparkles
-                className="
-                  h-4
-                  w-4
-
-                  transition-transform
-                  duration-300
-
-                  group-hover:rotate-6
-                "
-                strokeWidth={1.8}
-              />
-            </div>
-
-            {/* TITLE */}
-
-            <div className="min-w-0">
-              <h3
-                className="
-                  truncate
-                  font-semibold
-                  text-white
-                  transition-colors
-                  duration-200
-                  group-hover:text-zinc-50
-                "
-              >
-                {title}
-              </h3>
-
-              <p className="mt-1 text-sm text-zinc-500">
-                {updatedAt}
-              </p>
-            </div>
-          </div>
-
-          {/* ACCENT */}
-
-          <span
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div
             className="
-              shrink-0
-              rounded-full
-
-              border
-              border-zinc-800
-
-              bg-zinc-900/50
-
-              px-3
-              py-1
-
-              text-xs
-              font-medium
-              text-zinc-400
-
-              transition-all
-              duration-300
-
-              group-hover:border-[#D4AF37]/20
-              group-hover:text-[#D4AF37]
+              flex h-11 w-11 shrink-0 items-center justify-center
+              rounded-xl border border-[#D4AF37]/15
+              bg-[#D4AF37]/[0.07] text-[#D4AF37]
+              transition-all duration-300
+              group-hover:border-[#D4AF37]/30
+              group-hover:bg-[#D4AF37]/[0.12]
+              group-hover:shadow-[0_0_24px_rgba(212,175,55,0.08)]
             "
           >
-            {accent}
-          </span>
+            <Sparkles
+              className="h-[18px] w-[18px] transition-transform duration-300 group-hover:rotate-12"
+              strokeWidth={1.7}
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="min-w-0">
+            <h3
+              className="
+                truncate text-[15px] font-semibold
+                tracking-tight text-zinc-100
+                transition-colors duration-200
+                group-hover:text-white
+              "
+              title={title}
+            >
+              {title}
+            </h3>
+
+            <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-zinc-500">
+              <Clock3
+                className="h-3 w-3 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="truncate">{updatedAt}</span>
+            </div>
+          </div>
         </div>
 
-        {/* DESCRIPTION */}
-
-        <p
+        <span
           className="
-            mt-4
-
-            text-sm
-            leading-6
+            max-w-[45%] shrink-0 truncate
+            rounded-full border border-white/[0.08]
+            bg-white/[0.03] px-2.5 py-1
+            text-[10px] font-medium tracking-wide
             text-zinc-400
-
-            transition-colors
-            duration-300
-
-            group-hover:text-zinc-300
+            transition-colors duration-300
+            group-hover:border-[#D4AF37]/20
+            group-hover:text-[#D4AF37]
+            sm:text-[11px]
           "
+          title={accent}
         >
-          {description}
-        </p>
+          {accent}
+        </span>
+      </div>
 
-        {/* CTA */}
+      {/* Description */}
+      <p
+        className="
+          mt-5 line-clamp-2 min-h-10
+          text-[13px] leading-5
+          text-zinc-400
+          transition-colors duration-300
+          group-hover:text-zinc-300
+        "
+      >
+        {description}
+      </p>
+
+      {/* Footer */}
+      <div className="mt-auto pt-6">
+        <div
+          aria-hidden="true"
+          className="
+            mb-4 h-px w-full
+            bg-gradient-to-r from-white/[0.08]
+            via-white/[0.04] to-transparent
+          "
+        />
 
         <Link
           href={href}
           className="
-            mt-5
-            inline-flex
-            items-center
-            gap-2
-
-            text-sm
-            font-semibold
-            text-[#D4AF37]
-
-            transition-all
-            duration-300
-
-            hover:text-[#E0BB4C]
-            focus:outline-none
+            inline-flex min-h-10 w-full items-center
+            justify-between gap-3 rounded-xl
+            border border-white/[0.07]
+            bg-white/[0.025] px-3.5 py-2.5
+            text-sm font-medium text-zinc-300
+            transition-all duration-300
+            hover:border-[#D4AF37]/25
+            hover:bg-[#D4AF37]/[0.06]
+            hover:text-[#D4AF37]
+            focus-visible:outline-none
             focus-visible:ring-2
-            focus-visible:ring-[#D4AF37]/40
+            focus-visible:ring-[#D4AF37]/60
             focus-visible:ring-offset-2
-            focus-visible:ring-offset-[#0D0D0D]
+            focus-visible:ring-offset-[#101012]
+            motion-reduce:transition-none
           "
         >
           <span>Open workspace</span>
 
-          <ArrowRight
+          <span
             className="
-              h-4
-              w-4
-
-              transition-transform
-              duration-300
-
-              group-hover:translate-x-1
+              flex h-7 w-7 items-center justify-center
+              rounded-lg border border-white/[0.07]
+              bg-white/[0.03]
+              transition-all duration-300
+              group-hover:translate-x-0.5
+              group-hover:border-[#D4AF37]/20
+              group-hover:bg-[#D4AF37]/[0.08]
             "
-          />
+          >
+            <ArrowRight
+              className="h-4 w-4"
+              aria-hidden="true"
+            />
+          </span>
         </Link>
       </div>
 
-      {/* --------------------------------
-          BOTTOM ACCENT
-      -------------------------------- */}
-
+      {/* Bottom accent */}
       <div
+        aria-hidden="true"
         className="
-          pointer-events-none
-          absolute
-          bottom-0
-          left-5
-          h-px
-          w-0
-
-          bg-[#D4AF37]/50
-
-          transition-all
-          duration-500
-
-          group-hover:w-16
+          pointer-events-none absolute bottom-0 left-6
+          h-px w-0 bg-[#D4AF37]/60
+          transition-all duration-500
+          group-hover:w-20
         "
       />
     </article>
