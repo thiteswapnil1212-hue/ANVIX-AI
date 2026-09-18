@@ -1,6 +1,11 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import ChatSidebar from "./ChatSidebar";
@@ -12,6 +17,22 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  createdAt?: string;
+};
+
+type GuestChatConversation = {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+  createdAt: string;
+  pinned?: boolean;
+  messages: Message[];
+};
+
+type StoredGuestChats = {
+  activeConversationId: string | null;
+  conversations: GuestChatConversation[];
 };
 
 type GenerateResponse = {
@@ -23,10 +44,288 @@ type GenerateResponse = {
   error?: string;
 };
 
+const STORAGE_KEY = "anvix-guest-chats";
+
+const createTimestamp = () => new Date().toISOString();
+
+const generateChatTitle = (value: string) => {
+  const cleaned = value.replace(/\s+/g, " ").trim();
+
+  if (!cleaned) {
+    return "New chat";
+  }
+
+  return cleaned.length > 32
+    ? `${cleaned.slice(0, 32).trim()}...`
+    : cleaned;
+};
+
+const sortConversations = (
+  conversations: GuestChatConversation[]
+): GuestChatConversation[] =>
+  [...conversations].sort(
+    (a, b) =>
+      new Date(b.updatedAt).getTime() -
+      new Date(a.updatedAt).getTime()
+  );
+
+const isMessage = (value: unknown): value is Message => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const message = value as Record<string, unknown>;
+
+  return (
+    typeof message.id === "string" &&
+    (message.role === "user" || message.role === "assistant") &&
+    typeof message.content === "string"
+  );
+};
+
+const normalizeConversation = (
+  value: unknown
+): GuestChatConversation | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const conversation = value as Record<string, unknown>;
+
+  if (typeof conversation.id !== "string") {
+    return null;
+  }
+
+  const messages = Array.isArray(conversation.messages)
+    ? conversation.messages.filter(isMessage)
+    : [];
+
+  const now = createTimestamp();
+  const updatedAt =
+    typeof conversation.updatedAt === "string"
+      ? conversation.updatedAt
+      : now;
+
+  return {
+    id: conversation.id,
+    title:
+      typeof conversation.title === "string" &&
+      conversation.title.trim()
+        ? conversation.title
+        : "New chat",
+    preview:
+      typeof conversation.preview === "string"
+        ? conversation.preview
+        : messages[messages.length - 1]?.content ?? "",
+    updatedAt,
+    createdAt:
+      typeof conversation.createdAt === "string"
+        ? conversation.createdAt
+        : updatedAt,
+    pinned: Boolean(conversation.pinned),
+    messages: messages.map((message) => ({
+      ...message,
+      createdAt:
+        typeof message.createdAt === "string"
+          ? message.createdAt
+          : now,
+    })),
+  };
+};
+
+const readGuestChats = (): StoredGuestChats => {
+  if (typeof window === "undefined") {
+    return {
+      activeConversationId: null,
+      conversations: [],
+    };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+
+    if (!raw) {
+      return {
+        activeConversationId: null,
+        conversations: [],
+      };
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!parsed || typeof parsed !== "object") {
+      return {
+        activeConversationId: null,
+        conversations: [],
+      };
+    }
+
+    const record = parsed as Record<string, unknown>;
+    const conversations = Array.isArray(record.conversations)
+      ? record.conversations
+          .map(normalizeConversation)
+          .filter(
+            (conversation): conversation is GuestChatConversation =>
+              conversation !== null
+          )
+      : [];
+
+    const sorted = sortConversations(conversations);
+    const savedActiveId =
+      typeof record.activeConversationId === "string"
+        ? record.activeConversationId
+        : null;
+
+    const activeConversationId =
+      savedActiveId && sorted.some((conversation) => conversation.id === savedActiveId)
+        ? savedActiveId
+        : sorted[0]?.id ?? null;
+
+    return {
+      activeConversationId,
+      conversations: sorted,
+    };
+  } catch (error) {
+    console.warn("Unable to read guest chat history.", error);
+
+    return {
+      activeConversationId: null,
+      conversations: [],
+    };
+  }
+};
+
 export default function ChatLayout() {
+  const initialGuestState = useMemo<StoredGuestChats>(
+    () => readGuestChats(),
+    []
+  );
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<GuestChatConversation[]>(
+    initialGuestState.conversations
+  );
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(
+    initialGuestState.activeConversationId
+  );
   const [isTyping, setIsTyping] = useState(false);
+
+  const activeConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) => conversation.id === activeConversationId
+      ) ?? null,
+    [conversations, activeConversationId]
+  );
+
+  const messages = activeConversation?.messages ?? [];
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const payload: StoredGuestChats = {
+        activeConversationId,
+        conversations: sortConversations(conversations),
+      };
+
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(payload)
+      );
+    } catch (error) {
+      console.warn("Unable to persist guest chat history.", error);
+    }
+  }, [conversations, activeConversationId]);
+
+  const handleNewConversation = useCallback(() => {
+    const id = crypto.randomUUID();
+    const now = createTimestamp();
+
+    const nextConversation: GuestChatConversation = {
+      id,
+      title: "New chat",
+      preview: "",
+      createdAt: now,
+      updatedAt: now,
+      pinned: false,
+      messages: [],
+    };
+
+    setConversations((prev) =>
+      sortConversations([nextConversation, ...prev])
+    );
+    setActiveConversationId(id);
+  }, []);
+
+  const handleSelectConversation = useCallback((id: string) => {
+    setActiveConversationId(id);
+  }, []);
+
+  const handleRenameConversation = useCallback(
+    (id: string, title: string) => {
+      const trimmed = title.trim();
+
+      if (!trimmed) {
+        return;
+      }
+
+      setConversations((prev) =>
+        sortConversations(
+          prev.map((conversation) =>
+            conversation.id === id
+              ? {
+                  ...conversation,
+                  title: trimmed,
+                  updatedAt: createTimestamp(),
+                }
+              : conversation
+          )
+        )
+      );
+    },
+    []
+  );
+
+  const handleDeleteConversation = useCallback(
+    (id: string) => {
+      setConversations((prev) => {
+        const remaining = prev.filter(
+          (conversation) => conversation.id !== id
+        );
+
+        if (remaining.length === 0) {
+          setActiveConversationId(null);
+          return remaining;
+        }
+
+        if (activeConversationId === id) {
+          setActiveConversationId(remaining[0].id);
+        }
+
+        return remaining;
+      });
+    },
+    [activeConversationId]
+  );
+
+  const handleTogglePin = useCallback((id: string) => {
+    setConversations((prev) =>
+      sortConversations(
+        prev.map((conversation) =>
+          conversation.id === id
+            ? {
+                ...conversation,
+                pinned: !conversation.pinned,
+                updatedAt: createTimestamp(),
+              }
+            : conversation
+        )
+      )
+    );
+  }, []);
 
   const handleSend = async (
     prompt: string,
@@ -38,13 +337,58 @@ export default function ChatLayout() {
       return false;
     }
 
+    let workingConversationId = activeConversationId;
+    const timestamp = createTimestamp();
+
+    if (!workingConversationId) {
+      workingConversationId = crypto.randomUUID();
+      const newConversation: GuestChatConversation = {
+        id: workingConversationId,
+        title: generateChatTitle(trimmedPrompt),
+        preview: trimmedPrompt,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        pinned: false,
+        messages: [],
+      };
+
+      setConversations((prev) =>
+        sortConversations([newConversation, ...prev])
+      );
+      setActiveConversationId(workingConversationId);
+    }
+
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
       content: trimmedPrompt,
+      createdAt: timestamp,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setConversations((prev) =>
+      sortConversations(
+        prev.map((conversation) => {
+          if (conversation.id !== workingConversationId) {
+            return conversation;
+          }
+
+          const nextTitle =
+            conversation.title === "New chat" ||
+            conversation.messages.length === 0
+              ? generateChatTitle(trimmedPrompt)
+              : conversation.title;
+
+          return {
+            ...conversation,
+            title: nextTitle,
+            preview: trimmedPrompt,
+            updatedAt: timestamp,
+            messages: [...conversation.messages, userMessage],
+          };
+        })
+      )
+    );
+
     setIsTyping(true);
 
     try {
@@ -83,9 +427,25 @@ export default function ChatLayout() {
         id: crypto.randomUUID(),
         role: "assistant",
         content: aiResponse,
+        createdAt: createTimestamp(),
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+      setConversations((prev) =>
+        sortConversations(
+          prev.map((conversation) => {
+            if (conversation.id !== workingConversationId) {
+              return conversation;
+            }
+
+            return {
+              ...conversation,
+              preview: aiResponse,
+              updatedAt: createTimestamp(),
+              messages: [...conversation.messages, aiMessage],
+            };
+          })
+        )
+      );
 
       return true;
     } catch (error) {
@@ -98,9 +458,25 @@ export default function ChatLayout() {
           error instanceof Error
             ? error.message
             : "Sorry, something went wrong while generating the response.",
+        createdAt: createTimestamp(),
       };
 
-      setMessages((prev) => [...prev, errorMessage]);
+      setConversations((prev) =>
+        sortConversations(
+          prev.map((conversation) => {
+            if (conversation.id !== workingConversationId) {
+              return conversation;
+            }
+
+            return {
+              ...conversation,
+              preview: errorMessage.content,
+              updatedAt: createTimestamp(),
+              messages: [...conversation.messages, errorMessage],
+            };
+          })
+        )
+      );
 
       return false;
     } finally {
@@ -110,15 +486,7 @@ export default function ChatLayout() {
 
   return (
     <AppShell>
-      {/* =====================================================
-          CHAT APPLICATION AREA
-          Navbar stays outside this area.
-          Only sidebar and messages are independently scrollable.
-      ===================================================== */}
       <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
-        {/* ===================================================
-            DESKTOP SIDEBAR
-        =================================================== */}
         <aside
           className="
             hidden
@@ -134,7 +502,6 @@ export default function ChatLayout() {
             md:flex-col
           "
         >
-          {/* Independent sidebar scroll area */}
           <div
             className="
               min-h-0
@@ -150,13 +517,18 @@ export default function ChatLayout() {
               hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
             "
           >
-            <ChatSidebar />
+            <ChatSidebar
+              threads={conversations}
+              activeThread={activeConversationId ?? ""}
+              onSelectThread={handleSelectConversation}
+              onNewThread={handleNewConversation}
+              onRenameThread={handleRenameConversation}
+              onDeleteThread={handleDeleteConversation}
+              onTogglePin={handleTogglePin}
+            />
           </div>
         </aside>
 
-        {/* ===================================================
-            MOBILE SIDEBAR
-        =================================================== */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
             <div
@@ -179,7 +551,6 @@ export default function ChatLayout() {
                 bg-[#18181B]
               "
             >
-              {/* Mobile sidebar header */}
               <div
                 className="
                   flex
@@ -234,7 +605,6 @@ export default function ChatLayout() {
                 </button>
               </div>
 
-              {/* Independent mobile sidebar scroll */}
               <div
                 className="
                   min-h-0
@@ -250,15 +620,20 @@ export default function ChatLayout() {
                   hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
                 "
               >
-                <ChatSidebar />
+                <ChatSidebar
+                  threads={conversations}
+                  activeThread={activeConversationId ?? ""}
+                  onSelectThread={handleSelectConversation}
+                  onNewThread={handleNewConversation}
+                  onRenameThread={handleRenameConversation}
+                  onDeleteThread={handleDeleteConversation}
+                  onTogglePin={handleTogglePin}
+                />
               </div>
             </aside>
           </div>
         )}
 
-        {/* ===================================================
-            MAIN CHAT
-        =================================================== */}
         <main
           className="
             relative
@@ -271,7 +646,6 @@ export default function ChatLayout() {
             bg-transparent
           "
         >
-          {/* Background Video */}
           <video
             autoPlay
             loop
@@ -291,11 +665,7 @@ export default function ChatLayout() {
             <source src="/anvix-bg.mp4" type="video/mp4" />
           </video>
 
-          {/* Main chat content */}
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* =================================================
-                MOBILE HEADER
-            ================================================= */}
             <header
               className="
                 flex
@@ -354,10 +724,6 @@ export default function ChatLayout() {
               </button>
             </header>
 
-            {/* =================================================
-                MAIN MESSAGE SCROLL AREA
-                MessageList owns the actual chat scrollbar.
-            ================================================= */}
             <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
               {messages.length === 0 && !isTyping ? (
                 <div
@@ -453,10 +819,6 @@ export default function ChatLayout() {
               )}
             </div>
 
-            {/* =================================================
-                CHAT COMPOSER
-                Fixed to bottom of chat area.
-            ================================================= */}
             <div
               className="
                 relative
