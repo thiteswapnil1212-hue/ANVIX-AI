@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -23,14 +24,16 @@ interface MessageListProps {
 }
 
 const BOTTOM_THRESHOLD = 100;
-const TYPING_SPEED = 12;
+
+// Reveal several characters per frame for a smooth, faster animation.
+const CHARS_PER_FRAME = 4;
+const FRAME_DELAY_MS = 16;
 
 export default function MessageList({
   messages = [],
   isTyping = false,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const [showScrollButton, setShowScrollButton] =
     useState(false);
@@ -45,12 +48,12 @@ export default function MessageList({
   const previousMessageCountRef = useRef(messages.length);
   const firstRenderRef = useRef(true);
 
+  const animationFrameRef = useRef<number | null>(null);
   const typingTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* =====================================================
-     CHECK IF USER IS CLOSE TO BOTTOM
-  ===================================================== */
+  const latestMessage = messages[messages.length - 1];
+  const showingAssistant = latestMessage?.role === "assistant";
 
   const isNearBottom = useCallback(() => {
     const container = scrollRef.current;
@@ -64,10 +67,6 @@ export default function MessageList({
 
     return distance <= BOTTOM_THRESHOLD;
   }, []);
-
-  /* =====================================================
-     SCROLL TO BOTTOM
-  ===================================================== */
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -86,10 +85,6 @@ export default function MessageList({
     []
   );
 
-  /* =====================================================
-     HANDLE USER SCROLL
-  ===================================================== */
-
   const handleScroll = useCallback(() => {
     const nearBottom = isNearBottom();
 
@@ -97,107 +92,130 @@ export default function MessageList({
     setShowScrollButton(!nearBottom);
   }, [isNearBottom]);
 
-  /* =====================================================
-     TYPE / REVEAL AI RESPONSE
-  ===================================================== */
-
+  // Reveal the latest assistant response in chunks.
   useEffect(() => {
-    const latestMessage = messages[messages.length - 1];
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
 
-    const resetRevealState = () => {
+    if (typingTimerRef.current !== null) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+
+    if (!showingAssistant || !latestMessage) {
       setDisplayedContent("");
       setIsRevealing(false);
-    };
+      return;
+    }
 
-    const frameId = requestAnimationFrame(() => {
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-        typingTimerRef.current = null;
-      }
+    const fullContent = latestMessage.content;
 
-      /*
-       * If AI is still processing and there is no
-       * assistant response yet, show the normal
-       * thinking indicator.
-       */
-      if (
-        isTyping &&
-        (!latestMessage || latestMessage.role !== "assistant")
-      ) {
-        resetRevealState();
-        return;
-      }
+    // Keep the existing reveal position if content is unchanged.
+    if (displayedContent === fullContent) {
+      setIsRevealing(false);
+      return;
+    }
 
-      /*
-       * Find the latest assistant response.
-       */
-      if (latestMessage && latestMessage.role === "assistant") {
-        const fullContent = latestMessage.content;
+    // A new response starts from the beginning.
+    if (!fullContent.startsWith(displayedContent)) {
+      setDisplayedContent("");
+      setIsRevealing(true);
 
-        /*
-         * If this is a new assistant response,
-         * reveal it from the beginning.
-         */
-        if (
-          !displayedContent ||
-          !fullContent.startsWith(displayedContent)
-        ) {
-          setDisplayedContent("");
-          setIsRevealing(true);
+      let currentIndex = 0;
 
-          let currentIndex = 0;
+      const revealNext = () => {
+        currentIndex = Math.min(
+          currentIndex + CHARS_PER_FRAME,
+          fullContent.length
+        );
 
-          const revealNext = () => {
-            currentIndex += 1;
+        setDisplayedContent(
+          fullContent.slice(0, currentIndex)
+        );
 
-            setDisplayedContent(
-              fullContent.slice(0, currentIndex)
-            );
-
-            if (currentIndex < fullContent.length) {
-              /*
-               * Small natural variation keeps the
-               * animation from feeling too robotic.
-               */
-              const delay =
-                TYPING_SPEED +
-                Math.random() * 10;
-
-              typingTimerRef.current =
-                setTimeout(revealNext, delay);
-            } else {
-              setIsRevealing(false);
-              typingTimerRef.current = null;
-            }
-          };
-
-          typingTimerRef.current =
-            setTimeout(revealNext, TYPING_SPEED);
+        if (currentIndex < fullContent.length) {
+          typingTimerRef.current = setTimeout(
+            revealNext,
+            FRAME_DELAY_MS
+          );
+        } else {
+          setIsRevealing(false);
+          typingTimerRef.current = null;
         }
-      }
-    });
+      };
+
+      typingTimerRef.current = setTimeout(
+        revealNext,
+        FRAME_DELAY_MS
+      );
+
+      return () => {
+        if (typingTimerRef.current !== null) {
+          clearTimeout(typingTimerRef.current);
+          typingTimerRef.current = null;
+        }
+      };
+    }
+
+    // If content has grown, continue revealing from where we stopped.
+    if (displayedContent.length < fullContent.length) {
+      setIsRevealing(true);
+
+      let currentIndex = displayedContent.length;
+
+      const revealNext = () => {
+        currentIndex = Math.min(
+          currentIndex + CHARS_PER_FRAME,
+          fullContent.length
+        );
+
+        setDisplayedContent(
+          fullContent.slice(0, currentIndex)
+        );
+
+        if (currentIndex < fullContent.length) {
+          typingTimerRef.current = setTimeout(
+            revealNext,
+            FRAME_DELAY_MS
+          );
+        } else {
+          setIsRevealing(false);
+          typingTimerRef.current = null;
+        }
+      };
+
+      typingTimerRef.current = setTimeout(
+        revealNext,
+        FRAME_DELAY_MS
+      );
+    }
 
     return () => {
-      cancelAnimationFrame(frameId);
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
 
-      if (typingTimerRef.current) {
+      if (typingTimerRef.current !== null) {
         clearTimeout(typingTimerRef.current);
         typingTimerRef.current = null;
       }
     };
-  }, [messages, isTyping, displayedContent]);
+  }, [
+    latestMessage?.id,
+    latestMessage?.content,
+    showingAssistant,
+    displayedContent,
+  ]);
 
-  /* =====================================================
-     NEW MESSAGE / TYPING AUTO SCROLL
-  ===================================================== */
-
+  // Keep the view near the latest message when appropriate.
   useEffect(() => {
     const newMessageAdded =
-      messages.length >
-      previousMessageCountRef.current;
+      messages.length > previousMessageCountRef.current;
 
-    previousMessageCountRef.current =
-      messages.length;
+    previousMessageCountRef.current = messages.length;
 
     if (firstRenderRef.current) {
       firstRenderRef.current = false;
@@ -213,11 +231,7 @@ export default function MessageList({
 
     if (!autoScrollRef.current) return;
 
-    if (
-      newMessageAdded ||
-      isTyping ||
-      isRevealing
-    ) {
+    if (newMessageAdded || isTyping || isRevealing) {
       requestAnimationFrame(() => {
         scrollToBottom("smooth");
       });
@@ -229,10 +243,7 @@ export default function MessageList({
     scrollToBottom,
   ]);
 
-  /* =====================================================
-     HANDLE WINDOW RESIZE
-  ===================================================== */
-
+  // Handle viewport resizing.
   useEffect(() => {
     const handleResize = () => {
       if (!autoScrollRef.current) return;
@@ -242,29 +253,22 @@ export default function MessageList({
       });
     };
 
-    window.addEventListener(
-      "resize",
-      handleResize
-    );
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener(
-        "resize",
-        handleResize
-      );
+      window.removeEventListener("resize", handleResize);
     };
   }, [scrollToBottom]);
 
-  /* =====================================================
-     CLEANUP TIMER
-  ===================================================== */
-
+  // Clean up animation timers on unmount.
   useEffect(() => {
     return () => {
-      if (typingTimerRef.current) {
-        clearTimeout(
-          typingTimerRef.current
-        );
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+
+      if (typingTimerRef.current !== null) {
+        clearTimeout(typingTimerRef.current);
       }
     };
   }, []);
@@ -272,12 +276,6 @@ export default function MessageList({
   if (messages.length === 0 && !isTyping) {
     return null;
   }
-
-  const latestMessage =
-    messages[messages.length - 1];
-
-  const showingAssistant =
-    latestMessage?.role === "assistant";
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden bg-transparent">
@@ -297,10 +295,8 @@ export default function MessageList({
           sm:py-6
           sm:pb-8
           lg:px-8
-
           [scrollbar-color:#3f3f46_transparent]
           [scrollbar-width:thin]
-
           [&::-webkit-scrollbar]:w-1.5
           [&::-webkit-scrollbar-track]:bg-transparent
           [&::-webkit-scrollbar-thumb]:rounded-full
@@ -324,32 +320,18 @@ export default function MessageList({
               index === messages.length - 1 &&
               message.role === "assistant";
 
-            /*
-             * Latest assistant message is revealed
-             * progressively. Older messages stay normal.
-             */
-            if (isLatestAssistant) {
-              return (
-                <ChatMessageBubble
-                  key={message.id}
-                  role={message.role}
-                  content={displayedContent}
-                />
-              );
-            }
-
             return (
               <ChatMessageBubble
                 key={message.id}
                 role={message.role}
-                content={message.content}
+                content={
+                  isLatestAssistant
+                    ? displayedContent
+                    : message.content
+                }
               />
             );
           })}
-
-          {/* =================================================
-              AI THINKING
-          ================================================= */}
 
           {isTyping && !showingAssistant && (
             <div className="flex items-start gap-3">
@@ -395,10 +377,6 @@ export default function MessageList({
             </div>
           )}
 
-          {/* =================================================
-              CURSOR WHILE RESPONSE IS BEING REVEALED
-          ================================================= */}
-
           {showingAssistant && isRevealing && (
             <span
               className="
@@ -413,24 +391,14 @@ export default function MessageList({
             />
           )}
 
-          <div
-            ref={bottomRef}
-            className="h-1 w-full"
-            aria-hidden="true"
-          />
+          <div className="h-1 w-full" aria-hidden="true" />
         </div>
       </div>
-
-      {/* =====================================================
-          JUMP TO LATEST
-      ===================================================== */}
 
       {showScrollButton && messages.length > 0 && (
         <button
           type="button"
-          onClick={() =>
-            scrollToBottom("smooth")
-          }
+          onClick={() => scrollToBottom("smooth")}
           aria-label="Jump to latest message"
           title="Jump to latest"
           className="
