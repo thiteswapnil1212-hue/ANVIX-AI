@@ -1,24 +1,33 @@
+
 import type { MetadataRoute } from "next";
+
+const APP_NAME = "ANVIX AI";
+const APP_SHORT_NAME = "ANVIX";
+const APP_DESCRIPTION =
+  "Your AI-powered workspace for exploring ideas, writing code, and building software.";
+
+const APP_THEME_COLOR = "#09090B";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "ANVIX AI",
-    short_name: "ANVIX",
-    description:
-      "Your AI-powered workspace for exploring ideas, writing code, and building software.",
+    name: APP_NAME,
+    short_name: APP_SHORT_NAME,
+    description: APP_DESCRIPTION,
 
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "any",
+
     lang: "en",
     dir: "ltr",
 
-    background_color: "#09090B",
-    theme_color: "#09090B",
+    background_color: APP_THEME_COLOR,
+    theme_color: APP_THEME_COLOR,
 
-    categories: ["productivity", "utilities", "developer tools"],
+    categories: ["productivity", "utilities", "developer"],
+
     prefer_related_applications: false,
 
     icons: [
@@ -52,7 +61,7 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: "Start a chat",
         short_name: "New chat",
-        description: "Open ANVIX AI chat",
+        description: "Open a new ANVIX AI chat",
         url: "/chat",
         icons: [
           {
