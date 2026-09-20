@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
@@ -30,7 +31,7 @@ function getProviderStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function isRetryableProviderError(error: unknown) {
+function isRetryableProviderError(error: unknown): boolean {
   const status = getProviderStatus(error);
   return status === 429 || status === 503;
 }
@@ -65,7 +66,10 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as ChatRequestBody;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid JSON" },
+      { status: 400 }
+    );
   }
 
   const prompt =
@@ -85,7 +89,10 @@ export async function POST(req: Request) {
 
   const selectedModel = getChatModel(requestedModel);
 
-  if (!selectedModel || !CHAT_API_MODEL_IDS.has(requestedModel)) {
+  if (
+    !selectedModel ||
+    !CHAT_API_MODEL_IDS.has(requestedModel)
+  ) {
     return NextResponse.json(
       {
         error: selectedModel
@@ -96,7 +103,9 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
     return NextResponse.json(
       { error: "Gemini is not configured on this deployment." },
       { status: 500 }
@@ -104,16 +113,13 @@ export async function POST(req: Request) {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(
-      process.env.GEMINI_API_KEY
-    );
+    const genAI = new GoogleGenerativeAI(apiKey);
 
     const model = genAI.getGenerativeModel({
       model: selectedModel.apiModelId ?? DEFAULT_CHAT_MODEL_ID,
     });
 
-    // Start the provider stream before returning the response,
-    // so errors at request startup can still use an HTTP error status.
+    // Start the provider stream before returning the response.
     const result = await startGeminiStream(model, prompt);
 
     const encoder = new TextEncoder();
@@ -132,13 +138,17 @@ export async function POST(req: Request) {
           controller.close();
         } catch (error) {
           console.error("Gemini stream error:", error);
+
           controller.error(
-            new Error("Gemini stream interrupted. Please try again.")
+            new Error(
+              "Gemini stream interrupted. Please try again."
+            )
           );
         }
       },
     });
 
+    // Successful responses contain streamed text, not a JSON object.
     return new Response(stream, {
       status: 200,
       headers: {
@@ -151,7 +161,8 @@ export async function POST(req: Request) {
     console.error("Gemini chat API error:", error);
 
     const status = getProviderStatus(error);
-    const temporarilyUnavailable = status === 429 || status === 503;
+    const temporarilyUnavailable =
+      status === 429 || status === 503;
 
     return NextResponse.json(
       {
@@ -159,7 +170,9 @@ export async function POST(req: Request) {
           ? "Gemini is temporarily unavailable. Please try again shortly."
           : "Gemini provider request failed.",
       },
-      { status: temporarilyUnavailable ? 503 : 502 }
+      {
+        status: temporarilyUnavailable ? 503 : 502,
+      }
     );
   }
 }
