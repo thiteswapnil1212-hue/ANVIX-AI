@@ -281,7 +281,7 @@ export default function MessageList({
             );
           })}
 
-          {isTyping && !showingAssistant && (
+          {isTyping && (!showingAssistant || !latestMessage?.content) && (
             <div className="flex items-start gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#3F3F46] bg-[#151518]">
                 <Sparkles
