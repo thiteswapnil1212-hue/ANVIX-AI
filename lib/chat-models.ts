@@ -7,7 +7,7 @@ export type ChatModel = {
 };
 
 export const CHAT_MODELS: ChatModel[] = [
-  // Google Gemini — unlocked
+  // Google Gemini — unlocked and verified against the SDK's supported model names.
   {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
@@ -16,32 +16,18 @@ export const CHAT_MODELS: ChatModel[] = [
     apiModelId: "gemini-2.5-flash",
   },
   {
-    id: "gemini-3.8-flash",
-    name: "Gemini 3.8 Flash",
+    id: "gemini-2.5-flash-lite",
+    name: "Gemini 2.5 Flash-Lite",
     provider: "Google Gemini",
     locked: false,
-    apiModelId: "gemini-3.8-flash",
+    apiModelId: "gemini-2.5-flash-lite",
   },
   {
-    id: "gemini-3.7-flash",
-    name: "Gemini 3.7 Flash",
+    id: "gemini-2.0-flash",
+    name: "Gemini 2.0 Flash",
     provider: "Google Gemini",
     locked: false,
-    apiModelId: "gemini-3.7-flash",
-  },
-  {
-    id: "gemini-3.6-flash",
-    name: "Gemini 3.6 Flash",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-3.6-flash",
-  },
-  {
-    id: "gemini-3.5-flash-lite",
-    name: "Gemini 3.5 Flash-Lite",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-3.5-flash-lite",
+    apiModelId: "gemini-2.0-flash",
   },
 
   // OpenAI — locked
