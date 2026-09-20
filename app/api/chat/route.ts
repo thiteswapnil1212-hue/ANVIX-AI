@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
@@ -5,6 +6,9 @@ import {
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
 } from "@/lib/chat-models";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type ChatRequestBody = {
   prompt?: unknown;
@@ -14,7 +18,7 @@ type ChatRequestBody = {
 const MAX_PROVIDER_RETRIES = 2;
 const RETRY_DELAYS_MS = [250, 750];
 
-function getProviderStatus(error: unknown) {
+function getProviderStatus(error: unknown): number | undefined {
   if (
     typeof error === "object" &&
     error !== null &&
@@ -27,15 +31,8 @@ function getProviderStatus(error: unknown) {
   return undefined;
 }
 
-function isRetryableProviderError(error: unknown) {
+function isRetryableProviderError(error: unknown): boolean {
   const status = getProviderStatus(error);
-
-  return status === 429 || status === 503;
-}
-
-function isTemporaryProviderError(error: unknown) {
-  const status = getProviderStatus(error);
-
   return status === 429 || status === 503;
 }
 
@@ -45,7 +42,7 @@ async function generateContentWithRetry(
 ) {
   for (let attempt = 0; attempt <= MAX_PROVIDER_RETRIES; attempt += 1) {
     try {
-      return await model.generateContent(prompt);
+      return await model.generateContentStream(prompt);
     } catch (error) {
       if (
         !isRetryableProviderError(error) ||
@@ -75,72 +72,104 @@ export async function POST(req: Request) {
     );
   }
 
+  const prompt =
+    typeof body.prompt === "string" ? body.prompt.trim() : "";
+
+  const requestedModel =
+    typeof body.model === "string" && body.model.trim()
+      ? body.model.trim()
+      : DEFAULT_CHAT_MODEL_ID;
+
+  if (!prompt) {
+    return NextResponse.json(
+      { error: "Prompt is required" },
+      { status: 400 }
+    );
+  }
+
+  const selectedModel = getChatModel(requestedModel);
+
+  if (
+    !selectedModel ||
+    !CHAT_API_MODEL_IDS.has(requestedModel)
+  ) {
+    return NextResponse.json(
+      {
+        error: selectedModel
+          ? `${selectedModel.name} is not supported by the configured Google API`
+          : "Unsupported chat model",
+      },
+      { status: 400 }
+    );
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "Gemini is not configured on this deployment." },
+      { status: 500 }
+    );
+  }
+
   try {
-    const prompt = body.prompt;
-    const requestedModel =
-      typeof body.model === "string" && body.model.trim()
-        ? body.model.trim()
-        : DEFAULT_CHAT_MODEL_ID;
+    const genAI = new GoogleGenerativeAI(apiKey);
 
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return NextResponse.json(
-        { error: "Prompt is required" },
-        { status: 400 }
-      );
-    }
-
-    const selectedModel = getChatModel(requestedModel);
-
-    if (!selectedModel || !CHAT_API_MODEL_IDS.has(requestedModel)) {
-      return NextResponse.json(
-        {
-          error: selectedModel
-            ? `${selectedModel.name} is not supported by the configured Google API`
-            : "Unsupported chat model",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "Gemini is not configured on this deployment." },
-        { status: 500 }
-      );
-    }
-
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: selectedModel.apiModelId ?? DEFAULT_CHAT_MODEL_ID,
     });
 
-    const result = await generateContentWithRetry(
-      model,
-      prompt.trim()
-    );
+    // Start the Gemini stream before returning the HTTP response.
+    const result = await generateContentWithRetry(model, prompt);
 
-    const response = result.response.text();
+    const encoder = new TextEncoder();
 
-    return NextResponse.json({
-      success: true,
-      response,
-      model: requestedModel,
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+
+            if (text) {
+              controller.enqueue(encoder.encode(text));
+            }
+          }
+
+          controller.close();
+        } catch (error) {
+          console.error("Gemini stream error:", error);
+
+          controller.error(
+            new Error("Gemini stream interrupted. Please try again.")
+          );
+        }
+      },
+    });
+
+    // Return plain text chunks, NOT a JSON success envelope.
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+      },
     });
   } catch (error) {
     console.error("Gemini chat API error:", error);
 
-    const providerIsTemporarilyUnavailable =
-      isTemporaryProviderError(error);
-    const errorMessage = providerIsTemporarilyUnavailable
-      ? "Gemini is temporarily unavailable. Please try again shortly."
-      : "Gemini provider request failed.";
-    const errorStatus = providerIsTemporarilyUnavailable ? 503 : 502;
+    const status = getProviderStatus(error);
+    const temporarilyUnavailable = status === 429 || status === 503;
 
     return NextResponse.json(
       {
-        error: errorMessage,
+        error: temporarilyUnavailable
+          ? "Gemini is temporarily unavailable. Please try again shortly."
+          : "Gemini provider request failed.",
       },
-      { status: errorStatus }
+      {
+        status: temporarilyUnavailable ? 503 : 502,
+      }
     );
   }
 }
