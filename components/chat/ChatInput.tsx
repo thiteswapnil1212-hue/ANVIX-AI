@@ -1,4 +1,5 @@
-﻿"use client";
+﻿
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -7,7 +8,9 @@ import {
   Lock,
   Check,
   Paperclip,
+  Square,
 } from "lucide-react";
+
 import {
   CHAT_MODELS,
   DEFAULT_CHAT_MODEL_ID,
@@ -19,9 +22,15 @@ type ChatInputProps = {
     message: string,
     model: string
   ) => boolean | Promise<boolean>;
+  isGenerating: boolean;
+  onStop: () => void;
 };
 
-export default function ChatInput({ onSend }: ChatInputProps) {
+export default function ChatInput({
+  onSend,
+  isGenerating,
+  onStop,
+}: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -111,7 +120,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
      MODEL SELECT
   -------------------------------- */
   function handleModelSelect(model: ChatModel) {
-    if (model.locked) return;
+    if (model.locked || isSubmitting) return;
 
     setSelectedModel(model.id);
     setModelOpen(false);
@@ -125,7 +134,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
   async function handleSubmit() {
     const message = value.trim();
 
-    if (!message || isSubmitting) {
+    if (!message || isSubmitting || isGenerating) {
       return;
     }
 
@@ -167,7 +176,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
     ) {
       event.preventDefault();
 
-      if (canSend) {
+      if (canSend && !isGenerating) {
         void handleSubmit();
       }
     }
@@ -179,7 +188,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
         onSubmit={(event) => {
           event.preventDefault();
 
-          if (canSend) {
+          if (canSend && !isGenerating) {
             void handleSubmit();
           }
         }}
@@ -210,6 +219,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
           {/* Attach */}
           <button
             type="button"
+            disabled={isSubmitting || isGenerating}
             className="
               mb-0.5
               flex
@@ -225,6 +235,8 @@ export default function ChatInput({ onSend }: ChatInputProps) {
               hover:bg-zinc-800/70
               hover:text-zinc-300
               active:bg-zinc-800
+              disabled:cursor-not-allowed
+              disabled:opacity-40
             "
             aria-label="Attach file"
           >
@@ -252,7 +264,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             }}
             onKeyDown={handleKeyDown}
             rows={1}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isGenerating}
             placeholder="Message ANVIX AI..."
             aria-label="Message ANVIX AI"
             className="
@@ -276,13 +288,14 @@ export default function ChatInput({ onSend }: ChatInputProps) {
           />
 
           {/* Model selector */}
-          {!hasMessage && (
+          {!hasMessage && !isGenerating && (
             <div
               ref={modelRef}
               className="relative mb-0.5 shrink-0"
             >
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() =>
                   setModelOpen((open) => !open)
                 }
@@ -301,6 +314,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                   duration-150
                   hover:bg-zinc-800/70
                   hover:text-zinc-200
+                  disabled:opacity-40
                   sm:text-xs
                 "
                 aria-haspopup="listbox"
@@ -362,7 +376,9 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                         <button
                           key={`${model.provider}-${model.name}`}
                           type="button"
-                          disabled={model.locked}
+                          disabled={
+                            model.locked || isSubmitting
+                          }
                           onClick={() =>
                             handleModelSelect(model)
                           }
@@ -379,7 +395,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
                             transition-colors
                             duration-150
                             ${
-                              model.locked
+                              model.locked || isSubmitting
                                 ? "cursor-not-allowed opacity-45"
                                 : "hover:bg-zinc-800/70"
                             }
@@ -444,14 +460,28 @@ export default function ChatInput({ onSend }: ChatInputProps) {
             </div>
           )}
 
-          {/* Send */}
+          {/* Stop / Send */}
           <button
-            type="submit"
-            disabled={!canSend}
-            aria-disabled={!canSend}
+            type={isGenerating ? "button" : "submit"}
+            onClick={
+              isGenerating ? onStop : undefined
+            }
+            disabled={
+              isGenerating ? false : !canSend
+            }
+            aria-disabled={
+              isGenerating ? false : !canSend
+            }
             aria-label={
-              isSubmitting
-                ? "Sending message"
+              isGenerating
+                ? "Stop response"
+                : isSubmitting
+                  ? "Sending message"
+                  : "Send message"
+            }
+            title={
+              isGenerating
+                ? "Stop response"
                 : "Send message"
             }
             className={`
@@ -466,17 +496,28 @@ export default function ChatInput({ onSend }: ChatInputProps) {
               transition-all
               duration-150
               ${
-                canSend
-                  ? "bg-[#D4AF37] text-black hover:bg-[#E0BB4C] active:scale-95"
-                  : "cursor-not-allowed bg-zinc-800 text-zinc-600"
+                isGenerating
+                  ? "bg-zinc-200 text-black hover:bg-white active:scale-95"
+                  : canSend
+                    ? "bg-[#D4AF37] text-black hover:bg-[#E0BB4C] active:scale-95"
+                    : "cursor-not-allowed bg-zinc-800 text-zinc-600"
               }
             `}
           >
-            <ArrowUp
-              className="h-[16px] w-[16px]"
-              strokeWidth={2.2}
-              aria-hidden="true"
-            />
+            {isGenerating ? (
+              <Square
+                className="h-3.5 w-3.5"
+                fill="currentColor"
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+            ) : (
+              <ArrowUp
+                className="h-[16px] w-[16px]"
+                strokeWidth={2.2}
+                aria-hidden="true"
+              />
+            )}
           </button>
         </div>
       </form>
