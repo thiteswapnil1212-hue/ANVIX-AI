@@ -1,4 +1,5 @@
-﻿"use client";
+﻿
+"use client";
 
 import {
   useCallback,
@@ -35,12 +36,7 @@ type StoredGuestChats = {
   conversations: GuestChatConversation[];
 };
 
-type GenerateResponse = {
-  success?: boolean;
-  response?: string;
-  result?: {
-    response?: string;
-  };
+type ChatApiError = {
   error?: string;
 };
 
@@ -161,6 +157,7 @@ const readGuestChats = (): StoredGuestChats => {
     }
 
     const record = parsed as Record<string, unknown>;
+
     const conversations = Array.isArray(record.conversations)
       ? record.conversations
           .map(normalizeConversation)
@@ -171,13 +168,17 @@ const readGuestChats = (): StoredGuestChats => {
       : [];
 
     const sorted = sortConversations(conversations);
+
     const savedActiveId =
       typeof record.activeConversationId === "string"
         ? record.activeConversationId
         : null;
 
     const activeConversationId =
-      savedActiveId && sorted.some((conversation) => conversation.id === savedActiveId)
+      savedActiveId &&
+      sorted.some(
+        (conversation) => conversation.id === savedActiveId
+      )
         ? savedActiveId
         : sorted[0]?.id ?? null;
 
@@ -202,18 +203,23 @@ export default function ChatLayout() {
   );
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [conversations, setConversations] = useState<GuestChatConversation[]>(
-    initialGuestState.conversations
-  );
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(
-    initialGuestState.activeConversationId
-  );
+
+  const [conversations, setConversations] = useState<
+    GuestChatConversation[]
+  >(initialGuestState.conversations);
+
+  const [activeConversationId, setActiveConversationId] =
+    useState<string | null>(
+      initialGuestState.activeConversationId
+    );
+
   const [isTyping, setIsTyping] = useState(false);
 
   const activeConversation = useMemo(
     () =>
       conversations.find(
-        (conversation) => conversation.id === activeConversationId
+        (conversation) =>
+          conversation.id === activeConversationId
       ) ?? null,
     [conversations, activeConversationId]
   );
@@ -257,11 +263,14 @@ export default function ChatLayout() {
     setConversations((prev) =>
       sortConversations([nextConversation, ...prev])
     );
+
     setActiveConversationId(id);
+    setSidebarOpen(false);
   }, []);
 
   const handleSelectConversation = useCallback((id: string) => {
     setActiveConversationId(id);
+    setSidebarOpen(false);
   }, []);
 
   const handleRenameConversation = useCallback(
@@ -342,6 +351,7 @@ export default function ChatLayout() {
 
     if (!workingConversationId) {
       workingConversationId = crypto.randomUUID();
+
       const newConversation: GuestChatConversation = {
         id: workingConversationId,
         title: generateChatTitle(trimmedPrompt),
@@ -355,6 +365,7 @@ export default function ChatLayout() {
       setConversations((prev) =>
         sortConversations([newConversation, ...prev])
       );
+
       setActiveConversationId(workingConversationId);
     }
 
@@ -363,6 +374,15 @@ export default function ChatLayout() {
       role: "user",
       content: trimmedPrompt,
       createdAt: timestamp,
+    };
+
+    const assistantMessageId = crypto.randomUUID();
+
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      createdAt: createTimestamp(),
     };
 
     setConversations((prev) =>
@@ -383,13 +403,42 @@ export default function ChatLayout() {
             title: nextTitle,
             preview: trimmedPrompt,
             updatedAt: timestamp,
-            messages: [...conversation.messages, userMessage],
+            messages: [
+              ...conversation.messages,
+              userMessage,
+              assistantMessage,
+            ],
           };
         })
       )
     );
 
     setIsTyping(true);
+
+    let streamedText = "";
+
+    const updateAssistantMessage = (content: string) => {
+      setConversations((prev) =>
+        sortConversations(
+          prev.map((conversation) => {
+            if (conversation.id !== workingConversationId) {
+              return conversation;
+            }
+
+            return {
+              ...conversation,
+              preview: content || trimmedPrompt,
+              updatedAt: createTimestamp(),
+              messages: conversation.messages.map((message) =>
+                message.id === assistantMessageId
+                  ? { ...message, content }
+                  : message
+              ),
+            };
+          })
+        )
+      );
+    };
 
     try {
       const response = await fetch("/api/chat", {
@@ -398,85 +447,70 @@ export default function ChatLayout() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          prompt,
+          prompt: trimmedPrompt,
           model,
         }),
       });
 
-      let data: GenerateResponse;
+      if (!response.ok) {
+        let errorMessage = "Failed to generate response.";
 
-      try {
-        data = (await response.json()) as GenerateResponse;
-      } catch {
-        throw new Error("Invalid response from server.");
+        try {
+          const data = (await response.json()) as ChatApiError;
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // Use the fallback if the error body isn't JSON.
+        }
+
+        throw new Error(errorMessage);
       }
 
-      if (!response.ok) {
+      if (!response.body) {
         throw new Error(
-          data?.error || "Failed to generate response."
+          "Streaming is not supported by this response."
         );
       }
 
-      const aiResponse = data.response?.trim();
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
 
-      if (!aiResponse) {
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        streamedText += decoder.decode(value, {
+          stream: true,
+        });
+
+        updateAssistantMessage(streamedText);
+      }
+
+      streamedText += decoder.decode();
+      updateAssistantMessage(streamedText);
+
+      if (!streamedText.trim()) {
         throw new Error("AI returned an empty response.");
       }
 
-      const aiMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: aiResponse,
-        createdAt: createTimestamp(),
-      };
-
-      setConversations((prev) =>
-        sortConversations(
-          prev.map((conversation) => {
-            if (conversation.id !== workingConversationId) {
-              return conversation;
-            }
-
-            return {
-              ...conversation,
-              preview: aiResponse,
-              updatedAt: createTimestamp(),
-              messages: [...conversation.messages, aiMessage],
-            };
-          })
-        )
-      );
-
       return true;
     } catch (error) {
-      console.error("Chat error:", error);
+      console.error("Chat streaming error:", error);
 
-      const errorMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          error instanceof Error
-            ? error.message
-            : "Sorry, something went wrong while generating the response.",
-        createdAt: createTimestamp(),
-      };
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while generating the response.";
 
-      setConversations((prev) =>
-        sortConversations(
-          prev.map((conversation) => {
-            if (conversation.id !== workingConversationId) {
-              return conversation;
-            }
-
-            return {
-              ...conversation,
-              preview: errorMessage.content,
-              updatedAt: createTimestamp(),
-              messages: [...conversation.messages, errorMessage],
-            };
-          })
-        )
-      );
+      if (streamedText.trim()) {
+        updateAssistantMessage(
+          `${streamedText}\n\n[Response interrupted. Please try again.]`
+        );
+      } else {
+        updateAssistantMessage(errorMessage);
+      }
 
       return false;
     } finally {
