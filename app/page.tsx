@@ -34,12 +34,7 @@ export default function Home() {
   return (
     <main className="relative isolate min-h-screen overflow-x-clip bg-[#09090B] text-white selection:bg-[#D4AF37]/25 selection:text-white">
       {/* Background */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10"
-      >
-        <BackgroundGlow />
-      </div>
+      <BackgroundGlow />
 
       {/* Navigation */}
       <Navbar />
@@ -61,6 +56,7 @@ export default function Home() {
                 aria-hidden="true"
                 className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]"
               />
+
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37] sm:text-[11px]">
                 Your creative workspace
               </span>
