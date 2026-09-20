@@ -1,103 +1,165 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  CHAT_API_MODEL_IDS,
+  DEFAULT_CHAT_MODEL_ID,
+  getChatModel,
+} from "@/lib/chat-models";
 
-type GenerateRequestBody = {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type ChatRequestBody = {
   prompt?: unknown;
   model?: unknown;
 };
 
-const MODEL_MAP: Record<string, string> = {
-  "Gemini 2.5 Flash": "gemini-2.5-flash",
-};
+const MAX_PROVIDER_RETRIES = 2;
+const RETRY_DELAYS_MS = [250, 750];
 
-const DEFAULT_MODEL = "Gemini 2.5 Flash";
-const MAX_PROMPT_LENGTH = 20000;
+function getProviderStatus(error: unknown): number | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
+    return error.status;
+  }
+
+  return undefined;
+}
+
+function isRetryableProviderError(error: unknown) {
+  const status = getProviderStatus(error);
+  return status === 429 || status === 503;
+}
+
+async function startGeminiStream(
+  model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>,
+  prompt: string
+) {
+  for (let attempt = 0; attempt <= MAX_PROVIDER_RETRIES; attempt += 1) {
+    try {
+      return await model.generateContentStream(prompt);
+    } catch (error) {
+      if (
+        !isRetryableProviderError(error) ||
+        attempt === MAX_PROVIDER_RETRIES
+      ) {
+        throw error;
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, RETRY_DELAYS_MS[attempt])
+      );
+    }
+  }
+
+  throw new Error("Gemini provider request failed");
+}
 
 export async function POST(req: Request) {
-  let body: GenerateRequestBody;
+  let body: ChatRequestBody;
 
   try {
-    body = (await req.json()) as GenerateRequestBody;
-  } catch (err) {
-    console.error("Invalid JSON in request to /api/generate:", err);
+    body = (await req.json()) as ChatRequestBody;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const prompt =
+    typeof body.prompt === "string" ? body.prompt.trim() : "";
+
+  const requestedModel =
+    typeof body.model === "string" && body.model.trim()
+      ? body.model.trim()
+      : DEFAULT_CHAT_MODEL_ID;
+
+  if (!prompt) {
     return NextResponse.json(
-      { success: false, error: "Invalid JSON" },
+      { error: "Prompt is required" },
       { status: 400 }
     );
   }
 
-  const prompt = body?.prompt;
-  const clientModel = body?.model;
+  const selectedModel = getChatModel(requestedModel);
 
-  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-    return NextResponse.json(
-      { success: false, error: "Prompt is required" },
-      { status: 400 }
-    );
-  }
-
-  const normalizedPrompt = prompt.trim();
-
-  if (normalizedPrompt.length > MAX_PROMPT_LENGTH) {
-    return NextResponse.json(
-      { success: false, error: "Prompt is too long" },
-      { status: 400 }
-    );
-  }
-
-  const chosenModelName =
-    typeof clientModel === "string" && clientModel.trim()
-      ? clientModel.trim()
-      : DEFAULT_MODEL;
-
-  const mappedModel = MODEL_MAP[chosenModelName];
-
-  if (!mappedModel) {
-    return NextResponse.json(
-      { success: false, error: "Unsupported model" },
-      { status: 400 }
-    );
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    console.error("GEMINI_API_KEY is not set on the server");
+  if (!selectedModel || !CHAT_API_MODEL_IDS.has(requestedModel)) {
     return NextResponse.json(
       {
-        success: false,
-        error: "Server configuration error: missing GEMINI_API_KEY",
+        error: selectedModel
+          ? `${selectedModel.name} is not supported by the configured Google API`
+          : "Unsupported chat model",
       },
+      { status: 400 }
+    );
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json(
+      { error: "Gemini is not configured on this deployment." },
       { status: 500 }
     );
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenerativeAI(
+      process.env.GEMINI_API_KEY
+    );
 
-    const model = genAI.getGenerativeModel({ model: mappedModel });
+    const model = genAI.getGenerativeModel({
+      model: selectedModel.apiModelId ?? DEFAULT_CHAT_MODEL_ID,
+    });
 
-    const result = await model.generateContent(normalizedPrompt);
-    const response = result.response;
-    const text = response.text();
+    // Start the provider stream before returning the response,
+    // so errors at request startup can still use an HTTP error status.
+    const result = await startGeminiStream(model, prompt);
 
-    return NextResponse.json({ success: true, response: text });
-  } catch (err) {
-    console.error("Gemini API error:", err);
-    const errorMessage =
-      err instanceof Error
-        ? err.message
-        : "Unknown Gemini API error";
+    const encoder = new TextEncoder();
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+
+            if (text) {
+              controller.enqueue(encoder.encode(text));
+            }
+          }
+
+          controller.close();
+        } catch (error) {
+          console.error("Gemini stream error:", error);
+          controller.error(
+            new Error("Gemini stream interrupted. Please try again.")
+          );
+        }
+      },
+    });
+
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  } catch (error) {
+    console.error("Gemini chat API error:", error);
+
+    const status = getProviderStatus(error);
+    const temporarilyUnavailable = status === 429 || status === 503;
 
     return NextResponse.json(
       {
-        success: false,
-        error:
-          process.env.NODE_ENV === "development"
-            ? errorMessage
-            : "AI service is currently unavailable",
+        error: temporarilyUnavailable
+          ? "Gemini is temporarily unavailable. Please try again shortly."
+          : "Gemini provider request failed.",
       },
-      { status: 503 }
+      { status: temporarilyUnavailable ? 503 : 502 }
     );
   }
 }
