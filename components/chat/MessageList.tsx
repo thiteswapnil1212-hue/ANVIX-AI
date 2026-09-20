@@ -263,23 +263,25 @@ export default function MessageList({
         "
       >
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-4">
-          {messages.map((message, index) => {
-            const isLatestAssistant =
-              index === messages.length - 1 &&
-              message.role === "assistant";
+  {messages.map((message, index) => {
+    const isLatestAssistant =
+      index === messages.length - 1 &&
+      message.role === "assistant";
 
-            return (
-              <ChatMessageBubble
-                key={message.id}
-                role={message.role}
-                content={
-                  isLatestAssistant
-                    ? displayedContent
-                    : message.content
-                }
-              />
-            );
-          })}
+    return (
+      <ChatMessageBubble
+        key={message.id}
+        role={message.role}
+        content={
+          isLatestAssistant
+            ? isTyping && !message.content
+              ? "Thinking..."
+              : displayedContent
+            : message.content
+        }
+      />
+    );
+  })}
 
           {isTyping && (!showingAssistant || !latestMessage?.content) && (
             <div className="flex items-start gap-3">
