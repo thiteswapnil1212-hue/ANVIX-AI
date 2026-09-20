@@ -5,10 +5,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
+
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
@@ -74,7 +76,8 @@ const isMessage = (value: unknown): value is Message => {
 
   return (
     typeof message.id === "string" &&
-    (message.role === "user" || message.role === "assistant") &&
+    (message.role === "user" ||
+      message.role === "assistant") &&
     typeof message.content === "string"
   );
 };
@@ -97,6 +100,7 @@ const normalizeConversation = (
     : [];
 
   const now = createTimestamp();
+
   const updatedAt =
     typeof conversation.updatedAt === "string"
       ? conversation.updatedAt
@@ -162,7 +166,9 @@ const readGuestChats = (): StoredGuestChats => {
       ? record.conversations
           .map(normalizeConversation)
           .filter(
-            (conversation): conversation is GuestChatConversation =>
+            (
+              conversation
+            ): conversation is GuestChatConversation =>
               conversation !== null
           )
       : [];
@@ -215,6 +221,10 @@ export default function ChatLayout() {
 
   const [isTyping, setIsTyping] = useState(false);
 
+  // Active API request controller
+  const abortControllerRef =
+    useRef<AbortController | null>(null);
+
   const activeConversation = useMemo(
     () =>
       conversations.find(
@@ -226,6 +236,9 @@ export default function ChatLayout() {
 
   const messages = activeConversation?.messages ?? [];
 
+  /* --------------------------------
+     PERSIST CHAT HISTORY
+  -------------------------------- */
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -242,10 +255,23 @@ export default function ChatLayout() {
         JSON.stringify(payload)
       );
     } catch (error) {
-      console.warn("Unable to persist guest chat history.", error);
+      console.warn(
+        "Unable to persist guest chat history.",
+        error
+      );
     }
   }, [conversations, activeConversationId]);
 
+  /* --------------------------------
+     STOP GENERATION
+  -------------------------------- */
+  const handleStop = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
+
+  /* --------------------------------
+     NEW CONVERSATION
+  -------------------------------- */
   const handleNewConversation = useCallback(() => {
     const id = crypto.randomUUID();
     const now = createTimestamp();
@@ -268,11 +294,20 @@ export default function ChatLayout() {
     setSidebarOpen(false);
   }, []);
 
-  const handleSelectConversation = useCallback((id: string) => {
-    setActiveConversationId(id);
-    setSidebarOpen(false);
-  }, []);
+  /* --------------------------------
+     SELECT CONVERSATION
+  -------------------------------- */
+  const handleSelectConversation = useCallback(
+    (id: string) => {
+      setActiveConversationId(id);
+      setSidebarOpen(false);
+    },
+    []
+  );
 
+  /* --------------------------------
+     RENAME CONVERSATION
+  -------------------------------- */
   const handleRenameConversation = useCallback(
     (id: string, title: string) => {
       const trimmed = title.trim();
@@ -298,6 +333,9 @@ export default function ChatLayout() {
     []
   );
 
+  /* --------------------------------
+     DELETE CONVERSATION
+  -------------------------------- */
   const handleDeleteConversation = useCallback(
     (id: string) => {
       setConversations((prev) => {
@@ -320,6 +358,9 @@ export default function ChatLayout() {
     [activeConversationId]
   );
 
+  /* --------------------------------
+     PIN CONVERSATION
+  -------------------------------- */
   const handleTogglePin = useCallback((id: string) => {
     setConversations((prev) =>
       sortConversations(
@@ -336,15 +377,24 @@ export default function ChatLayout() {
     );
   }, []);
 
+  /* --------------------------------
+     SEND MESSAGE + STREAM RESPONSE
+  -------------------------------- */
   const handleSend = async (
     prompt: string,
     model: string
   ): Promise<boolean> => {
     const trimmedPrompt = prompt.trim();
 
-    if (!trimmedPrompt || isTyping) {
+    if (
+      !trimmedPrompt ||
+      abortControllerRef.current !== null
+    ) {
       return false;
     }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     let workingConversationId = activeConversationId;
     const timestamp = createTimestamp();
@@ -450,6 +500,7 @@ export default function ChatLayout() {
           prompt: trimmedPrompt,
           model,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -459,7 +510,7 @@ export default function ChatLayout() {
           const data = (await response.json()) as ChatApiError;
           errorMessage = data.error || errorMessage;
         } catch {
-          // Use the fallback if the error body isn't JSON.
+          // Keep fallback error message.
         }
 
         throw new Error(errorMessage);
@@ -497,6 +548,21 @@ export default function ChatLayout() {
 
       return true;
     } catch (error) {
+      // User intentionally stopped generation
+      if (
+        error instanceof Error &&
+        error.name === "AbortError"
+      ) {
+        updateAssistantMessage(
+          streamedText.trim()
+            ? streamedText
+            : "Response stopped."
+        );
+
+        // Message was already submitted; clear the input.
+        return true;
+      }
+
       console.error("Chat streaming error:", error);
 
       const errorMessage =
@@ -514,6 +580,10 @@ export default function ChatLayout() {
 
       return false;
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+
       setIsTyping(false);
     }
   };
@@ -521,6 +591,7 @@ export default function ChatLayout() {
   return (
     <AppShell>
       <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
+        {/* DESKTOP SIDEBAR */}
         <aside
           className="
             hidden
@@ -563,6 +634,7 @@ export default function ChatLayout() {
           </div>
         </aside>
 
+        {/* MOBILE SIDEBAR */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
             <div
@@ -668,6 +740,7 @@ export default function ChatLayout() {
           </div>
         )}
 
+        {/* MAIN CHAT */}
         <main
           className="
             relative
@@ -700,6 +773,7 @@ export default function ChatLayout() {
           </video>
 
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* MOBILE HEADER */}
             <header
               className="
                 flex
@@ -758,6 +832,7 @@ export default function ChatLayout() {
               </button>
             </header>
 
+            {/* MESSAGES */}
             <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
               {messages.length === 0 && !isTyping ? (
                 <div
@@ -853,6 +928,7 @@ export default function ChatLayout() {
               )}
             </div>
 
+            {/* INPUT */}
             <div
               className="
                 relative
@@ -868,7 +944,11 @@ export default function ChatLayout() {
               "
             >
               <div className="mx-auto w-full max-w-3xl">
-                <ChatInput onSend={handleSend} />
+                <ChatInput
+                  onSend={handleSend}
+                  isGenerating={isTyping}
+                  onStop={handleStop}
+                />
 
                 <p
                   className="
