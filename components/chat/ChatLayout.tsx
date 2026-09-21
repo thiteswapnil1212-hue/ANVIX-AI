@@ -42,6 +42,12 @@ type ChatApiError = {
   error?: string;
 };
 
+type ActiveRequest = {
+  controller: AbortController;
+  reader: ReadableStreamDefaultReader<Uint8Array> | null;
+  stopped: boolean;
+};
+
 const STORAGE_KEY = "anvix-guest-chats";
 
 const createTimestamp = () => new Date().toISOString();
@@ -221,9 +227,7 @@ export default function ChatLayout() {
 
   const [isTyping, setIsTyping] = useState(false);
 
-  // Active API request controller
-  const abortControllerRef =
-    useRef<AbortController | null>(null);
+  const activeRequestRef = useRef<ActiveRequest | null>(null);
 
   const activeConversation = useMemo(
     () =>
@@ -236,9 +240,7 @@ export default function ChatLayout() {
 
   const messages = activeConversation?.messages ?? [];
 
-  /* --------------------------------
-     PERSIST CHAT HISTORY
-  -------------------------------- */
+  // Persist guest chat history.
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -262,17 +264,31 @@ export default function ChatLayout() {
     }
   }, [conversations, activeConversationId]);
 
-  /* --------------------------------
-     STOP GENERATION
-  -------------------------------- */
+  // Stop the current generation and cancel its reader.
   const handleStop = useCallback(() => {
-    abortControllerRef.current?.abort();
+    const request = activeRequestRef.current;
+
+    if (!request || request.stopped) {
+      return;
+    }
+
+    request.stopped = true;
+
+    request.controller.abort();
+
+    if (request.reader) {
+      void request.reader.cancel().catch(() => {
+        // The reader may already be closed.
+      });
+    }
+
+    setIsTyping(false);
   }, []);
 
-  /* --------------------------------
-     NEW CONVERSATION
-  -------------------------------- */
+  // Create a new conversation.
   const handleNewConversation = useCallback(() => {
+    handleStop();
+
     const id = crypto.randomUUID();
     const now = createTimestamp();
 
@@ -292,22 +308,19 @@ export default function ChatLayout() {
 
     setActiveConversationId(id);
     setSidebarOpen(false);
-  }, []);
+  }, [handleStop]);
 
-  /* --------------------------------
-     SELECT CONVERSATION
-  -------------------------------- */
+  // Select a conversation.
   const handleSelectConversation = useCallback(
     (id: string) => {
+      handleStop();
       setActiveConversationId(id);
       setSidebarOpen(false);
     },
-    []
+    [handleStop]
   );
 
-  /* --------------------------------
-     RENAME CONVERSATION
-  -------------------------------- */
+  // Rename a conversation.
   const handleRenameConversation = useCallback(
     (id: string, title: string) => {
       const trimmed = title.trim();
@@ -333,11 +346,13 @@ export default function ChatLayout() {
     []
   );
 
-  /* --------------------------------
-     DELETE CONVERSATION
-  -------------------------------- */
+  // Delete a conversation.
   const handleDeleteConversation = useCallback(
     (id: string) => {
+      if (activeConversationId === id) {
+        handleStop();
+      }
+
       setConversations((prev) => {
         const remaining = prev.filter(
           (conversation) => conversation.id !== id
@@ -355,12 +370,10 @@ export default function ChatLayout() {
         return remaining;
       });
     },
-    [activeConversationId]
+    [activeConversationId, handleStop]
   );
 
-  /* --------------------------------
-     PIN CONVERSATION
-  -------------------------------- */
+  // Pin or unpin a conversation.
   const handleTogglePin = useCallback((id: string) => {
     setConversations((prev) =>
       sortConversations(
@@ -377,24 +390,26 @@ export default function ChatLayout() {
     );
   }, []);
 
-  /* --------------------------------
-     SEND MESSAGE + STREAM RESPONSE
-  -------------------------------- */
+  // Send a message and stream the response.
   const handleSend = async (
     prompt: string,
     model: string
   ): Promise<boolean> => {
     const trimmedPrompt = prompt.trim();
 
-    if (
-      !trimmedPrompt ||
-      abortControllerRef.current !== null
-    ) {
+    if (!trimmedPrompt || activeRequestRef.current) {
       return false;
     }
 
     const controller = new AbortController();
-    abortControllerRef.current = controller;
+
+    const request: ActiveRequest = {
+      controller,
+      reader: null,
+      stopped: false,
+    };
+
+    activeRequestRef.current = request;
 
     let workingConversationId = activeConversationId;
     const timestamp = createTimestamp();
@@ -466,6 +481,7 @@ export default function ChatLayout() {
     setIsTyping(true);
 
     let streamedText = "";
+    const decoder = new TextDecoder();
 
     const updateAssistantMessage = (content: string) => {
       setConversations((prev) =>
@@ -503,6 +519,10 @@ export default function ChatLayout() {
         signal: controller.signal,
       });
 
+      if (request.stopped) {
+        return true;
+      }
+
       if (!response.ok) {
         let errorMessage = "Failed to generate response.";
 
@@ -510,7 +530,7 @@ export default function ChatLayout() {
           const data = (await response.json()) as ChatApiError;
           errorMessage = data.error || errorMessage;
         } catch {
-          // Keep fallback error message.
+          // Keep the fallback error message.
         }
 
         throw new Error(errorMessage);
@@ -523,24 +543,36 @@ export default function ChatLayout() {
       }
 
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
+      request.reader = reader;
 
-      while (true) {
+      while (!request.stopped) {
         const { value, done } = await reader.read();
 
-        if (done) {
+        if (request.stopped || done) {
           break;
         }
 
-        streamedText += decoder.decode(value, {
-          stream: true,
-        });
+        if (value) {
+          streamedText += decoder.decode(value, {
+            stream: true,
+          });
 
-        updateAssistantMessage(streamedText);
+          updateAssistantMessage(streamedText);
+        }
       }
 
-      streamedText += decoder.decode();
-      updateAssistantMessage(streamedText);
+      // Flush any remaining decoded text only if not stopped.
+      if (!request.stopped) {
+        streamedText += decoder.decode();
+
+        if (streamedText) {
+          updateAssistantMessage(streamedText);
+        }
+      }
+
+      if (request.stopped) {
+        return true;
+      }
 
       if (!streamedText.trim()) {
         throw new Error("AI returned an empty response.");
@@ -548,18 +580,16 @@ export default function ChatLayout() {
 
       return true;
     } catch (error) {
-      // User intentionally stopped generation
       if (
-        error instanceof Error &&
-        error.name === "AbortError"
+        request.stopped ||
+        (error instanceof Error && error.name === "AbortError")
       ) {
-        updateAssistantMessage(
-          streamedText.trim()
-            ? streamedText
-            : "Response stopped."
-        );
+        if (streamedText.trim()) {
+          updateAssistantMessage(streamedText);
+        } else {
+          updateAssistantMessage("Response stopped.");
+        }
 
-        // Message was already submitted; clear the input.
         return true;
       }
 
@@ -570,21 +600,26 @@ export default function ChatLayout() {
           ? error.message
           : "Something went wrong while generating the response.";
 
-      if (streamedText.trim()) {
-        updateAssistantMessage(
-          `${streamedText}\n\n[Response interrupted. Please try again.]`
-        );
-      } else {
-        updateAssistantMessage(errorMessage);
-      }
+      updateAssistantMessage(
+        streamedText.trim()
+          ? `${streamedText}\n\n[Response interrupted. Please try again.]`
+          : errorMessage
+      );
 
       return false;
     } finally {
-      if (abortControllerRef.current === controller) {
-        abortControllerRef.current = null;
+      if (request.reader) {
+        try {
+          request.reader.releaseLock();
+        } catch {
+          // The reader may already be released.
+        }
       }
 
-      setIsTyping(false);
+      if (activeRequestRef.current === request) {
+        activeRequestRef.current = null;
+        setIsTyping(false);
+      }
     }
   };
 
