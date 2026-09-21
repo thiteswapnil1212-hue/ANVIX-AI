@@ -22,6 +22,12 @@ export default function ChatMessageBubble({
 }: ChatMessageBubbleProps) {
   const isAssistant = role === "assistant";
 
+  // Hide empty assistant messages while waiting for a response.
+  // This prevents an empty bubble from appearing with typing dots.
+  if (isAssistant && !content.trim()) {
+    return null;
+  }
+
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
 
