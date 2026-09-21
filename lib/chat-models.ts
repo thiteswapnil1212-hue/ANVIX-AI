@@ -1,3 +1,4 @@
+
 export type ChatModel = {
   id: string;
   name: string;
@@ -7,7 +8,6 @@ export type ChatModel = {
 };
 
 export const CHAT_MODELS: ChatModel[] = [
-  // Google Gemini — unlocked and verified against the SDK's supported model names.
   {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
@@ -30,7 +30,7 @@ export const CHAT_MODELS: ChatModel[] = [
     apiModelId: "gemini-2.0-flash",
   },
 
-  // OpenAI — locked
+  // Locked models — not connected to an API yet.
   {
     id: "gpt-5.5",
     name: "GPT-5.5",
@@ -66,8 +66,6 @@ export const CHAT_MODELS: ChatModel[] = [
     locked: true,
     apiModelId: null,
   },
-
-  // Anthropic Claude — locked
   {
     id: "claude-opus",
     name: "Claude Opus",
@@ -89,8 +87,6 @@ export const CHAT_MODELS: ChatModel[] = [
     locked: true,
     apiModelId: null,
   },
-
-  // DeepSeek — locked
   {
     id: "deepseek-chat",
     name: "DeepSeek Chat",
@@ -105,8 +101,6 @@ export const CHAT_MODELS: ChatModel[] = [
     locked: true,
     apiModelId: null,
   },
-
-  // xAI Grok — locked
   {
     id: "grok",
     name: "Grok",
