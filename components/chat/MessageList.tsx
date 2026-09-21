@@ -24,27 +24,18 @@ interface MessageListProps {
 }
 
 const BOTTOM_THRESHOLD = 100;
-const CHARS_PER_FRAME = 5;
-const FRAME_DELAY_MS = 16;
 
 export default function MessageList({
   messages = [],
   isTyping = false,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const displayedContentRef = useRef("");
-  const activeMessageIdRef = useRef<string | null>(null);
   const autoScrollRef = useRef(true);
   const previousMessageCountRef = useRef(messages.length);
   const firstRenderRef = useRef(true);
-
-  const animationTimerRef =
-    useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [displayedContent, setDisplayedContent] = useState("");
-  const [isRevealing, setIsRevealing] = useState(false);
 
   const latestMessage = messages[messages.length - 1];
   const showingAssistant = latestMessage?.role === "assistant";
@@ -100,90 +91,6 @@ export default function MessageList({
     setShowScrollButton(!nearBottom);
   }, [isNearBottom]);
 
-  // Smoothly reveal the latest assistant response.
-  useEffect(() => {
-    if (animationTimerRef.current !== null) {
-      clearTimeout(animationTimerRef.current);
-      animationTimerRef.current = null;
-    }
-
-    if (!showingAssistant || !latestMessage) {
-      activeMessageIdRef.current = null;
-      displayedContentRef.current = "";
-      setDisplayedContent("");
-      setIsRevealing(false);
-      return;
-    }
-
-    const { id, content } = latestMessage;
-    const isNewMessage = activeMessageIdRef.current !== id;
-
-    if (isNewMessage) {
-      activeMessageIdRef.current = id;
-      displayedContentRef.current = "";
-      setDisplayedContent("");
-    }
-
-    let currentIndex = displayedContentRef.current.length;
-
-    // If the content was replaced, start this message again.
-    if (!content.startsWith(displayedContentRef.current)) {
-      currentIndex = 0;
-      displayedContentRef.current = "";
-      setDisplayedContent("");
-    }
-
-    if (currentIndex >= content.length) {
-      setIsRevealing(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsRevealing(true);
-
-    const revealNext = () => {
-      if (cancelled) return;
-
-      currentIndex = Math.min(
-        currentIndex + CHARS_PER_FRAME,
-        content.length
-      );
-
-      const nextContent = content.slice(0, currentIndex);
-
-      displayedContentRef.current = nextContent;
-      setDisplayedContent(nextContent);
-
-      if (currentIndex < content.length) {
-        animationTimerRef.current = setTimeout(
-          revealNext,
-          FRAME_DELAY_MS
-        );
-      } else {
-        animationTimerRef.current = null;
-        setIsRevealing(false);
-      }
-    };
-
-    animationTimerRef.current = setTimeout(
-      revealNext,
-      FRAME_DELAY_MS
-    );
-
-    return () => {
-      cancelled = true;
-
-      if (animationTimerRef.current !== null) {
-        clearTimeout(animationTimerRef.current);
-        animationTimerRef.current = null;
-      }
-    };
-  }, [
-    latestMessage?.id,
-    latestMessage?.content,
-    showingAssistant,
-  ]);
-
   // Keep the latest message in view without overriding user scrolling.
   useEffect(() => {
     const newMessageAdded =
@@ -203,15 +110,10 @@ export default function MessageList({
 
     if (!autoScrollRef.current) return;
 
-    if (newMessageAdded || isTyping || isRevealing) {
+    if (newMessageAdded || isTyping) {
       scheduleScroll("smooth");
     }
-  }, [
-    messages.length,
-    isTyping,
-    isRevealing,
-    scheduleScroll,
-  ]);
+  }, [messages.length, isTyping, scheduleScroll]);
 
   // Adjust scroll position when the viewport changes.
   useEffect(() => {
@@ -233,10 +135,6 @@ export default function MessageList({
     return () => {
       if (scrollFrameRef.current !== null) {
         cancelAnimationFrame(scrollFrameRef.current);
-      }
-
-      if (animationTimerRef.current !== null) {
-        clearTimeout(animationTimerRef.current);
       }
     };
   }, []);
@@ -263,53 +161,47 @@ export default function MessageList({
         "
       >
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-4">
-  {messages.map((message, index) => {
-    const isLatestAssistant =
-      index === messages.length - 1 &&
-      message.role === "assistant";
+          {messages.map((message, index) => {
+            const isLatestAssistant =
+              index === messages.length - 1 &&
+              message.role === "assistant";
 
-    return (
-      <ChatMessageBubble
-        key={message.id}
-        role={message.role}
-        content={
-          isLatestAssistant
-            ? isTyping && !message.content
-              ? "Thinking..."
-              : displayedContent
-            : message.content
-        }
-      />
-    );
-  })}
+            return (
+              <ChatMessageBubble
+                key={message.id}
+                role={message.role}
+                content={
+                  isLatestAssistant &&
+                  isTyping &&
+                  !message.content
+                    ? "Thinking..."
+                    : message.content
+                }
+              />
+            );
+          })}
 
-          {isTyping && (!showingAssistant || !latestMessage?.content) && (
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#3F3F46] bg-[#151518]">
-                <Sparkles
-                  className="h-3.5 w-3.5 text-[#D4AF37]"
-                  strokeWidth={1.8}
-                />
+          {isTyping &&
+            (!showingAssistant || !latestMessage?.content) && (
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#3F3F46] bg-[#151518]">
+                  <Sparkles
+                    className="h-3.5 w-3.5 text-[#D4AF37]"
+                    strokeWidth={1.8}
+                  />
+                </div>
+
+                <div
+                  className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-[#2F2F33] bg-[#18181B] px-4 py-3.5"
+                  aria-label="ANVIX AI is thinking"
+                  role="status"
+                >
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+                </div>
               </div>
-
-              <div
-                className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-[#2F2F33] bg-[#18181B] px-4 py-3.5"
-                aria-label="ANVIX AI is thinking"
-                role="status"
-              >
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
-              </div>
-            </div>
-          )}
-
-          {showingAssistant && isRevealing && (
-            <span
-              className="ml-11 inline-block h-4 w-[2px] animate-pulse bg-[#D4AF37]"
-              aria-hidden="true"
-            />
-          )}
+            )}
 
           <div className="h-1 w-full" aria-hidden="true" />
         </div>
