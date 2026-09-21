@@ -314,7 +314,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
         aria-modal="true"
         aria-labelledby="model-guide-title"
         className="
-          flex max-h-[90vh] w-full max-w-5xl
+          h-[96dvh] max-h-[96dvh] w-full max-w-6xl
           flex-col overflow-hidden rounded-3xl
           border border-white/10 bg-[#111114]
           shadow-[0_24px_100px_rgba(0,0,0,0.7)]
