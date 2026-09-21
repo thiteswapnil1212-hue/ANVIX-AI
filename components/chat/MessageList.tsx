@@ -40,6 +40,11 @@ export default function MessageList({
   const latestMessage = messages[messages.length - 1];
   const showingAssistant = latestMessage?.role === "assistant";
 
+  // Show dots only when the latest assistant message has no text yet.
+  const shouldShowTypingIndicator =
+    isTyping &&
+    (!showingAssistant || !latestMessage?.content?.trim());
+
   const isNearBottom = useCallback(() => {
     const container = scrollRef.current;
 
@@ -161,47 +166,35 @@ export default function MessageList({
         "
       >
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-4">
-          {messages.map((message, index) => {
-            const isLatestAssistant =
-              index === messages.length - 1 &&
-              message.role === "assistant";
+          {messages.map((message) => (
+            <ChatMessageBubble
+              key={message.id}
+              role={message.role}
+              content={message.content}
+            />
+          ))}
 
-            return (
-              <ChatMessageBubble
-                key={message.id}
-                role={message.role}
-                content={
-                  isLatestAssistant &&
-                  isTyping &&
-                  !message.content
-                    ? "Thinking..."
-                    : message.content
-                }
-              />
-            );
-          })}
-
-          {isTyping &&
-            (!showingAssistant || !latestMessage?.content) && (
-              <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#3F3F46] bg-[#151518]">
-                  <Sparkles
-                    className="h-3.5 w-3.5 text-[#D4AF37]"
-                    strokeWidth={1.8}
-                  />
-                </div>
-
-                <div
-                  className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-[#2F2F33] bg-[#18181B] px-4 py-3.5"
-                  aria-label="ANVIX AI is thinking"
-                  role="status"
-                >
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
-                </div>
+          {/* Single typing indicator; no duplicate "Thinking..." bubble. */}
+          {shouldShowTypingIndicator && (
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#3F3F46] bg-[#151518]">
+                <Sparkles
+                  className="h-3.5 w-3.5 text-[#D4AF37]"
+                  strokeWidth={1.8}
+                />
               </div>
-            )}
+
+              <div
+                className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-[#2F2F33] bg-[#18181B] px-4 py-3.5"
+                aria-label="ANVIX AI is thinking"
+                role="status"
+              >
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+              </div>
+            </div>
+          )}
 
           <div className="h-1 w-full" aria-hidden="true" />
         </div>
