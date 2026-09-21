@@ -593,19 +593,7 @@ export default function ChatInput({
               sm:text-[11px]
             "
           >
-            {isGenerating ? (
-              <span>Press Enter or click ■ to stop</span>
-            ) : isSubmitting ? (
-              <span>Sending your message…</span>
-            ) : (
-              <span>
-                Enter to send
-                <span className="mx-1.5 text-zinc-700">
-                  ·
-                </span>
-                Shift + Enter for a new line
-              </span>
-            )}
+            
           </div>
         </form>
       </div>
