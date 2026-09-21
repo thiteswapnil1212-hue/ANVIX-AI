@@ -108,13 +108,17 @@ export default function ChatInput({
     };
   }, []);
 
-  // Escape closes dropdown and guide.
+  // Escape closes the guide first, then the dropdown.
   useEffect(() => {
     function handleEscape(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") {
-        setModelOpen(false);
+      if (event.key !== "Escape") return;
+
+      if (guideOpen) {
         setGuideOpen(false);
+        return;
       }
+
+      setModelOpen(false);
     }
 
     document.addEventListener("keydown", handleEscape);
@@ -125,7 +129,7 @@ export default function ChatInput({
         handleEscape
       );
     };
-  }, []);
+  }, [guideOpen]);
 
   // Focus input when generation finishes.
   useEffect(() => {
@@ -238,6 +242,14 @@ export default function ChatInput({
     setSelectedModel(model.id);
     setModelOpen(false);
     textareaRef.current?.focus();
+  }
+
+  function handleOpenGuide() {
+    setGuideOpen(true);
+  }
+
+  function handleCloseGuide() {
+    setGuideOpen(false);
   }
 
   return (
@@ -367,24 +379,27 @@ export default function ChatInput({
                       bg-[#18181B] p-1.5
                       shadow-[0_16px_45px_rgba(0,0,0,0.55)]
                     "
-                    role="listbox"
                     aria-label="Select AI model"
                   >
                     {/* Dropdown header + Notes */}
-                    <div className="
-                      flex items-center justify-between
-                      gap-2 px-2.5 pb-2 pt-2
-                    ">
-                      <p className="
-                        text-[10px] font-medium uppercase
-                        tracking-[0.1em] text-zinc-600
-                      ">
+                    <div
+                      className="
+                        flex items-center justify-between
+                        gap-2 px-2.5 pb-2 pt-2
+                      "
+                    >
+                      <p
+                        className="
+                          text-[10px] font-medium uppercase
+                          tracking-[0.1em] text-zinc-600
+                        "
+                      >
                         Choose a model
                       </p>
 
                       <button
                         type="button"
-                        onClick={() => setGuideOpen(true)}
+                        onClick={handleOpenGuide}
                         className="
                           inline-flex shrink-0
                           items-center gap-1.5
@@ -425,12 +440,11 @@ export default function ChatInput({
                           <button
                             key={model.id}
                             type="button"
-                            role="option"
-                            aria-selected={selected}
                             disabled={unavailable}
                             onClick={() =>
                               handleModelSelect(model)
                             }
+                            aria-pressed={selected}
                             className={`
                               flex w-full items-center
                               justify-between gap-3
@@ -458,25 +472,29 @@ export default function ChatInput({
                                 {model.name}
                               </span>
 
-                              <span className="
-                                mt-0.5 block truncate
-                                text-[11px] text-zinc-600
-                              ">
+                              <span
+                                className="
+                                  mt-0.5 block truncate
+                                  text-[11px] text-zinc-600
+                                "
+                              >
                                 {model.provider}
                               </span>
                             </span>
 
                             {model.locked ||
                             model.apiModelId === null ? (
-                              <span className="
-                                flex shrink-0 items-center
-                                gap-1 rounded-md
-                                border border-zinc-800
-                                px-1.5 py-1
-                                text-[9px] font-semibold
-                                uppercase tracking-wide
-                                text-zinc-600
-                              ">
+                              <span
+                                className="
+                                  flex shrink-0 items-center
+                                  gap-1 rounded-md
+                                  border border-zinc-800
+                                  px-1.5 py-1
+                                  text-[9px] font-semibold
+                                  uppercase tracking-wide
+                                  text-zinc-600
+                                "
+                              >
                                 <Lock
                                   className="h-2.5 w-2.5"
                                   aria-hidden="true"
@@ -594,9 +612,7 @@ export default function ChatInput({
 
       {/* Model Guide popup */}
       {guideOpen && (
-        <ModelGuide
-          onClose={() => setGuideOpen(false)}
-        />
+        <ModelGuide onClose={handleCloseGuide} />
       )}
     </>
   );
