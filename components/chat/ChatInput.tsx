@@ -1,8 +1,17 @@
 ﻿
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  FormEvent,
+} from "react";
+
 import {
   ArrowUp,
   ChevronDown,
@@ -10,6 +19,7 @@ import {
   Check,
   Paperclip,
   Square,
+  LoaderCircle,
 } from "lucide-react";
 
 import {
@@ -41,6 +51,7 @@ export default function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const submittingRef = useRef(false);
+  const previousGeneratingRef = useRef(isGenerating);
 
   const hasMessage = value.trim().length > 0;
   const canSend =
@@ -50,9 +61,7 @@ export default function ChatInput({
     CHAT_MODELS.find((model) => model.id === selectedModel) ??
     CHAT_MODELS[0];
 
-  /* --------------------------------
-     AUTO RESIZE
-  -------------------------------- */
+  // Keep textarea height in sync with its content.
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -67,14 +76,13 @@ export default function ChatInput({
     textarea.style.height = `${nextHeight}px`;
   }, [value]);
 
-  /* --------------------------------
-     CLOSE DROPDOWN
-  -------------------------------- */
+  // Close the model menu when clicking outside.
   useEffect(() => {
-    function handleOutsideClick(event: MouseEvent) {
-      const target = event.target as Node;
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
 
       if (
+        target instanceof Node &&
         modelRef.current &&
         !modelRef.current.contains(target)
       ) {
@@ -83,52 +91,53 @@ export default function ChatInput({
     }
 
     document.addEventListener(
-      "mousedown",
-      handleOutsideClick
+      "pointerdown",
+      handlePointerDown
     );
 
     return () => {
       document.removeEventListener(
-        "mousedown",
-        handleOutsideClick
+        "pointerdown",
+        handlePointerDown
       );
     };
   }, []);
 
-  /* --------------------------------
-     ESC CLOSES MODEL MENU
-  -------------------------------- */
- 
-useEffect(() => {
-  function handleEscape(event: globalThis.KeyboardEvent) {
-    if (event.key === "Escape") {
-      setModelOpen(false);
-    }
-  }
-
-  document.addEventListener("keydown", handleEscape);
-
-  return () => {
-    document.removeEventListener("keydown", handleEscape);
-  };
-}, []);
-  /* --------------------------------
-     MODEL SELECT
-  -------------------------------- */
-  function handleModelSelect(model: ChatModel) {
-    if (model.locked || isSubmitting || isGenerating) {
-      return;
+  // Escape closes the model menu.
+  useEffect(() => {
+    function handleEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setModelOpen(false);
+      }
     }
 
-    setSelectedModel(model.id);
-    setModelOpen(false);
-    textareaRef.current?.focus();
-  }
+    document.addEventListener("keydown", handleEscape);
 
-  /* --------------------------------
-     SEND
-  -------------------------------- */
-  async function handleSubmit() {
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, []);
+
+  // Return focus to the input when generation finishes.
+  useEffect(() => {
+    const wasGenerating = previousGeneratingRef.current;
+    previousGeneratingRef.current = isGenerating;
+
+    if (wasGenerating && !isGenerating) {
+      textareaRef.current?.focus();
+    }
+  }, [isGenerating]);
+
+  const handleStop = useCallback(() => {
+    if (isGenerating) {
+      onStop();
+    }
+  }, [isGenerating, onStop]);
+
+  const handleSubmit = useCallback(async () => {
     const message = value.trim();
 
     if (
@@ -140,7 +149,7 @@ useEffect(() => {
       return;
     }
 
-    // Synchronously block duplicate submissions.
+    // Lock synchronously to prevent rapid duplicate submits.
     submittingRef.current = true;
     setIsSubmitting(true);
 
@@ -162,18 +171,17 @@ useEffect(() => {
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
-
-      requestAnimationFrame(() => {
-        textareaRef.current?.focus();
-      });
     }
-  }
+  }, [
+    value,
+    isSubmitting,
+    isGenerating,
+    onSend,
+    selectedModel,
+  ]);
 
-  /* --------------------------------
-     KEYBOARD
-  -------------------------------- */
   function handleKeyDown(
-    event: KeyboardEvent<HTMLTextAreaElement>
+    event: ReactKeyboardEvent<HTMLTextAreaElement>
   ) {
     if (
       event.key !== "Enter" ||
@@ -185,62 +193,79 @@ useEffect(() => {
 
     event.preventDefault();
 
-    // Enter stops the active generation.
     if (isGenerating) {
-      onStop();
+      handleStop();
       return;
     }
 
-    // Enter sends the current prompt.
     if (canSend) {
       void handleSubmit();
     }
   }
 
-  /* --------------------------------
-     FORM SUBMIT
-  -------------------------------- */
-  function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleFormSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     if (isGenerating) {
-      onStop();
+      handleStop();
       return;
     }
 
     if (canSend) {
       void handleSubmit();
     }
+  }
+
+  function handleModelSelect(model: ChatModel) {
+    if (
+      model.locked ||
+      isSubmitting ||
+      isGenerating
+    ) {
+      return;
+    }
+
+    setSelectedModel(model.id);
+    setModelOpen(false);
+    textareaRef.current?.focus();
   }
 
   return (
     <div className="relative mx-auto w-full">
-      <form onSubmit={handleFormSubmit}>
+      <form
+        onSubmit={handleFormSubmit}
+        aria-label="Chat message form"
+      >
         <div
           className="
             relative flex w-full items-end gap-2
-            rounded-[17px] border border-zinc-800
-            bg-[#151518] px-2.5 py-2.5
+            rounded-2xl border border-zinc-800/90
+            bg-[#151518] p-2.5
             shadow-[0_8px_30px_rgba(0,0,0,0.22)]
-            transition-[border-color,box-shadow] duration-200
+            transition-[border-color,box-shadow]
+            duration-200
             focus-within:border-zinc-700
             focus-within:shadow-[0_10px_34px_rgba(0,0,0,0.28)]
-            sm:gap-2.5 sm:px-3 sm:py-3
+            sm:gap-2.5 sm:p-3
           "
         >
-          {/* Attach */}
+          {/* Attachment button */}
           <button
             type="button"
             disabled={isSubmitting || isGenerating}
             className="
               mb-0.5 flex h-8 w-8 shrink-0
-              items-center justify-center rounded-lg
-              text-zinc-500 transition-colors duration-150
-              hover:bg-zinc-800/70 hover:text-zinc-300
-              active:bg-zinc-800 disabled:cursor-not-allowed
+              items-center justify-center rounded-xl
+              text-zinc-500 transition-colors
+              hover:bg-zinc-800/70 hover:text-zinc-200
+              active:scale-95
+              disabled:cursor-not-allowed
               disabled:opacity-40
             "
             aria-label="Attach file"
+            title="File attachments coming soon"
           >
             <Paperclip
               className="h-[17px] w-[17px]"
@@ -249,7 +274,7 @@ useEffect(() => {
             />
           </button>
 
-          {/* Message */}
+          {/* Message textarea */}
           <textarea
             id="chat-message"
             name="message"
@@ -265,7 +290,6 @@ useEffect(() => {
             }}
             onKeyDown={handleKeyDown}
             rows={1}
-            // Keep enabled during generation so Enter can stop it.
             disabled={isSubmitting}
             placeholder={
               isGenerating
@@ -273,6 +297,7 @@ useEffect(() => {
                 : "Message ANVIX AI..."
             }
             aria-label="Message ANVIX AI"
+            aria-describedby="chat-input-hint"
             className="
               min-h-[36px] max-h-[120px] min-w-0 flex-1
               resize-none overflow-y-auto bg-transparent
@@ -296,14 +321,16 @@ useEffect(() => {
                   setModelOpen((open) => !open)
                 }
                 className="
-                  flex h-8 max-w-[150px] items-center gap-1.5
-                  rounded-lg px-2 text-[11px] font-medium
-                  text-zinc-400 transition-colors duration-150
+                  flex h-8 max-w-[150px] items-center
+                  gap-1.5 rounded-xl px-2
+                  text-[11px] font-medium text-zinc-400
+                  transition-colors
                   hover:bg-zinc-800/70 hover:text-zinc-200
                   disabled:opacity-40 sm:text-xs
                 "
                 aria-haspopup="listbox"
                 aria-expanded={modelOpen}
+                aria-label={`Selected model: ${selectedModelConfig.name}`}
               >
                 <span className="truncate whitespace-nowrap">
                   {selectedModelConfig.name}
@@ -319,23 +346,26 @@ useEffect(() => {
                 />
               </button>
 
-              {/* Model dropdown */}
               {modelOpen && (
                 <div
                   className="
                     absolute bottom-[43px] right-0 z-[9999]
-                    max-h-[360px] w-[250px] overflow-y-auto
-                    overflow-x-hidden rounded-xl border
-                    border-zinc-800 bg-[#18181B] p-1.5
+                    max-h-[min(360px,60vh)]
+                    w-[min(270px,calc(100vw-32px))]
+                    overflow-y-auto overflow-x-hidden
+                    rounded-xl border border-zinc-800
+                    bg-[#18181B] p-1.5
                     shadow-[0_16px_45px_rgba(0,0,0,0.55)]
-                    sm:w-[270px]
                   "
                   role="listbox"
                   aria-label="Select AI model"
                 >
                   <div className="px-2.5 pb-2 pt-2">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-zinc-600">
-                      Model
+                    <p className="
+                      text-[10px] font-medium uppercase
+                      tracking-[0.1em] text-zinc-600
+                    ">
+                      Choose a model
                     </p>
                   </div>
 
@@ -344,13 +374,16 @@ useEffect(() => {
                       const selected =
                         selectedModel === model.id;
 
+                      const unavailable =
+                        model.locked || isSubmitting;
+
                       return (
                         <button
-                          key={`${model.provider}-${model.name}`}
+                          key={model.id}
                           type="button"
-                          disabled={
-                            model.locked || isSubmitting
-                          }
+                          role="option"
+                          aria-selected={selected}
+                          disabled={unavailable}
                           onClick={() =>
                             handleModelSelect(model)
                           }
@@ -358,18 +391,19 @@ useEffect(() => {
                             flex w-full items-center
                             justify-between gap-3 rounded-lg
                             px-2.5 py-2.5 text-left
-                            transition-colors duration-150
+                            transition-colors
                             ${
-                              model.locked || isSubmitting
+                              unavailable
                                 ? "cursor-not-allowed opacity-45"
                                 : "hover:bg-zinc-800/70"
                             }
                           `}
                         >
-                          <div className="min-w-0">
-                            <p
+                          <span className="min-w-0">
+                            <span
                               className={`
-                                truncate text-sm font-medium
+                                block truncate text-sm
+                                font-medium
                                 ${
                                   selected
                                     ? "text-zinc-100"
@@ -378,29 +412,37 @@ useEffect(() => {
                               `}
                             >
                               {model.name}
-                            </p>
+                            </span>
 
-                            <p className="mt-0.5 text-[11px] text-zinc-600">
+                            <span className="
+                              mt-0.5 block truncate
+                              text-[11px] text-zinc-600
+                            ">
                               {model.provider}
-                            </p>
-                          </div>
+                            </span>
+                          </span>
 
                           {model.locked ? (
-                            <span
-                              className="
-                                flex shrink-0 items-center gap-1
-                                rounded-md border border-zinc-800
-                                px-1.5 py-1 text-[9px]
-                                font-semibold uppercase tracking-wide
-                                text-zinc-600
-                              "
-                            >
-                              <Lock className="h-2.5 w-2.5" />
+                            <span className="
+                              flex shrink-0 items-center
+                              gap-1 rounded-md border
+                              border-zinc-800 px-1.5 py-1
+                              text-[9px] font-semibold
+                              uppercase tracking-wide
+                              text-zinc-600
+                            ">
+                              <Lock
+                                className="h-2.5 w-2.5"
+                                aria-hidden="true"
+                              />
                               PRO
                             </span>
                           ) : selected ? (
                             <Check
-                              className="h-4 w-4 shrink-0 text-[#D4AF37]"
+                              className="
+                                h-4 w-4 shrink-0
+                                text-[#D4AF37]
+                              "
                               strokeWidth={2}
                               aria-hidden="true"
                             />
@@ -417,8 +459,14 @@ useEffect(() => {
           {/* Stop / Send */}
           <button
             type={isGenerating ? "button" : "submit"}
-            onClick={isGenerating ? onStop : undefined}
-            disabled={isGenerating ? false : !canSend}
+            onClick={
+              isGenerating ? handleStop : undefined
+            }
+            disabled={
+              isGenerating
+                ? false
+                : !canSend
+            }
             aria-label={
               isGenerating
                 ? "Stop response"
@@ -429,12 +477,19 @@ useEffect(() => {
             title={
               isGenerating
                 ? "Stop response"
-                : "Send message"
+                : isSubmitting
+                  ? "Sending..."
+                  : "Send message"
             }
             className={`
               mb-0.5 flex h-8 w-8 shrink-0
               items-center justify-center rounded-full
               transition-all duration-150
+              focus-visible:outline-none
+              focus-visible:ring-2
+              focus-visible:ring-[#D4AF37]
+              focus-visible:ring-offset-2
+              focus-visible:ring-offset-[#151518]
               ${
                 isGenerating
                   ? "bg-zinc-200 text-black hover:bg-white active:scale-95"
@@ -451,6 +506,11 @@ useEffect(() => {
                 strokeWidth={2}
                 aria-hidden="true"
               />
+            ) : isSubmitting ? (
+              <LoaderCircle
+                className="h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
             ) : (
               <ArrowUp
                 className="h-[16px] w-[16px]"
@@ -459,6 +519,31 @@ useEffect(() => {
               />
             )}
           </button>
+        </div>
+
+        {/* Keyboard hint */}
+        <div
+          id="chat-input-hint"
+          className="
+            mt-2 flex min-h-4 items-center
+            justify-center gap-2 px-2
+            text-center text-[10px] text-zinc-600
+            sm:text-[11px]
+          "
+        >
+          {isGenerating ? (
+            <span>Press Enter or click ■ to stop</span>
+          ) : isSubmitting ? (
+            <span>Sending your message…</span>
+          ) : (
+            <span>
+              Enter to send
+              <span className="mx-1.5 text-zinc-700">
+                ·
+              </span>
+              Shift + Enter for a new line
+            </span>
+          )}
         </div>
       </form>
     </div>
