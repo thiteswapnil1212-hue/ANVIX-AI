@@ -8,6 +8,19 @@ export default function PwaRegister() {
       return;
     }
 
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker
+        ?.getRegistrations()
+        .then((registrations) => {
+          registrations.forEach((registration) => registration.unregister());
+        })
+        .catch((error) => {
+          console.warn("Could not unregister service workers in development:", error);
+        });
+
+      return;
+    }
+
     const isSecureContext =
       window.location.protocol === "https:" ||
       window.location.hostname === "localhost";
