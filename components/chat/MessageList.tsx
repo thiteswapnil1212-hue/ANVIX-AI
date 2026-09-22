@@ -23,7 +23,7 @@ interface MessageListProps {
   isTyping?: boolean;
 }
 
-const BOTTOM_THRESHOLD = 100;
+const BOTTOM_THRESHOLD = 120;
 
 export default function MessageList({
   messages = [],
@@ -32,6 +32,7 @@ export default function MessageList({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const autoScrollRef = useRef(true);
   const previousMessageCountRef = useRef(messages.length);
+  const previousLastMessageRef = useRef("");
   const firstRenderRef = useRef(true);
   const scrollFrameRef = useRef<number | null>(null);
 
@@ -40,7 +41,6 @@ export default function MessageList({
   const latestMessage = messages[messages.length - 1];
   const showingAssistant = latestMessage?.role === "assistant";
 
-  // Show dots only when the latest assistant message has no text yet.
   const shouldShowTypingIndicator =
     isTyping &&
     (!showingAssistant || !latestMessage?.content?.trim());
@@ -96,12 +96,20 @@ export default function MessageList({
     setShowScrollButton(!nearBottom);
   }, [isNearBottom]);
 
-  // Keep the latest message in view without overriding user scrolling.
+  // Keep track of the latest message content too, not only message count.
+  const lastMessageKey = latestMessage
+    ? `${latestMessage.id}:${latestMessage.content.length}`
+    : "";
+
   useEffect(() => {
     const newMessageAdded =
       messages.length > previousMessageCountRef.current;
 
+    const messageContentChanged =
+      lastMessageKey !== previousLastMessageRef.current;
+
     previousMessageCountRef.current = messages.length;
+    previousLastMessageRef.current = lastMessageKey;
 
     if (firstRenderRef.current) {
       firstRenderRef.current = false;
@@ -115,12 +123,17 @@ export default function MessageList({
 
     if (!autoScrollRef.current) return;
 
-    if (newMessageAdded || isTyping) {
+    if (newMessageAdded || messageContentChanged || isTyping) {
       scheduleScroll("smooth");
     }
-  }, [messages.length, isTyping, scheduleScroll]);
+  }, [
+    messages.length,
+    lastMessageKey,
+    isTyping,
+    scheduleScroll,
+  ]);
 
-  // Adjust scroll position when the viewport changes.
+  // Reposition when the viewport changes.
   useEffect(() => {
     const handleResize = () => {
       if (autoScrollRef.current) {
@@ -150,12 +163,21 @@ export default function MessageList({
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden bg-transparent">
+      {/* Top and bottom edge fades */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#0B0B0C]/50 to-transparent"
+      />
+
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="
           h-full min-h-0 overflow-y-auto overscroll-contain
-          px-3 py-5 pb-7 sm:px-5 sm:py-6 sm:pb-8 lg:px-8
+          scroll-smooth
+          px-3 py-6 pb-10
+          sm:px-5 sm:py-8 sm:pb-12
+          lg:px-8 lg:py-10
           [scrollbar-color:#3f3f46_transparent]
           [scrollbar-width:thin]
           [&::-webkit-scrollbar]:w-1.5
@@ -165,7 +187,7 @@ export default function MessageList({
           hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
         "
       >
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-4">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 pb-4 sm:gap-9">
           {messages.map((message) => (
             <ChatMessageBubble
               key={message.id}
@@ -174,24 +196,32 @@ export default function MessageList({
             />
           ))}
 
-          {/* Single typing indicator; no duplicate "Thinking..." bubble. */}
+          {/* Single typing indicator */}
           {shouldShowTypingIndicator && (
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#3F3F46] bg-[#151518]">
+            <div className="flex items-start gap-3 sm:gap-3.5">
+              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/[0.07] shadow-[0_0_20px_rgba(212,175,55,0.04)]">
                 <Sparkles
-                  className="h-3.5 w-3.5 text-[#D4AF37]"
+                  className="h-4 w-4 text-[#D4AF37]"
                   strokeWidth={1.8}
                 />
+
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-[#0B0B0C] bg-[#D4AF37]" />
               </div>
 
-              <div
-                className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-[#2F2F33] bg-[#18181B] px-4 py-3.5"
-                aria-label="ANVIX AI is thinking"
-                role="status"
-              >
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+              <div className="min-w-0">
+                <p className="mb-2 text-xs font-medium text-zinc-500">
+                  ANVIX AI
+                </p>
+
+                <div
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl rounded-tl-md border border-white/[0.07] bg-[#151518] px-4 py-3"
+                  aria-label="ANVIX AI is thinking"
+                  role="status"
+                >
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+                </div>
               </div>
             </div>
           )}
@@ -200,6 +230,13 @@ export default function MessageList({
         </div>
       </div>
 
+      {/* Bottom fade */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[#0B0B0C]/30 to-transparent"
+      />
+
+      {/* Jump to latest */}
       {showScrollButton && messages.length > 0 && (
         <button
           type="button"
@@ -207,14 +244,18 @@ export default function MessageList({
           aria-label="Jump to latest message"
           title="Jump to latest"
           className="
-            absolute bottom-6 left-1/2 z-30
-            flex h-10 w-10 -translate-x-1/2
+            absolute bottom-5 left-1/2 z-30
+            flex h-11 w-11 -translate-x-1/2
             items-center justify-center rounded-full
-            border border-zinc-700 bg-[#18181B]/95
-            text-zinc-300 shadow-[0_10px_35px_rgba(0,0,0,0.5)]
-            backdrop-blur-xl transition-all duration-200
-            hover:border-[#D4AF37]/40 hover:bg-[#222225]
-            hover:text-[#D4AF37] active:scale-90
+            border border-white/[0.12]
+            bg-[#19191D]/95 text-zinc-300
+            shadow-[0_8px_30px_rgba(0,0,0,0.45)]
+            backdrop-blur-xl
+            transition-all duration-200
+            hover:-translate-x-1/2 hover:-translate-y-0.5
+            hover:border-[#D4AF37]/40
+            hover:bg-[#222225] hover:text-[#D4AF37]
+            active:scale-95
             focus-visible:outline-none
             focus-visible:ring-2 focus-visible:ring-[#D4AF37]
           "
