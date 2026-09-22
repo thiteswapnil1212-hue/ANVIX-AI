@@ -1,7 +1,14 @@
 const CACHE_NAME = "anvix-ai-static-v1";
 const APP_SHELL = ["/", "/chat", "/dashboard", "/generate", "/pricing", "/settings"];
+const IS_DEVELOPMENT =
+  self.location.hostname === "localhost" || self.location.hostname === "127.0.0.1";
 
 self.addEventListener("install", (event) => {
+  if (IS_DEVELOPMENT) {
+    event.waitUntil(self.skipWaiting());
+    return;
+  }
+
   event.waitUntil(
     caches
       .open(CACHE_NAME)
@@ -43,6 +50,28 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/_next/data")) {
+    return;
+  }
+
+  if (IS_DEVELOPMENT) {
+    return;
+  }
+
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const responseClone = response.clone();
+
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
+          });
+
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+
     return;
   }
 
