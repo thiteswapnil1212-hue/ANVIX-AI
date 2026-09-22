@@ -72,7 +72,6 @@ export default function ChatMessageBubble({
     }
   }, [content, clearCopyTimeout]);
 
-  // Keep hooks above this condition to follow React's Rules of Hooks.
   if (isEmptyAssistant) {
     return null;
   }
@@ -96,7 +95,9 @@ export default function ChatMessageBubble({
             mt-1 flex h-8 w-8 shrink-0
             items-center justify-center
             rounded-xl border border-[#D4AF37]/25
-            bg-[#D4AF37]/[0.08]
+            bg-gradient-to-br
+            from-[#D4AF37]/[0.13]
+            to-[#D4AF37]/[0.03]
             shadow-[0_0_18px_rgba(212,175,55,0.06)]
           "
           aria-label="ANVIX AI"
@@ -116,8 +117,8 @@ export default function ChatMessageBubble({
           relative min-w-0
           ${
             isAssistant
-              ? "max-w-[calc(100%-2.75rem)] sm:max-w-[80%]"
-              : "max-w-[calc(100%-2.75rem)] sm:max-w-[75%]"
+              ? "max-w-[calc(100%-2.75rem)] sm:max-w-[82%]"
+              : "max-w-[calc(100%-2.75rem)] sm:max-w-[76%]"
           }
         `}
       >
@@ -149,23 +150,27 @@ export default function ChatMessageBubble({
           className={`
             relative min-w-0 rounded-2xl
             border px-4 py-3
-            shadow-[0_6px_24px_rgba(0,0,0,0.12)]
-            transition-colors duration-200
+            transition-[border-color,background-color]
+            duration-200
             sm:px-5 sm:py-4
             ${
               isAssistant
                 ? `
                   rounded-tl-md
-                  border-white/[0.08]
+                  border-white/[0.07]
                   bg-[#151518]/95
                   text-zinc-200
-                  hover:border-white/[0.13]
+                  shadow-[0_8px_30px_rgba(0,0,0,0.12)]
+                  hover:border-white/[0.12]
                 `
                 : `
                   rounded-tr-md
                   border-[#D4AF37]/20
-                  bg-[#292821]/95
+                  bg-gradient-to-br
+                  from-[#302E25]
+                  to-[#24231F]
                   text-zinc-100
+                  shadow-[0_8px_30px_rgba(0,0,0,0.10)]
                   hover:border-[#D4AF37]/35
                 `
             }
