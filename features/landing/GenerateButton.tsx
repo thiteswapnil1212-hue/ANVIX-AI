@@ -63,9 +63,7 @@ export default function GenerateButton({
         />
       )}
 
-      <span
-        className="relative z-10 inline-flex items-center justify-center gap-2.5"
-      >
+      <span className="relative z-10 inline-flex items-center justify-center gap-2.5">
         {loading ? (
           <>
             <Loader2
@@ -77,7 +75,7 @@ export default function GenerateButton({
           </>
         ) : (
           <>
-            <span>{disabled ? "Generate App" : "Generate App"}</span>
+            <span>Generate App</span>
             <ArrowRight
               aria-hidden="true"
               className="
@@ -92,10 +90,12 @@ export default function GenerateButton({
         )}
       </span>
 
-      {/* Screen-reader status */}
-      <span className="sr-only" role="status" aria-live="polite">
-        {loading ? "App generation is in progress." : ""}
-      </span>
+      {/* Announce only the loading state */}
+      {loading && (
+        <span className="sr-only" role="status" aria-live="polite">
+          App generation is in progress.
+        </span>
+      )}
     </button>
   );
 }
