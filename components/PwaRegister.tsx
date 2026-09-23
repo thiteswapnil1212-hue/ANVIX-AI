@@ -1,39 +1,66 @@
+
 "use client";
 
 import { useEffect } from "react";
 
 export default function PwaRegister() {
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (!("serviceWorker" in navigator)) {
       return;
     }
 
-    if (process.env.NODE_ENV !== "production") {
-      navigator.serviceWorker
-        ?.getRegistrations()
-        .then((registrations) => {
-          registrations.forEach((registration) => registration.unregister());
-        })
-        .catch((error) => {
-          console.warn("Could not unregister service workers in development:", error);
+    let isActive = true;
+
+    async function manageServiceWorker() {
+      try {
+        if (process.env.NODE_ENV !== "production") {
+          const registrations =
+            await navigator.serviceWorker.getRegistrations();
+
+          if (!isActive) return;
+
+          await Promise.all(
+            registrations.map((registration) =>
+              registration.unregister()
+            )
+          );
+
+          console.info(
+            "Development mode: service workers unregistered."
+          );
+
+          return;
+        }
+
+        if (!window.isSecureContext) {
+          console.warn(
+            "Service workers require a secure context."
+          );
+          return;
+        }
+
+        await navigator.serviceWorker.register("/sw.js", {
+          scope: "/",
         });
 
-      return;
+        if (isActive) {
+          console.info("Service worker registered.");
+        }
+      } catch (error) {
+        if (isActive) {
+          console.error(
+            "Service worker setup failed:",
+            error
+          );
+        }
+      }
     }
 
-    const isSecureContext =
-      window.location.protocol === "https:" ||
-      window.location.hostname === "localhost";
+    void manageServiceWorker();
 
-    if (!("serviceWorker" in navigator) || !isSecureContext) {
-      return;
-    }
-
-    navigator.serviceWorker
-      .register("/sw.js")
-      .catch((error) => {
-        console.error("Service worker registration failed:", error);
-      });
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   return null;
