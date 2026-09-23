@@ -1,6 +1,9 @@
 
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
-import { cva, type VariantProps } from "class-variance-authority";
+import {
+  cva,
+  type VariantProps,
+} from "class-variance-authority";
 import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -10,13 +13,14 @@ const buttonVariants = cva(
     "group/button relative inline-flex shrink-0 items-center justify-center",
     "rounded-xl border border-transparent bg-clip-padding",
     "text-sm font-medium whitespace-nowrap",
-    "transition-all duration-200 ease-out",
+    "transition-colors duration-200 ease-out",
     "outline-none select-none",
-    "focus-visible:ring-2 focus-visible:ring-[#D4AF37]/60",
+    "focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70",
     "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     "active:translate-y-px",
     "disabled:pointer-events-none disabled:opacity-50",
     "aria-invalid:border-destructive",
+    "motion-reduce:transition-none motion-reduce:transform-none",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
     "[&_svg:not([class*='size-'])]:size-4",
   ].join(" "),
@@ -78,22 +82,46 @@ function Button({
   children,
   ...props
 }: ButtonProps) {
+  const isDisabled = Boolean(disabled || loading);
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      disabled={disabled || loading}
+      className={cn(
+        buttonVariants({
+          variant,
+          size,
+          className,
+        })
+      )}
+      disabled={isDisabled}
       aria-busy={loading || undefined}
       {...props}
     >
-      {loading && (
-        <Loader2
-          className="size-4 animate-spin"
-          aria-hidden="true"
-        />
+      {loading ? (
+        <>
+          <Loader2
+            className="size-4 motion-safe:animate-spin"
+            aria-hidden="true"
+          />
+
+          <span>
+            {loadingText ?? children}
+          </span>
+        </>
+      ) : (
+        children
       )}
 
-      {loading && loadingText ? loadingText : children}
+      {loading && (
+        <span
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+        >
+          {loadingText ?? "Loading"}
+        </span>
+      )}
     </ButtonPrimitive>
   );
 }
