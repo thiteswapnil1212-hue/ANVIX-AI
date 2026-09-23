@@ -2,8 +2,10 @@
 "use client";
 
 import {
+  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -25,18 +27,71 @@ interface MessageListProps {
 
 const BOTTOM_THRESHOLD = 120;
 
+const MessageRow = memo(function MessageRow({
+  message,
+}: {
+  message: Message;
+}) {
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
+      <ChatMessageBubble
+        role={message.role}
+        content={message.content}
+      />
+    </div>
+  );
+});
+
+function TypingIndicator() {
+  return (
+    <div className="flex items-start gap-3 sm:gap-3.5">
+      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/[0.07] shadow-[0_0_20px_rgba(212,175,55,0.04)]">
+        <Sparkles
+          className="h-4 w-4 text-[#D4AF37]"
+          strokeWidth={1.8}
+          aria-hidden="true"
+        />
+
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-[#0B0B0C] bg-[#D4AF37]" />
+      </div>
+
+      <div className="min-w-0">
+        <p className="mb-2 text-xs font-medium text-zinc-500">
+          ANVIX AI
+        </p>
+
+        <div
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl rounded-tl-md border border-white/[0.07] bg-[#151518] px-4 py-3"
+          role="status"
+          aria-label="ANVIX AI is thinking"
+        >
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MessageList({
   messages = [],
   isTyping = false,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
   const autoScrollRef = useRef(true);
-  const previousMessageCountRef = useRef(messages.length);
-  const previousLastMessageRef = useRef("");
+  const frameRef = useRef<number | null>(null);
+  const previousCountRef = useRef(messages.length);
+  const previousLastIdRef = useRef(
+    messages[messages.length - 1]?.id ?? ""
+  );
+  const previousTypingRef = useRef(isTyping);
   const firstRenderRef = useRef(true);
-  const scrollFrameRef = useRef<number | null>(null);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const latestMessage = messages[messages.length - 1];
   const showingAssistant = latestMessage?.role === "assistant";
@@ -58,6 +113,12 @@ export default function MessageList({
     return distance <= BOTTOM_THRESHOLD;
   }, []);
 
+  const updateScrollButton = useCallback((visible: boolean) => {
+    setShowScrollButton((current) =>
+      current === visible ? current : visible
+    );
+  }, []);
+
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
       const container = scrollRef.current;
@@ -70,20 +131,21 @@ export default function MessageList({
       });
 
       autoScrollRef.current = true;
-      setShowScrollButton(false);
+      updateScrollButton(false);
+      setUnreadCount(0);
     },
-    []
+    [updateScrollButton]
   );
 
   const scheduleScroll = useCallback(
-    (behavior: ScrollBehavior = "smooth") => {
-      if (scrollFrameRef.current !== null) {
-        cancelAnimationFrame(scrollFrameRef.current);
+    (behavior: ScrollBehavior = "auto") => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
       }
 
-      scrollFrameRef.current = requestAnimationFrame(() => {
+      frameRef.current = requestAnimationFrame(() => {
         scrollToBottom(behavior);
-        scrollFrameRef.current = null;
+        frameRef.current = null;
       });
     },
     [scrollToBottom]
@@ -93,45 +155,80 @@ export default function MessageList({
     const nearBottom = isNearBottom();
 
     autoScrollRef.current = nearBottom;
-    setShowScrollButton(!nearBottom);
-  }, [isNearBottom]);
+    updateScrollButton(!nearBottom);
 
-  // Keep track of the latest message content too, not only message count.
-  const lastMessageKey = latestMessage
-    ? `${latestMessage.id}:${latestMessage.content.length}`
-    : "";
+    if (nearBottom) {
+      setUnreadCount(0);
+    }
+  }, [isNearBottom, updateScrollButton]);
 
-  useEffect(() => {
-    const newMessageAdded =
-      messages.length > previousMessageCountRef.current;
+  // Follow new messages and typing state, unless the reader
+  // has intentionally scrolled away from the bottom.
+  useLayoutEffect(() => {
+    const previousCount = previousCountRef.current;
+    const previousLastId = previousLastIdRef.current;
+    const wasTyping = previousTypingRef.current;
 
-    const messageContentChanged =
-      lastMessageKey !== previousLastMessageRef.current;
+    const newMessageAdded = messages.length > previousCount;
+    const latestMessageChanged =
+      (latestMessage?.id ?? "") !== previousLastId;
+    const typingStarted = isTyping && !wasTyping;
 
-    previousMessageCountRef.current = messages.length;
-    previousLastMessageRef.current = lastMessageKey;
+    previousCountRef.current = messages.length;
+    previousLastIdRef.current = latestMessage?.id ?? "";
+    previousTypingRef.current = isTyping;
 
     if (firstRenderRef.current) {
       firstRenderRef.current = false;
 
-      if (messages.length > 0) {
+      if (messages.length > 0 || isTyping) {
         scheduleScroll("auto");
       }
 
       return;
     }
 
-    if (!autoScrollRef.current) return;
+    if (newMessageAdded || latestMessageChanged) {
+      if (autoScrollRef.current) {
+        scheduleScroll("smooth");
+      } else {
+        setUnreadCount((count) => count + 1);
+        updateScrollButton(true);
+      }
 
-    if (newMessageAdded || messageContentChanged || isTyping) {
+      return;
+    }
+
+    if (typingStarted && autoScrollRef.current) {
       scheduleScroll("smooth");
     }
   }, [
     messages.length,
-    lastMessageKey,
+    latestMessage?.id,
     isTyping,
     scheduleScroll,
+    updateScrollButton,
   ]);
+
+  // Observe actual content size changes. This catches streamed
+  // text, images, and other layout changes without relying on
+  // message count or character length.
+  useEffect(() => {
+    const container = scrollRef.current;
+    const content = contentRef.current;
+
+    if (!container || !content) return;
+
+    const observer = new ResizeObserver(() => {
+      if (autoScrollRef.current) {
+        scheduleScroll("auto");
+      }
+    });
+
+    observer.observe(content);
+
+    return () => observer.disconnect();
+  }, [scheduleScroll]);
 
   // Reposition when the viewport changes.
   useEffect(() => {
@@ -151,8 +248,8 @@ export default function MessageList({
   // Clean up pending animation frames.
   useEffect(() => {
     return () => {
-      if (scrollFrameRef.current !== null) {
-        cancelAnimationFrame(scrollFrameRef.current);
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
       }
     };
   }, []);
@@ -163,18 +260,18 @@ export default function MessageList({
 
   return (
     <div className="relative h-full min-h-0 w-full overflow-hidden bg-transparent">
-      {/* Top and bottom edge fades */}
+      {/* Top edge fade */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#0B0B0C]/50 to-transparent"
       />
 
+      {/* Scroll container */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="
           h-full min-h-0 overflow-y-auto overscroll-contain
-          scroll-smooth
           px-3 py-6 pb-10
           sm:px-5 sm:py-8 sm:pb-12
           lg:px-8 lg:py-10
@@ -187,50 +284,27 @@ export default function MessageList({
           hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
         "
       >
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 pb-4 sm:gap-9">
+        <div
+          ref={contentRef}
+          className="mx-auto flex w-full max-w-5xl flex-col gap-7 pb-4 sm:gap-9"
+        >
           {messages.map((message) => (
-            <ChatMessageBubble
+            <MessageRow
               key={message.id}
-              role={message.role}
-              content={message.content}
+              message={message}
             />
           ))}
 
-          {/* Single typing indicator */}
-          {shouldShowTypingIndicator && (
-            <div className="flex items-start gap-3 sm:gap-3.5">
-              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/[0.07] shadow-[0_0_20px_rgba(212,175,55,0.04)]">
-                <Sparkles
-                  className="h-4 w-4 text-[#D4AF37]"
-                  strokeWidth={1.8}
-                />
+          {shouldShowTypingIndicator && <TypingIndicator />}
 
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-[#0B0B0C] bg-[#D4AF37]" />
-              </div>
-
-              <div className="min-w-0">
-                <p className="mb-2 text-xs font-medium text-zinc-500">
-                  ANVIX AI
-                </p>
-
-                <div
-                  className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl rounded-tl-md border border-white/[0.07] bg-[#151518] px-4 py-3"
-                  aria-label="ANVIX AI is thinking"
-                  role="status"
-                >
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="h-1 w-full" aria-hidden="true" />
+          <div
+            className="h-px w-full"
+            aria-hidden="true"
+          />
         </div>
       </div>
 
-      {/* Bottom fade */}
+      {/* Bottom edge fade */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[#0B0B0C]/30 to-transparent"
@@ -241,14 +315,18 @@ export default function MessageList({
         <button
           type="button"
           onClick={() => scrollToBottom("smooth")}
-          aria-label="Jump to latest message"
+          aria-label={
+            unreadCount > 0
+              ? `Jump to latest message, ${unreadCount} new messages`
+              : "Jump to latest message"
+          }
           title="Jump to latest"
           className="
             absolute bottom-5 left-1/2 z-30
-            flex h-11 w-11 -translate-x-1/2
-            items-center justify-center rounded-full
-            border border-white/[0.12]
-            bg-[#19191D]/95 text-zinc-300
+            flex h-11 min-w-11 -translate-x-1/2
+            items-center justify-center gap-2
+            rounded-full border border-white/[0.12]
+            bg-[#19191D]/95 px-3 text-zinc-300
             shadow-[0_8px_30px_rgba(0,0,0,0.45)]
             backdrop-blur-xl
             transition-all duration-200
@@ -261,6 +339,12 @@ export default function MessageList({
           "
         >
           <ArrowDown className="h-4 w-4" strokeWidth={2} />
+
+          {unreadCount > 0 && (
+            <span className="text-xs font-medium tabular-nums">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </button>
       )}
     </div>
