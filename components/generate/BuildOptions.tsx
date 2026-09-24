@@ -2,7 +2,6 @@
 
 import {
   Check,
-  ChevronRight,
   Database,
   Globe2,
   KeyRound,
@@ -56,7 +55,8 @@ const optionGroups: OptionGroup[] = [
   {
     id: "application",
     label: "Application",
-    description: "Choose the type of product ANVIX should build.",
+    description:
+      "Choose the type of product ANVIX should build.",
     icon: LayoutDashboard,
     options: [
       {
@@ -77,7 +77,8 @@ const optionGroups: OptionGroup[] = [
   {
     id: "backend",
     label: "Backend",
-    description: "Choose the foundation for your application.",
+    description:
+      "Choose the foundation for your application.",
     icon: Server,
     options: [
       {
@@ -98,7 +99,8 @@ const optionGroups: OptionGroup[] = [
   {
     id: "database",
     label: "Database",
-    description: "Decide whether your app needs persistent data.",
+    description:
+      "Decide whether your app needs persistent data.",
     icon: Database,
     options: [
       {
@@ -118,7 +120,8 @@ const optionGroups: OptionGroup[] = [
   {
     id: "authentication",
     label: "Authentication",
-    description: "Choose how users should access the app.",
+    description:
+      "Choose how users should access the app.",
     icon: KeyRound,
     options: [
       {
@@ -144,7 +147,8 @@ const optionGroups: OptionGroup[] = [
   {
     id: "ai",
     label: "AI Capabilities",
-    description: "Choose the intelligence your product needs.",
+    description:
+      "Choose the intelligence your product needs.",
     icon: Sparkles,
     options: [
       {
@@ -178,30 +182,40 @@ export const defaultBuildConfiguration: BuildConfiguration = {
   ai: "ai-assistant",
 };
 
+function getSelectedOption(
+  group: OptionGroup,
+  value: BuildConfiguration
+): Option | undefined {
+  return group.options.find(
+    (option) => option.id === value[group.id]
+  );
+}
+
+function getConfiguredCount(
+  value: BuildConfiguration
+): number {
+  return optionGroups.reduce((count, group) => {
+    return getSelectedOption(group, value)
+      ? count + 1
+      : count;
+  }, 0);
+}
+
 export default function BuildOptions({
   value,
   onChange,
   disabled = false,
 }: BuildOptionsProps) {
-  const selectedCount = optionGroups.filter(
-    (group) => Boolean(value[group.id])
-  ).length;
-
-  const getSelectedLabel = (
-    group: OptionGroup
-  ) => {
-    return (
-      group.options.find(
-        (option) => option.id === value[group.id]
-      )?.label ?? "Not selected"
-    );
-  };
+  const configuredCount = getConfiguredCount(value);
+  const allConfigured =
+    configuredCount === optionGroups.length;
 
   return (
     <section
       aria-labelledby="build-options-title"
       className="
         relative
+        isolate
         overflow-hidden
         rounded-3xl
         border
@@ -211,7 +225,7 @@ export default function BuildOptions({
         shadow-black/10
       "
     >
-      {/* Ambient background */}
+      {/* Ambient glow */}
       <div
         aria-hidden="true"
         className="
@@ -219,6 +233,7 @@ export default function BuildOptions({
           absolute
           -right-40
           -top-40
+          -z-10
           h-80
           w-80
           rounded-full
@@ -234,6 +249,7 @@ export default function BuildOptions({
           absolute
           -bottom-40
           left-1/3
+          -z-10
           h-64
           w-64
           rounded-full
@@ -243,7 +259,7 @@ export default function BuildOptions({
       />
 
       {/* Header */}
-      <div
+      <header
         className="
           relative
           border-b
@@ -263,8 +279,9 @@ export default function BuildOptions({
             sm:justify-between
           "
         >
-          <div className="flex items-start gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div
+              aria-hidden="true"
               className="
                 flex
                 h-10
@@ -279,24 +296,22 @@ export default function BuildOptions({
               "
             >
               <WandSparkles
-                className="h-4.5 w-4.5 text-[#D4AF37]"
+                className="h-[18px] w-[18px] text-[#D4AF37]"
                 strokeWidth={1.7}
-                aria-hidden="true"
               />
             </div>
 
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2
                   id="build-options-title"
-                  className="text-sm font-semibold text-white"
+                  className="text-sm font-semibold text-white sm:text-base"
                 >
                   Build configuration
                 </h2>
 
                 <span
                   className="
-                    hidden
                     rounded-full
                     border
                     border-zinc-800
@@ -308,59 +323,85 @@ export default function BuildOptions({
                     uppercase
                     tracking-[0.1em]
                     text-zinc-600
-                    sm:inline-flex
                   "
                 >
                   Optional
                 </span>
               </div>
 
-              <p className="mt-1 text-xs leading-5 text-zinc-600">
-                Set a few preferences before ANVIX starts your build.
+              <p className="mt-1 max-w-xl text-xs leading-5 text-zinc-600">
+                Customize the technical foundation ANVIX will use
+                for your generated application.
               </p>
             </div>
           </div>
 
-          {/* Status */}
+          {/* Configuration status */}
           <div
-            className="
+            className={`
               inline-flex
               w-fit
+              shrink-0
               items-center
               gap-2
               rounded-full
               border
-              border-zinc-800
-              bg-[#0D0D0F]
               px-3
               py-1.5
-            "
+              ${
+                allConfigured
+                  ? "border-emerald-500/15 bg-emerald-500/[0.045]"
+                  : "border-zinc-800 bg-[#0D0D0F]"
+              }
+            `}
           >
             <span
-              className="
+              className={`
                 flex
                 h-4
                 w-4
                 items-center
                 justify-center
                 rounded-full
-                bg-emerald-500/10
-              "
+                ${
+                  allConfigured
+                    ? "bg-emerald-500/10"
+                    : "bg-zinc-800"
+                }
+              `}
             >
               <Check
-                className="h-2.5 w-2.5 text-emerald-400"
+                className={`
+                  h-2.5
+                  w-2.5
+                  ${
+                    allConfigured
+                      ? "text-emerald-400"
+                      : "text-zinc-600"
+                  }
+                `}
                 strokeWidth={2.8}
                 aria-hidden="true"
               />
             </span>
 
-            <span className="text-[10px] text-zinc-500">
-              {selectedCount}/{optionGroups.length} configured
+            <span
+              className={`
+                text-[10px]
+                font-medium
+                ${
+                  allConfigured
+                    ? "text-emerald-400/80"
+                    : "text-zinc-500"
+                }
+              `}
+            >
+              {configuredCount}/{optionGroups.length} configured
             </span>
           </div>
         </div>
 
-        {/* Selected summary */}
+        {/* Configuration summary */}
         <div
           className="
             mt-5
@@ -369,58 +410,97 @@ export default function BuildOptions({
             sm:grid-cols-2
             lg:grid-cols-5
           "
+          aria-label="Current build configuration"
         >
-          {optionGroups.map((group) => (
-            <div
-              key={group.id}
-              className="
-                min-w-0
-                rounded-xl
-                border
-                border-zinc-800/70
-                bg-[#0D0D0F]/70
-                px-3
-                py-2.5
-              "
-            >
-              <p
+          {optionGroups.map((group) => {
+            const selected = getSelectedOption(
+              group,
+              value
+            );
+
+            return (
+              <div
+                key={group.id}
                 className="
-                  truncate
-                  text-[9px]
-                  font-medium
-                  uppercase
-                  tracking-[0.08em]
-                  text-zinc-700
+                  min-w-0
+                  rounded-xl
+                  border
+                  border-zinc-800/70
+                  bg-[#0D0D0F]/70
+                  px-3
+                  py-2.5
                 "
               >
-                {group.label}
-              </p>
-
-              <div className="mt-1 flex min-w-0 items-center gap-1.5">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#D4AF37]/70" />
-
-                <p className="truncate text-[10px] font-medium text-zinc-400">
-                  {getSelectedLabel(group)}
+                <p
+                  className="
+                    truncate
+                    text-[9px]
+                    font-medium
+                    uppercase
+                    tracking-[0.08em]
+                    text-zinc-700
+                  "
+                >
+                  {group.label}
                 </p>
+
+                <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                  <span
+                    className={`
+                      h-1.5
+                      w-1.5
+                      shrink-0
+                      rounded-full
+                      ${
+                        selected
+                          ? "bg-[#D4AF37]/70"
+                          : "bg-zinc-700"
+                      }
+                    `}
+                    aria-hidden="true"
+                  />
+
+                  <p
+                    className={`
+                      truncate
+                      text-[10px]
+                      font-medium
+                      ${
+                        selected
+                          ? "text-zinc-400"
+                          : "text-zinc-700"
+                      }
+                    `}
+                  >
+                    {selected?.label ?? "Not selected"}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      </div>
+      </header>
 
       {/* Option groups */}
       <div className="relative divide-y divide-zinc-800/50">
         {optionGroups.map((group) => {
           const GroupIcon = group.icon;
+          const groupValue = value[group.id];
 
           return (
-            <div
+            <section
               key={group.id}
-              className="px-5 py-5 sm:px-6"
+              aria-labelledby={`build-group-${group.id}`}
+              className="
+                px-5
+                py-5
+                sm:px-6
+              "
             >
               {/* Group heading */}
               <div className="mb-3.5 flex items-start gap-3">
                 <div
+                  aria-hidden="true"
                   className="
                     flex
                     h-8
@@ -437,14 +517,16 @@ export default function BuildOptions({
                   <GroupIcon
                     className="h-3.5 w-3.5 text-zinc-500"
                     strokeWidth={1.7}
-                    aria-hidden="true"
                   />
                 </div>
 
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-zinc-300">
+                  <h3
+                    id={`build-group-${group.id}`}
+                    className="text-xs font-medium text-zinc-300"
+                  >
                     {group.label}
-                  </p>
+                  </h3>
 
                   <p className="mt-0.5 text-[10px] leading-4 text-zinc-600">
                     {group.description}
@@ -454,6 +536,8 @@ export default function BuildOptions({
 
               {/* Options */}
               <div
+                role="radiogroup"
+                aria-labelledby={`build-group-${group.id}`}
                 className={`
                   grid
                   gap-2
@@ -467,22 +551,26 @@ export default function BuildOptions({
                 {group.options.map((option) => {
                   const OptionIcon = option.icon;
                   const selected =
-                    value[group.id] === option.id;
+                    groupValue === option.id;
 
                   return (
                     <button
                       key={option.id}
                       type="button"
+                      role="radio"
+                      aria-checked={selected}
                       disabled={disabled}
                       onClick={() =>
-                        onChange(group.id, option.id)
+                        onChange(
+                          group.id,
+                          option.id
+                        )
                       }
-                      aria-pressed={selected}
                       className={`
                         group
                         relative
                         flex
-                        min-h-[74px]
+                        min-h-[72px]
                         items-center
                         gap-3
                         rounded-xl
@@ -492,10 +580,11 @@ export default function BuildOptions({
                         outline-none
                         transition-all
                         duration-200
+                        motion-reduce:transition-none
                         disabled:cursor-not-allowed
-                        disabled:opacity-50
+                        disabled:opacity-40
                         focus-visible:ring-2
-                        focus-visible:ring-[#D4AF37]/30
+                        focus-visible:ring-[#D4AF37]/35
                         focus-visible:ring-offset-2
                         focus-visible:ring-offset-[#111113]
 
@@ -517,6 +606,7 @@ export default function BuildOptions({
                     >
                       {/* Option icon */}
                       <div
+                        aria-hidden="true"
                         className={`
                           flex
                           h-9
@@ -526,9 +616,9 @@ export default function BuildOptions({
                           justify-center
                           rounded-lg
                           border
-                          transition-all
+                          transition-colors
                           duration-200
-
+                          motion-reduce:transition-none
                           ${
                             selected
                               ? `
@@ -549,6 +639,7 @@ export default function BuildOptions({
                             w-3.5
                             transition-colors
                             duration-200
+                            motion-reduce:transition-none
                             ${
                               selected
                                 ? "text-[#D4AF37]"
@@ -556,18 +647,16 @@ export default function BuildOptions({
                             }
                           `}
                           strokeWidth={1.7}
-                          aria-hidden="true"
                         />
                       </div>
 
                       {/* Content */}
-                      <div className="min-w-0 flex-1 pr-6">
+                      <div className="min-w-0 flex-1 pr-5">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span
                             className={`
                               text-[11px]
                               font-medium
-                              transition-colors
                               ${
                                 selected
                                   ? "text-zinc-200"
@@ -588,17 +677,10 @@ export default function BuildOptions({
                                 font-semibold
                                 uppercase
                                 tracking-[0.08em]
-
                                 ${
                                   selected
-                                    ? `
-                                      bg-[#D4AF37]/10
-                                      text-[#D4AF37]
-                                    `
-                                    : `
-                                      bg-zinc-800
-                                      text-zinc-600
-                                    `
+                                    ? "bg-[#D4AF37]/10 text-[#D4AF37]"
+                                    : "bg-zinc-800 text-zinc-600"
                                 }
                               `}
                             >
@@ -607,13 +689,25 @@ export default function BuildOptions({
                           )}
                         </div>
 
-                        <p className="mt-1 text-[10px] leading-4 text-zinc-600 transition-colors group-hover:text-zinc-500">
+                        <p
+                          className="
+                            mt-1
+                            truncate
+                            text-[10px]
+                            leading-4
+                            text-zinc-600
+                            transition-colors
+                            group-hover:text-zinc-500
+                            motion-reduce:transition-none
+                          "
+                        >
                           {option.description}
                         </p>
                       </div>
 
                       {/* Selection indicator */}
-                      <div
+                      <span
+                        aria-hidden="true"
                         className={`
                           absolute
                           right-3
@@ -628,21 +722,13 @@ export default function BuildOptions({
                           border
                           transition-all
                           duration-200
-
+                          motion-reduce:transition-none
                           ${
                             selected
-                              ? `
-                                border-[#D4AF37]
-                                bg-[#D4AF37]
-                              `
-                              : `
-                                border-zinc-700
-                                bg-transparent
-                                group-hover:border-zinc-600
-                              `
+                              ? "border-[#D4AF37] bg-[#D4AF37]"
+                              : "border-zinc-700 bg-transparent group-hover:border-zinc-600"
                           }
                         `}
-                        aria-hidden="true"
                       >
                         {selected && (
                           <Check
@@ -650,39 +736,18 @@ export default function BuildOptions({
                             strokeWidth={2.8}
                           />
                         )}
-                      </div>
-
-                      {/* Subtle hover arrow */}
-                      {!selected && (
-                        <ChevronRight
-                          className="
-                            absolute
-                            bottom-2.5
-                            right-3
-                            h-2.5
-                            w-2.5
-                            text-zinc-800
-                            opacity-0
-                            transition-all
-                            duration-200
-                            group-hover:translate-x-0.5
-                            group-hover:text-zinc-600
-                            group-hover:opacity-100
-                          "
-                          aria-hidden="true"
-                        />
-                      )}
+                      </span>
                     </button>
                   );
                 })}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>
 
       {/* Footer */}
-      <div
+      <footer
         className="
           relative
           border-t
@@ -701,11 +766,25 @@ export default function BuildOptions({
 
           <p className="text-[10px] leading-5 text-zinc-600">
             These preferences guide ANVIX&apos;s initial build.
-            You&apos;ll be able to refine the generated application
-            from the workspace later.
+            You can refine the generated application from the
+            workspace later.
           </p>
         </div>
-      </div>
+      </footer>
+
+      {/* Disabled overlay */}
+      {disabled && (
+        <div
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            inset-0
+            z-10
+            bg-[#09090B]/10
+          "
+        />
+      )}
     </section>
   );
 }
