@@ -1,9 +1,7 @@
-
 "use client";
 
 import {
   Check,
-  Circle,
   Loader2,
   Sparkles,
 } from "lucide-react";
@@ -30,38 +28,56 @@ const steps = [
     title: "Finalizing experience",
     description: "Preparing your workspace for review",
   },
-];
+] as const;
+
+const TOTAL_STEPS = steps.length;
+
+function clampStep(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(
+    Math.max(Math.floor(value), 0),
+    TOTAL_STEPS
+  );
+}
 
 export default function GenerateProgress({
   currentStep = 1,
   completed = false,
 }: GenerateProgressProps) {
-  // Keep the step within the supported range.
-  const numericStep = Number.isFinite(currentStep)
-    ? Math.floor(currentStep)
-    : 1;
-
-  const safeStep = Math.min(
-    Math.max(numericStep, 0),
-    steps.length
-  );
+  const safeStep = clampStep(currentStep);
 
   const progress = completed
     ? 100
-    : Math.round((safeStep / steps.length) * 100);
+    : Math.round((safeStep / TOTAL_STEPS) * 100);
+
+  const currentStepData =
+    safeStep > 0
+      ? steps[safeStep - 1]
+      : undefined;
 
   const activeStep = completed
     ? "All steps completed"
+    : currentStepData?.title ?? "Preparing to start";
+
+  const statusLabel = completed
+    ? "Complete"
     : safeStep === 0
-      ? "Preparing to start"
-      : steps[safeStep - 1].title;
+      ? "Preparing"
+      : `Step ${safeStep} of ${TOTAL_STEPS}`;
 
   return (
     <section
       aria-labelledby="generation-progress-title"
       className="
-        relative isolate overflow-hidden
-        rounded-3xl border border-[#D4AF37]/15
+        relative
+        isolate
+        overflow-hidden
+        rounded-3xl
+        border
+        border-[#D4AF37]/15
         bg-[#111113]/95
         shadow-[0_24px_80px_-40px_rgba(0,0,0,0.8)]
       "
@@ -70,9 +86,16 @@ export default function GenerateProgress({
       <div
         aria-hidden="true"
         className="
-          pointer-events-none absolute -right-32 -top-32
-          -z-10 h-64 w-64 rounded-full
-          bg-[#D4AF37]/[0.06] blur-[90px]
+          pointer-events-none
+          absolute
+          -right-32
+          -top-32
+          -z-10
+          h-64
+          w-64
+          rounded-full
+          bg-[#D4AF37]/[0.06]
+          blur-[90px]
         "
       />
 
@@ -80,9 +103,15 @@ export default function GenerateProgress({
       <div
         aria-hidden="true"
         className="
-          pointer-events-none absolute inset-x-0 top-0 h-px
-          bg-gradient-to-r from-transparent
-          via-[#D4AF37]/35 to-transparent
+          pointer-events-none
+          absolute
+          inset-x-0
+          top-0
+          h-px
+          bg-gradient-to-r
+          from-transparent
+          via-[#D4AF37]/35
+          to-transparent
         "
       />
 
@@ -92,17 +121,27 @@ export default function GenerateProgress({
           <div className="flex min-w-0 items-start gap-4">
             <div
               aria-hidden="true"
-              className="
-                flex h-11 w-11 shrink-0 items-center justify-center
-                rounded-xl border border-[#D4AF37]/20
-                bg-[#D4AF37]/[0.08]
+              className={`
+                flex
+                h-11
+                w-11
+                shrink-0
+                items-center
+                justify-center
+                rounded-xl
+                border
                 shadow-[0_0_24px_rgba(212,175,55,0.06)]
-              "
+                ${
+                  completed
+                    ? "border-emerald-500/20 bg-emerald-500/[0.07]"
+                    : "border-[#D4AF37]/20 bg-[#D4AF37]/[0.08]"
+                }
+              `}
             >
               {completed ? (
                 <Check
                   className="h-5 w-5 text-emerald-400"
-                  strokeWidth={2}
+                  strokeWidth={2.2}
                 />
               ) : (
                 <Sparkles
@@ -130,12 +169,19 @@ export default function GenerateProgress({
             </div>
           </div>
 
-          {/* Progress badge */}
+          {/* Percentage */}
           <div
             className={`
-              flex shrink-0 items-center gap-2
-              self-start rounded-full border
-              px-3 py-1.5 sm:self-center
+              flex
+              shrink-0
+              items-center
+              gap-2
+              self-start
+              rounded-full
+              border
+              px-3
+              py-1.5
+              sm:self-center
               ${
                 completed
                   ? "border-emerald-500/20 bg-emerald-500/[0.06]"
@@ -152,23 +198,33 @@ export default function GenerateProgress({
               <span
                 aria-hidden="true"
                 className="
-                  h-1.5 w-1.5 rounded-full
-                  bg-[#D4AF37] motion-safe:animate-pulse
+                  h-1.5
+                  w-1.5
+                  rounded-full
+                  bg-[#D4AF37]
+                  motion-safe:animate-pulse
                 "
               />
             )}
 
             <span
-              className={`text-[11px] font-semibold tabular-nums ${
-                completed ? "text-emerald-400" : "text-[#D4AF37]"
-              }`}
+              className={`
+                text-[11px]
+                font-semibold
+                tabular-nums
+                ${
+                  completed
+                    ? "text-emerald-400"
+                    : "text-[#D4AF37]"
+                }
+              `}
             >
               {progress}%
             </span>
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress */}
         <div className="mt-6">
           <div
             role="progressbar"
@@ -177,35 +233,48 @@ export default function GenerateProgress({
             aria-valuemax={100}
             aria-valuenow={progress}
             aria-valuetext={`${progress}% complete`}
-            className="h-1.5 overflow-hidden rounded-full bg-zinc-800"
+            className="
+              h-1.5
+              overflow-hidden
+              rounded-full
+              bg-zinc-800
+            "
           >
             <div
               className="
-                h-full rounded-full
+                h-full
+                rounded-full
                 bg-gradient-to-r
-                from-[#B89425] via-[#D4AF37] to-[#F0D675]
-                transition-[width] duration-500 ease-out
+                from-[#B89425]
+                via-[#D4AF37]
+                to-[#F0D675]
+                transition-[width]
+                duration-500
+                ease-out
                 motion-reduce:transition-none
               "
-              style={{ width: `${progress}%` }}
+              style={{
+                width: `${progress}%`,
+              }}
             />
           </div>
 
           <div className="mt-2 flex items-center justify-between gap-3">
-            <span className="truncate text-[10px] text-zinc-600">
+            <span className="min-w-0 truncate text-[10px] text-zinc-600">
               {activeStep}
             </span>
 
-            <span className="shrink-0 text-[10px] text-zinc-600">
-              {completed
-                ? "Complete"
-                : `Step ${safeStep} of ${steps.length}`}
+            <span className="shrink-0 text-[10px] tabular-nums text-zinc-600">
+              {statusLabel}
             </span>
           </div>
         </div>
 
-        {/* Step list */}
-        <ol className="mt-6 grid gap-2.5 lg:grid-cols-2">
+        {/* Steps */}
+        <ol
+          className="mt-6 grid gap-2.5 lg:grid-cols-2"
+          aria-label="Workspace generation steps"
+        >
           {steps.map((step, index) => {
             const stepNumber = index + 1;
 
@@ -213,19 +282,28 @@ export default function GenerateProgress({
               completed || stepNumber < safeStep;
 
             const isCurrent =
-              !completed && stepNumber === safeStep;
-
-            const isUpcoming =
-              !isComplete && !isCurrent;
+              !completed &&
+              safeStep > 0 &&
+              stepNumber === safeStep;
 
             return (
               <li
                 key={step.title}
-                aria-current={isCurrent ? "step" : undefined}
+                aria-current={
+                  isCurrent ? "step" : undefined
+                }
                 className={`
-                  relative flex min-w-0 items-center gap-3
-                  rounded-xl border px-3.5 py-3.5
-                  transition-colors duration-200
+                  relative
+                  flex
+                  min-w-0
+                  items-center
+                  gap-3
+                  rounded-xl
+                  border
+                  px-3.5
+                  py-3.5
+                  transition-colors
+                  duration-200
                   motion-reduce:transition-none
                   ${
                     isComplete
@@ -236,12 +314,18 @@ export default function GenerateProgress({
                   }
                 `}
               >
-                {/* Step icon */}
+                {/* Step indicator */}
                 <div
                   aria-hidden="true"
                   className={`
-                    flex h-9 w-9 shrink-0 items-center justify-center
-                    rounded-xl border
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    border
                     ${
                       isComplete
                         ? "border-emerald-500/20 bg-emerald-500/[0.08]"
@@ -258,23 +342,29 @@ export default function GenerateProgress({
                     />
                   ) : isCurrent ? (
                     <Loader2
-                      className="h-4 w-4 text-[#D4AF37] motion-safe:animate-spin"
+                      className="
+                        h-4
+                        w-4
+                        text-[#D4AF37]
+                        motion-safe:animate-spin
+                      "
                       strokeWidth={2}
                     />
                   ) : (
-                    <Circle
-                      className="h-3.5 w-3.5 text-zinc-700"
-                      strokeWidth={1.8}
-                    />
+                    <span className="text-[10px] font-semibold tabular-nums text-zinc-700">
+                      {stepNumber}
+                    </span>
                   )}
                 </div>
 
-                {/* Step text */}
+                {/* Step content */}
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center justify-between gap-2">
                     <p
                       className={`
-                        truncate text-xs font-medium
+                        truncate
+                        text-xs
+                        font-medium
                         ${
                           isComplete
                             ? "text-zinc-300"
@@ -289,7 +379,9 @@ export default function GenerateProgress({
 
                     <span
                       className={`
-                        shrink-0 text-[9px] font-medium
+                        shrink-0
+                        text-[9px]
+                        font-medium
                         ${
                           isComplete
                             ? "text-emerald-400/80"
@@ -309,7 +401,9 @@ export default function GenerateProgress({
 
                   <p
                     className={`
-                      mt-1 truncate text-[10px]
+                      mt-1
+                      truncate
+                      text-[10px]
                       ${
                         isCurrent
                           ? "text-zinc-500"
@@ -325,33 +419,54 @@ export default function GenerateProgress({
           })}
         </ol>
 
-        {/* Footer status */}
+        {/* Footer */}
         <div
           className="
-            mt-5 flex items-start gap-2.5
-            rounded-xl border border-white/[0.06]
-            bg-black/20 px-3.5 py-3
+            mt-5
+            flex
+            items-start
+            gap-2.5
+            rounded-xl
+            border
+            border-white/[0.06]
+            bg-black/20
+            px-3.5
+            py-3
           "
         >
-          <Sparkles
-            aria-hidden="true"
-            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D4AF37]/70"
-          />
+          {completed ? (
+            <Check
+              aria-hidden="true"
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400/80"
+              strokeWidth={2.2}
+            />
+          ) : (
+            <Sparkles
+              aria-hidden="true"
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D4AF37]/70"
+            />
+          )}
 
           <p className="text-[10px] leading-5 text-zinc-500">
             {completed
               ? "Generation is complete. You can now review and refine your workspace."
-              : "Progress reflects the current step provided by your generation flow."}
+              : safeStep === 0
+                ? "ANVIX is preparing the generation pipeline."
+                : "Progress reflects the current stage reported by the generation flow."}
           </p>
         </div>
 
         {/* Screen-reader announcement */}
-        <p className="sr-only" role="status" aria-live="polite">
+        <p
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+        >
           {completed
             ? "Workspace generation complete."
             : safeStep === 0
               ? "Workspace generation is preparing to start."
-              : `Step ${safeStep} of ${steps.length}: ${activeStep}.`}
+              : `Step ${safeStep} of ${TOTAL_STEPS}: ${activeStep}.`}
         </p>
       </div>
     </section>
