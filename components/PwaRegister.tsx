@@ -1,7 +1,9 @@
-
 "use client";
 
 import { useEffect } from "react";
+
+const SERVICE_WORKER_PATH = "/sw.js";
+const SERVICE_WORKER_SCOPE = "/";
 
 export default function PwaRegister() {
   useEffect(() => {
@@ -9,57 +11,68 @@ export default function PwaRegister() {
       return;
     }
 
-    let isActive = true;
+    let cancelled = false;
 
-    async function manageServiceWorker() {
+    const manageServiceWorker = async () => {
       try {
         if (process.env.NODE_ENV !== "production") {
-          const registrations =
-            await navigator.serviceWorker.getRegistrations();
+          const registration =
+            await navigator.serviceWorker.getRegistration(
+              SERVICE_WORKER_SCOPE
+            );
 
-          if (!isActive) return;
+          if (!registration) {
+            return;
+          }
 
-          await Promise.all(
-            registrations.map((registration) =>
-              registration.unregister()
-            )
-          );
+          await registration.unregister();
 
-          console.info(
-            "Development mode: service workers unregistered."
-          );
+          if (!cancelled) {
+            console.info(
+              "Development mode: ANVIX service worker unregistered."
+            );
+          }
 
           return;
         }
 
         if (!window.isSecureContext) {
           console.warn(
-            "Service workers require a secure context."
+            "Production service worker skipped: secure context required."
           );
           return;
         }
 
-        await navigator.serviceWorker.register("/sw.js", {
-          scope: "/",
-        });
+        const registration =
+          await navigator.serviceWorker.register(
+            SERVICE_WORKER_PATH,
+            {
+              scope: SERVICE_WORKER_SCOPE,
+            }
+          );
 
-        if (isActive) {
-          console.info("Service worker registered.");
+        if (cancelled) {
+          return;
         }
+
+        console.info(
+          "Service worker registered:",
+          registration.scope
+        );
       } catch (error) {
-        if (isActive) {
+        if (!cancelled) {
           console.error(
             "Service worker setup failed:",
             error
           );
         }
       }
-    }
+    };
 
     void manageServiceWorker();
 
     return () => {
-      isActive = false;
+      cancelled = true;
     };
   }, []);
 
