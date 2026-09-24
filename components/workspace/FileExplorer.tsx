@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -92,11 +91,14 @@ function normalizePath(path: string): string {
 function getFileType(filePath: string): FileType {
   const normalizedPath = normalizePath(filePath);
   const fileName = normalizedPath.split("/").pop() ?? "";
+
   const extension = fileName.includes(".")
     ? fileName.split(".").pop()?.toLowerCase() ?? ""
     : "";
 
-  if (IMAGE_EXTENSIONS.has(extension)) return "image";
+  if (IMAGE_EXTENSIONS.has(extension)) {
+    return "image";
+  }
 
   return FILE_TYPE_BY_EXTENSION[extension] ?? "text";
 }
@@ -130,7 +132,9 @@ function buildFileTree(files: ProjectFile[]): TreeItem[] {
   for (const file of files) {
     const normalizedPath = normalizePath(file.path);
 
-    if (!normalizedPath) continue;
+    if (!normalizedPath) {
+      continue;
+    }
 
     const parts = normalizedPath.split("/");
     let currentLevel = root;
@@ -151,15 +155,15 @@ function buildFileTree(files: ProjectFile[]): TreeItem[] {
         item = {
           name: part,
           path: currentPath,
-          type: isFile ? getFileType(normalizedPath) : "folder",
+          type: isFile
+            ? getFileType(normalizedPath)
+            : "folder",
           children: isFile ? undefined : [],
         };
 
         currentLevel.push(item);
       }
 
-      // A path may first appear as a file and later be used
-      // as a parent folder. Promote it to a folder safely.
       if (!isFile) {
         item.type = "folder";
         item.children ??= [];
@@ -178,9 +182,9 @@ function FileIcon({
   type: FileType;
   isOpen?: boolean;
 }) {
-  const iconClass = "h-3.5 w-3.5 shrink-0";
+  const baseClass = "h-3.5 w-3.5 shrink-0";
+
   const iconProps = {
-    className: iconClass,
     strokeWidth: 1.7,
     "aria-hidden": true as const,
   };
@@ -190,12 +194,12 @@ function FileIcon({
       return isOpen ? (
         <FolderOpen
           {...iconProps}
-          className={`${iconClass} text-[#D4AF37]`}
+          className={`${baseClass} text-[#D4AF37]`}
         />
       ) : (
         <Folder
           {...iconProps}
-          className={`${iconClass} text-[#D4AF37]`}
+          className={`${baseClass} text-[#D4AF37]`}
         />
       );
 
@@ -205,7 +209,7 @@ function FileIcon({
       return (
         <FileCode2
           {...iconProps}
-          className={`${iconClass} text-sky-400/80`}
+          className={`${baseClass} text-sky-400/80`}
         />
       );
 
@@ -213,7 +217,7 @@ function FileIcon({
       return (
         <FileJson
           {...iconProps}
-          className={`${iconClass} text-amber-400/80`}
+          className={`${baseClass} text-amber-400/80`}
         />
       );
 
@@ -221,7 +225,7 @@ function FileIcon({
       return (
         <Globe
           {...iconProps}
-          className={`${iconClass} text-purple-400/80`}
+          className={`${baseClass} text-purple-400/80`}
         />
       );
 
@@ -229,7 +233,7 @@ function FileIcon({
       return (
         <ImageIcon
           {...iconProps}
-          className={`${iconClass} text-emerald-400/80`}
+          className={`${baseClass} text-emerald-400/80`}
         />
       );
 
@@ -237,7 +241,7 @@ function FileIcon({
       return (
         <FileText
           {...iconProps}
-          className={`${iconClass} text-blue-300/80`}
+          className={`${baseClass} text-blue-300/80`}
         />
       );
 
@@ -245,7 +249,7 @@ function FileIcon({
       return (
         <Globe
           {...iconProps}
-          className={`${iconClass} text-orange-400/80`}
+          className={`${baseClass} text-orange-400/80`}
         />
       );
 
@@ -253,7 +257,7 @@ function FileIcon({
       return (
         <File
           {...iconProps}
-          className={`${iconClass} text-zinc-500`}
+          className={`${baseClass} text-zinc-500`}
         />
       );
   }
@@ -262,7 +266,7 @@ function FileIcon({
 interface FileTreeItemProps {
   item: TreeItem;
   depth?: number;
-  selectedFile?: string;
+  selectedFile: string;
   onFileSelect?: (filePath: string) => void;
   expandedPaths: Set<string>;
   onToggleFolder: (path: string) => void;
@@ -277,8 +281,8 @@ function FileTreeItem({
   onToggleFolder,
 }: FileTreeItemProps) {
   const isFolder = item.type === "folder";
-  const isOpen = expandedPaths.has(item.path);
-  const isSelected = selectedFile === item.path;
+  const isOpen = isFolder && expandedPaths.has(item.path);
+  const isSelected = !isFolder && selectedFile === item.path;
 
   const handleClick = () => {
     if (isFolder) {
@@ -293,10 +297,11 @@ function FileTreeItem({
     <div>
       <button
         type="button"
+        role="treeitem"
         onClick={handleClick}
         aria-expanded={isFolder ? isOpen : undefined}
-        aria-current={isSelected ? "true" : undefined}
-        title={item.path || item.name}
+        aria-selected={isSelected}
+        title={item.path}
         className={`
           group
           flex
@@ -320,7 +325,7 @@ function FileTreeItem({
           }
         `}
         style={{
-          paddingLeft: `${10 + depth * 14}px`,
+          paddingLeft: `${8 + depth * 14}px`,
         }}
       >
         {isFolder ? (
@@ -338,12 +343,15 @@ function FileTreeItem({
             />
           )
         ) : (
-          <span className="w-3 shrink-0" />
+          <span className="w-3 shrink-0" aria-hidden="true" />
         )}
 
-        <FileIcon type={item.type} isOpen={isOpen} />
+        <FileIcon
+          type={item.type}
+          isOpen={isOpen}
+        />
 
-        <span className="truncate text-[10px] font-medium">
+        <span className="min-w-0 flex-1 truncate text-[10px] font-medium">
           {item.name}
         </span>
 
@@ -356,7 +364,7 @@ function FileTreeItem({
       </button>
 
       {isFolder && isOpen && item.children?.length ? (
-        <div>
+        <div role="group">
           {item.children.map((child) => (
             <FileTreeItem
               key={child.path}
@@ -380,56 +388,52 @@ export default function FileExplorer({
   onFileSelect,
   selectedFile,
 }: FileExplorerProps) {
-  const fileTree = useMemo(() => buildFileTree(files), [files]);
+  const fileTree = useMemo(
+    () => buildFileTree(files),
+    [files]
+  );
 
-  const [manuallyExpanded, setManuallyExpanded] = useState<
-    Set<string>
-  >(() => new Set());
+  const normalizedSelectedFile = useMemo(
+    () => (selectedFile ? normalizePath(selectedFile) : ""),
+    [selectedFile]
+  );
 
-  const [manuallyCollapsed, setManuallyCollapsed] = useState<
-    Set<string>
-  >(() => new Set());
-
-  const normalizedSelectedFile = selectedFile
-    ? normalizePath(selectedFile)
-    : "";
-
-  const selectedParentPaths = useMemo(() => {
-    if (!normalizedSelectedFile) return [];
-
-    const parts = normalizedSelectedFile.split("/");
-    const paths: string[] = [];
-
-    for (let index = 1; index < parts.length; index++) {
-      paths.push(parts.slice(0, index).join("/"));
-    }
-
-    return paths;
-  }, [normalizedSelectedFile]);
-
-  const expandedPaths = useMemo(() => {
+  /*
+   * Folders are expanded by default at the top level.
+   * The selected file's parent folders are also opened automatically.
+   */
+  const defaultExpandedPaths = useMemo(() => {
     const result = new Set<string>();
 
-    function addInitiallyOpenFolders(items: TreeItem[]) {
+    function collectTopLevelFolders(items: TreeItem[]) {
       for (const item of items) {
-        if (
-          item.type === "folder" &&
-          item.path.split("/").length === 1
-        ) {
+        if (item.type === "folder") {
           result.add(item.path);
-        }
-
-        if (item.children) {
-          addInitiallyOpenFolders(item.children);
         }
       }
     }
 
-    addInitiallyOpenFolders(fileTree);
+    collectTopLevelFolders(fileTree);
 
-    for (const path of selectedParentPaths) {
-      result.add(path);
+    if (normalizedSelectedFile) {
+      const parts = normalizedSelectedFile.split("/");
+
+      for (let index = 1; index < parts.length; index++) {
+        result.add(parts.slice(0, index).join("/"));
+      }
     }
+
+    return result;
+  }, [fileTree, normalizedSelectedFile]);
+
+  const [manuallyExpanded, setManuallyExpanded] =
+    useState<Set<string>>(() => new Set());
+
+  const [manuallyCollapsed, setManuallyCollapsed] =
+    useState<Set<string>>(() => new Set());
+
+  const expandedPaths = useMemo(() => {
+    const result = new Set(defaultExpandedPaths);
 
     for (const path of manuallyExpanded) {
       result.add(path);
@@ -441,57 +445,77 @@ export default function FileExplorer({
 
     return result;
   }, [
-    fileTree,
-    selectedParentPaths,
+    defaultExpandedPaths,
     manuallyExpanded,
     manuallyCollapsed,
   ]);
 
-  const handleToggleFolder = useCallback((path: string) => {
-    setManuallyExpanded((previous) => {
-      const next = new Set(previous);
+  const handleToggleFolder = useCallback(
+    (path: string) => {
+      const currentlyOpen = expandedPaths.has(path);
 
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
+      if (currentlyOpen) {
+        setManuallyExpanded((previous) => {
+          const next = new Set(previous);
+          next.delete(path);
+          return next;
+        });
+
+        setManuallyCollapsed((previous) => {
+          const next = new Set(previous);
+          next.add(path);
+          return next;
+        });
+
+        return;
       }
 
-      return next;
-    });
-
-    setManuallyCollapsed((previous) => {
-      const next = new Set(previous);
-
-      if (next.has(path)) {
+      setManuallyCollapsed((previous) => {
+        const next = new Set(previous);
         next.delete(path);
-      } else {
-        next.add(path);
-      }
+        return next;
+      });
 
-      return next;
-    });
-  }, []);
+      setManuallyExpanded((previous) => {
+        const next = new Set(previous);
+        next.add(path);
+        return next;
+      });
+    },
+    [expandedPaths]
+  );
 
   const folderCount = useMemo(() => {
     let count = 0;
 
     function countFolders(items: TreeItem[]) {
       for (const item of items) {
-        if (item.type === "folder") {
-          count += 1;
-          if (item.children) countFolders(item.children);
+        if (item.type !== "folder") {
+          continue;
+        }
+
+        count += 1;
+
+        if (item.children) {
+          countFolders(item.children);
         }
       }
     }
 
     countFolders(fileTree);
+
     return count;
   }, [fileTree]);
 
-  const fileCount = files.filter(
-    (file) => normalizePath(file.path).length > 0
-  ).length;
+  const fileCount = useMemo(() => {
+    const uniquePaths = new Set(
+      files
+        .map((file) => normalizePath(file.path))
+        .filter(Boolean)
+    );
+
+    return uniquePaths.size;
+  }, [files]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0A0A0C]">
@@ -516,7 +540,16 @@ export default function FileExplorer({
 
       {/* File tree */}
       <div
-        className="min-h-0 flex-1 overflow-y-auto px-1.5 py-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-800"
+        className="
+          min-h-0
+          flex-1
+          overflow-y-auto
+          px-1.5
+          py-2
+          scrollbar-thin
+          scrollbar-track-transparent
+          scrollbar-thumb-zinc-800
+        "
         role="tree"
         aria-label={`${projectName} files`}
       >
@@ -537,18 +570,18 @@ export default function FileExplorer({
             </p>
           </div>
         ) : (
-          <FileTreeItem
-            item={{
-              name: projectName,
-              path: "",
-              type: "folder",
-              children: fileTree,
-            }}
-            selectedFile={normalizedSelectedFile}
-            onFileSelect={onFileSelect}
-            expandedPaths={expandedPaths}
-            onToggleFolder={handleToggleFolder}
-          />
+          <div role="group">
+            {fileTree.map((item) => (
+              <FileTreeItem
+                key={item.path}
+                item={item}
+                selectedFile={normalizedSelectedFile}
+                onFileSelect={onFileSelect}
+                expandedPaths={expandedPaths}
+                onToggleFolder={handleToggleFolder}
+              />
+            ))}
+          </div>
         )}
       </div>
 
@@ -558,11 +591,15 @@ export default function FileExplorer({
           <span className="text-[8px] text-zinc-600">
             {fileCount} {fileCount === 1 ? "file" : "files"}
             <span className="mx-1.5 text-zinc-800">·</span>
-            {folderCount} {folderCount === 1 ? "folder" : "folders"}
+            {folderCount}{" "}
+            {folderCount === 1 ? "folder" : "folders"}
           </span>
 
           <span className="flex items-center gap-1.5 text-[8px] text-zinc-500">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-emerald-400/70"
+              aria-hidden="true"
+            />
             Local files
           </span>
         </div>
