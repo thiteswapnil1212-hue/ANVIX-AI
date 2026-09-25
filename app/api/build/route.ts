@@ -3,9 +3,9 @@ import path from "node:path";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
-import type {
-  GeneratedProject,
-  ProjectFile,
+import {
+  validateGeneratedProject,
+  type GeneratedProject,
 } from "@/lib/project/project-schema";
 
 type BuildRequestBody = {
@@ -186,160 +186,6 @@ function findJsonFragments(text: string): string[] {
   return fragments;
 }
 
-function validateAndNormalizePath(filePath: string) {
-  const trimmedPath = filePath.trim();
-
-  if (!trimmedPath || trimmedPath.includes("\0")) {
-    throw new Error("Generated project contains an invalid file path");
-  }
-
-  if (
-    /^[a-zA-Z]:[\\/]/.test(trimmedPath) ||
-    trimmedPath.startsWith("\\\\") ||
-    path.win32.isAbsolute(trimmedPath) ||
-    path.posix.isAbsolute(trimmedPath)
-  ) {
-    throw new Error("Generated project contains an absolute file path");
-  }
-
-  const slashPath = trimmedPath.replace(/\\/g, "/");
-
-  if (slashPath.includes(":")) {
-    throw new Error("Generated project contains an invalid file path");
-  }
-
-  const rawPathParts = slashPath.split("/");
-
-  if (
-    rawPathParts.some(
-      (part) => part === "." || part === ".." || part === ""
-    )
-  ) {
-    throw new Error("Generated project contains a dangerous file path");
-  }
-
-  const normalizedPath = path.posix.normalize(slashPath);
-  const pathParts = normalizedPath.split("/");
-
-  if (
-    normalizedPath === "." ||
-    normalizedPath.startsWith("../") ||
-    normalizedPath === ".." ||
-    normalizedPath.endsWith("/") ||
-    pathParts.some((part) => part === ".." || part === "")
-  ) {
-    throw new Error("Generated project contains a dangerous file path");
-  }
-
-  return normalizedPath;
-}
-
-function validateProjectFile(file: unknown): ProjectFile {
-  if (!file || typeof file !== "object") {
-    throw new Error("Generated project contains an invalid file entry");
-  }
-
-  const candidate = file as Record<string, unknown>;
-
-  if (
-    typeof candidate.path !== "string" ||
-    typeof candidate.content !== "string" ||
-    typeof candidate.language !== "string"
-  ) {
-    throw new Error(
-      "Generated project files must include path, content and language"
-    );
-  }
-
-  const normalizedPath = validateAndNormalizePath(candidate.path);
-  const language = candidate.language.trim();
-  const content = candidate.content;
-
-  if (!language) {
-    throw new Error("Generated project contains an empty file language");
-  }
-
-  if (!content.trim()) {
-    throw new Error(`Generated project file contains empty content: ${normalizedPath}`);
-  }
-
-  return {
-    path: normalizedPath,
-    content,
-    language,
-  };
-}
-
-function validateGeneratedProject(payload: unknown): GeneratedProject {
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Gemini returned malformed project data");
-  }
-
-  const candidate = payload as Record<string, unknown>;
-  const project =
-    candidate.project && typeof candidate.project === "object"
-      ? (candidate.project as Record<string, unknown>)
-      : candidate;
-
-  if (!project || typeof project !== "object") {
-    throw new Error("Gemini response is missing project data");
-  }
-
-  const projectCandidate = project as Record<string, unknown>;
-
-  if (typeof projectCandidate.name !== "string") {
-    throw new Error("Generated project is missing a valid name");
-  }
-
-  const projectName = projectCandidate.name.trim();
-
-  if (!projectName) {
-    throw new Error("Generated project name cannot be empty");
-  }
-
-  if (projectCandidate.framework !== "nextjs") {
-    throw new Error("Generated project framework must be nextjs");
-  }
-
-  if (!Array.isArray(projectCandidate.files)) {
-    throw new Error("Generated project files must be an array");
-  }
-
-  if (projectCandidate.files.length === 0) {
-    throw new Error("Generated project must include at least one file");
-  }
-
-  const seenPaths = new Set<string>();
-  const files = projectCandidate.files.map((file) => {
-    const validatedFile = validateProjectFile(file);
-
-    if (seenPaths.has(validatedFile.path)) {
-      throw new Error(
-        `Generated project contains a duplicate file: ${validatedFile.path}`
-      );
-    }
-
-    seenPaths.add(validatedFile.path);
-    return validatedFile;
-  });
-
-  const missingRequiredFile = REQUIRED_PROJECT_FILES.find(
-    (filePath) => !seenPaths.has(filePath)
-  );
-
-  if (missingRequiredFile) {
-    throw new Error(
-      `Generated project is missing required file: ${missingRequiredFile}`
-    );
-  }
-
-  return {
-    name: projectName,
-    framework: "nextjs",
-    files,
-  };
-}
-
 function parseGeminiJson(text: string) {
   const variations = new Set<string>();
   const stripped = stripJsonCodeFence(text);
@@ -409,8 +255,16 @@ function getErrorMessage(error: unknown): string {
   return typeof error === "string" ? error : "Unknown error";
 }
 
-function isRetryableProviderError(error: unknown): boolean {
+export function classifyGeminiFailure(error: unknown): {
+  category: string;
+  status?: number;
+  retryable: boolean;
+  message: string;
+} {
   const status = getProviderStatus(error);
+  const message = getErrorMessage(error);
+  const lowerMessage = message.toLowerCase();
+
   if (
     status === 429 ||
     status === 500 ||
@@ -418,12 +272,48 @@ function isRetryableProviderError(error: unknown): boolean {
     status === 503 ||
     status === 504
   ) {
-    return true;
+    return {
+      category: "provider_http_error",
+      status,
+      retryable: true,
+      message,
+    };
   }
 
-  const message = getErrorMessage(error).toLowerCase();
+  if (/timeout/i.test(lowerMessage)) {
+    return {
+      category: "timeout",
+      retryable: true,
+      message,
+    };
+  }
+
+  if (/gemini returned malformed json|malformed json|invalid json/i.test(lowerMessage)) {
+    return {
+      category: "malformed_json",
+      retryable: true,
+      message,
+    };
+  }
+
+  if (/generated project|gemini response|schema|missing required file|duplicate file/i.test(lowerMessage)) {
+    return {
+      category: "schema_validation",
+      retryable: true,
+      message,
+    };
+  }
+
+  if (/api key|authentication|unauthorized|forbidden|invalid api|invalid request|unsupported model|unsupported request/.test(lowerMessage)) {
+    return {
+      category: "permanent_error",
+      status,
+      retryable: false,
+      message,
+    };
+  }
+
   const transientPatterns = [
-    "timeout",
     "temporarily unavailable",
     "temporary unavailable",
     "model temporarily unavailable",
@@ -436,15 +326,21 @@ function isRetryableProviderError(error: unknown): boolean {
     "try again later",
     "capacity",
     "busy",
-    "overloaded",
     "unavailable",
   ];
 
-  if (/api key|authentication|unauthorized|forbidden|invalid api|invalid request|malformed|schema|unsupported model|unsupported request/.test(message)) {
-    return false;
-  }
+  const retryable = transientPatterns.some((pattern) => lowerMessage.includes(pattern));
 
-  return transientPatterns.some((pattern) => message.includes(pattern));
+  return {
+    category: retryable ? "provider_overload" : "unknown",
+    status,
+    retryable,
+    message,
+  };
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  return classifyGeminiFailure(error).retryable;
 }
 
 async function delay(ms: number) {
@@ -468,15 +364,18 @@ async function generateProjectText(
       return await result.response.text();
     } catch (error) {
       lastError = error;
-      const message = getErrorMessage(error);
-      console.warn("[ANVIX BUILD] Model failed", {
+      const failure = classifyGeminiFailure(error);
+      const message = failure.message;
+      console.warn("[ANVIX BUILD] Model attempt failed", {
         model: modelName,
         attempt,
-        retryable: isRetryableProviderError(error),
-        error: message,
+        failureCategory: failure.category,
+        httpStatus: failure.status ?? null,
+        retryable: failure.retryable,
+        reason: message,
       });
 
-      if (!isRetryableProviderError(error)) {
+      if (!failure.retryable) {
         throw error;
       }
 
@@ -492,15 +391,15 @@ async function generateProjectText(
   throw lastError ?? new Error("Gemini request failed");
 }
 
-async function generateProjectTextWithFallback(
+export async function generateProjectTextWithFallback(
   apiKey: string,
-  prompt: string
-) {
-  const failures: string[] = [];
-
-  for (const modelName of GENERATION_MODELS) {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
+  prompt: string,
+  modelFactory: (
+    key: string,
+    modelName: string
+  ) => ReturnType<GoogleGenerativeAI["getGenerativeModel"]> = (key, modelName) => {
+    const genAI = new GoogleGenerativeAI(key);
+    return genAI.getGenerativeModel({
       model: modelName,
       systemInstruction: SYSTEM_INSTRUCTION,
       generationConfig: {
@@ -510,34 +409,112 @@ async function generateProjectTextWithFallback(
         maxOutputTokens: 12000,
       },
     });
+  }
+): Promise<GeneratedProject> {
+  const failures: Array<{ model: string; attempt: number; failureCategory: string; httpStatus?: number; retryable: boolean; reason: string }> = [];
 
-    try {
-      console.info("[ANVIX BUILD] Trying model", {
-        model: modelName,
-      });
-      return await generateProjectText(model, prompt, modelName);
-    } catch (error) {
-      const message = getErrorMessage(error);
-      failures.push(`${modelName}: ${message}`);
+  for (const modelName of GENERATION_MODELS) {
+    const model = modelFactory(apiKey, modelName);
+    let lastModelError: unknown;
 
-      if (!isRetryableProviderError(error)) {
-        throw error;
-      }
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        console.info("[ANVIX BUILD] Trying model", {
+          model: modelName,
+          attempt,
+        });
 
-      console.warn("[ANVIX BUILD] Falling back to next model", {
-        from: modelName,
-        reason: message,
-      });
+        const text = await generateProjectText(model, prompt, modelName);
+        let jsonParsed = false;
+        let schemaValid = false;
 
-      if (modelName !== GENERATION_MODELS[GENERATION_MODELS.length - 1]) {
-        await delay(MODEL_FALLBACK_DELAY_MS);
+        try {
+          const parsed = parseGeminiJson(text);
+          jsonParsed = true;
+          const project = validateGeneratedProject(parsed);
+          schemaValid = true;
+          console.info("[ANVIX BUILD] Model output validated", {
+            model: modelName,
+            attempt,
+            jsonParsed,
+            schemaValid,
+            fileCount: project.files.length,
+          });
+          return project;
+        } catch (error) {
+          const validationFailure = classifyGeminiFailure(error);
+          console.warn("[ANVIX BUILD] Model output validation failed", {
+            model: modelName,
+            attempt,
+            jsonParsed,
+            schemaValid,
+            failureCategory: validationFailure.category,
+            httpStatus: validationFailure.status ?? null,
+            retryable: validationFailure.retryable,
+            reason: validationFailure.message,
+          });
+          throw error;
+        }
+      } catch (error) {
+        lastModelError = error;
+        const failure = classifyGeminiFailure(error);
+        const message = failure.message;
+        failures.push({
+          model: modelName,
+          attempt,
+          failureCategory: failure.category,
+          httpStatus: failure.status,
+          retryable: failure.retryable,
+          reason: message,
+        });
+
+        const shouldRetryModel = failure.retryable || /Gemini returned malformed JSON|Generated project|Gemini response/.test(message);
+
+        if (!shouldRetryModel) {
+          throw error;
+        }
+
+        if (attempt < 2) {
+          await delay(MODEL_RETRY_DELAYS_MS[attempt - 1] ?? 500);
+          continue;
+        }
+
+        console.warn("[ANVIX BUILD] Model failed after all regeneration attempts", {
+          model: modelName,
+          retries: attempt,
+          failureCategory: failure.category,
+          httpStatus: failure.status ?? null,
+          retryable: failure.retryable,
+          reason: message,
+        });
+        break;
       }
     }
+
+    if (modelName !== GENERATION_MODELS[GENERATION_MODELS.length - 1]) {
+      const nextModel = GENERATION_MODELS[GENERATION_MODELS.indexOf(modelName) + 1];
+      console.warn("[ANVIX BUILD] Falling back to next model", {
+        from: modelName,
+        to: nextModel,
+        failureCategory: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).category,
+        httpStatus: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).status ?? null,
+        retryable: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).retryable,
+        reason: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).message,
+      });
+      await delay(MODEL_FALLBACK_DELAY_MS);
+      continue;
+    }
+
+    throw new Error(
+      failures.length > 0
+        ? `Gemini project generation failed on all configured models: ${failures.map((entry) => `${entry.model} (${entry.failureCategory})`).join("; ")}`
+        : "Gemini request failed"
+    );
   }
 
   throw new Error(
     failures.length > 0
-      ? `Gemini project generation failed on all configured models: ${failures.join("; ")}`
+      ? `Gemini project generation failed on all configured models: ${failures.map((entry) => `${entry.model} (${entry.failureCategory})`).join("; ")}`
       : "Gemini request failed"
   );
 }
@@ -585,14 +562,12 @@ export async function POST(req: Request) {
       promptLength: normalizedPrompt.length,
     });
 
-    const text = await generateProjectTextWithFallback(apiKey, normalizedPrompt);
+    const project = await generateProjectTextWithFallback(apiKey, normalizedPrompt);
     console.info("[ANVIX BUILD] Successful generation", {
-      responseLength: text.length,
+      projectName: project.name,
+      fileCount: project.files.length,
       models: GENERATION_MODELS.join(", "),
     });
-
-    const parsedResponse = parseGeminiJson(text);
-    const project = validateGeneratedProject(parsedResponse);
 
     return NextResponse.json({
       success: true,
