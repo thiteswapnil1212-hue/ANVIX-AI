@@ -43,7 +43,12 @@ const PROJECT_RESPONSE_SCHEMA = {
   required: ["project"],
 } as const;
 
-const MODEL_NAME = "gemini-2.5-flash";
+const PRIMARY_MODEL_NAME = "gemini-2.5-flash";
+const FALLBACK_MODEL_NAMES = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+] as const;
+const MODEL_NAMES = [PRIMARY_MODEL_NAME, ...FALLBACK_MODEL_NAMES] as const;
 const MAX_PROMPT_LENGTH = 20000;
 const GEMINI_TIMEOUT_MS = 60000;
 const MAX_RETRIES = 2;
@@ -382,9 +387,28 @@ async function withTimeout<T>(
   }
 }
 
+function getProviderStatus(error: unknown): number | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
+    return error.status;
+  }
+
+  return undefined;
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  const status = getProviderStatus(error);
+  return status === 429 || status === 503;
+}
+
 async function generateProjectText(
   model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>,
-  prompt: string
+  prompt: string,
+  modelName: string
 ) {
   let lastError: unknown;
 
@@ -395,23 +419,72 @@ async function generateProjectText(
         GEMINI_TIMEOUT_MS
       );
 
-      return result.response.text();
+      return await result.response.text();
     } catch (error) {
       lastError = error;
       console.warn("[api/build] Gemini request failed", {
+        model: modelName,
         attempt,
         error: error instanceof Error ? error.message : "Unknown error",
       });
 
-      if (attempt < MAX_RETRIES) {
-        continue;
+      if (
+        !isRetryableProviderError(error) ||
+        attempt === MAX_RETRIES
+      ) {
+        throw error;
       }
-
-      throw error;
     }
   }
 
   throw lastError ?? new Error("Gemini request failed");
+}
+
+async function generateProjectTextWithFallback(
+  apiKey: string,
+  prompt: string
+) {
+  const failures: string[] = [];
+
+  for (const modelName of MODEL_NAMES) {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: SYSTEM_INSTRUCTION,
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: PROJECT_RESPONSE_SCHEMA as never,
+        temperature: 0.2,
+        maxOutputTokens: 12000,
+      },
+    });
+
+    try {
+      console.info("[api/build] Trying Gemini model", {
+        model: modelName,
+      });
+      return await generateProjectText(model, prompt, modelName);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error";
+      failures.push(`${modelName}: ${message}`);
+
+      if (!isRetryableProviderError(error)) {
+        throw error;
+      }
+
+      console.warn("[api/build] Gemini model unavailable; falling back", {
+        model: modelName,
+        error: message,
+      });
+    }
+  }
+
+  throw new Error(
+    failures.length > 0
+      ? `Gemini project generation failed on all configured models: ${failures.join("; ")}`
+      : "Gemini request failed"
+  );
 }
 
 export async function POST(req: Request) {
@@ -453,26 +526,14 @@ export async function POST(req: Request) {
 
   try {
     console.info("[api/build] Starting Gemini generation", {
-      model: MODEL_NAME,
+      model: MODEL_NAMES.join(", "),
       promptLength: normalizedPrompt.length,
     });
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: PROJECT_RESPONSE_SCHEMA as never,
-        temperature: 0.2,
-        maxOutputTokens: 12000,
-      },
-    });
-
-    const text = await generateProjectText(model, normalizedPrompt);
+    const text = await generateProjectTextWithFallback(apiKey, normalizedPrompt);
     console.info("[api/build] Gemini response received", {
       responseLength: text.length,
-      model: MODEL_NAME,
+      model: MODEL_NAMES.join(", "),
     });
 
     const parsedResponse = parseGeminiJson(text);
@@ -484,7 +545,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("[api/build] Project build generation failed", {
-      model: MODEL_NAME,
+      model: MODEL_NAMES.join(", "),
       promptLength: normalizedPrompt.length,
       error: error instanceof Error ? error.message : "Unknown error",
     });
