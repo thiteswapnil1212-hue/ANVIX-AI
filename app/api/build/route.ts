@@ -4,6 +4,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 import {
+  generateProjectTextWithFallback,
+  classifyGeminiFailure,
+} from "@/lib/gemini/fallback";
+import {
   validateGeneratedProject,
   type GeneratedProject,
 } from "@/lib/project/project-schema";
@@ -53,13 +57,6 @@ const GEMINI_TIMEOUT_MS = 60000;
 const MAX_RETRIES_PER_MODEL = 2;
 const MODEL_RETRY_DELAYS_MS = [250, 700];
 const MODEL_FALLBACK_DELAY_MS = 400;
-const REQUIRED_PROJECT_FILES = [
-  "package.json",
-  "app/layout.tsx",
-  "app/page.tsx",
-  "app/globals.css",
-];
-
 const SYSTEM_INSTRUCTION = `You are the project generation engine for ANVIX AI.
 
 Your responsibility is to generate a complete, coherent, runnable Next.js application from the user's requirements.
@@ -247,277 +244,11 @@ function getProviderStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return typeof error === "string" ? error : "Unknown error";
-}
-
-export function classifyGeminiFailure(error: unknown): {
-  category: string;
-  status?: number;
-  retryable: boolean;
-  message: string;
-} {
-  const status = getProviderStatus(error);
-  const message = getErrorMessage(error);
-  const lowerMessage = message.toLowerCase();
-
-  if (
-    status === 429 ||
-    status === 500 ||
-    status === 502 ||
-    status === 503 ||
-    status === 504
-  ) {
-    return {
-      category: "provider_http_error",
-      status,
-      retryable: true,
-      message,
-    };
-  }
-
-  if (/timeout/i.test(lowerMessage)) {
-    return {
-      category: "timeout",
-      retryable: true,
-      message,
-    };
-  }
-
-  if (/gemini returned malformed json|malformed json|invalid json/i.test(lowerMessage)) {
-    return {
-      category: "malformed_json",
-      retryable: true,
-      message,
-    };
-  }
-
-  if (/generated project|gemini response|schema|missing required file|duplicate file/i.test(lowerMessage)) {
-    return {
-      category: "schema_validation",
-      retryable: true,
-      message,
-    };
-  }
-
-  if (/api key|authentication|unauthorized|forbidden|invalid api|invalid request|unsupported model|unsupported request/.test(lowerMessage)) {
-    return {
-      category: "permanent_error",
-      status,
-      retryable: false,
-      message,
-    };
-  }
-
-  const transientPatterns = [
-    "temporarily unavailable",
-    "temporary unavailable",
-    "model temporarily unavailable",
-    "high demand",
-    "overloaded",
-    "service unavailable",
-    "rate limit",
-    "too many requests",
-    "quota exceeded",
-    "try again later",
-    "capacity",
-    "busy",
-    "unavailable",
-  ];
-
-  const retryable = transientPatterns.some((pattern) => lowerMessage.includes(pattern));
-
-  return {
-    category: retryable ? "provider_overload" : "unknown",
-    status,
-    retryable,
-    message,
-  };
-}
-
-function isRetryableProviderError(error: unknown): boolean {
-  return classifyGeminiFailure(error).retryable;
-}
 
 async function delay(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function generateProjectText(
-  model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>,
-  prompt: string,
-  modelName: string
-) {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt += 1) {
-    try {
-      const result = await withTimeout(
-        model.generateContent(`The user's prompt is:\n\n${prompt}`),
-        GEMINI_TIMEOUT_MS
-      );
-
-      return await result.response.text();
-    } catch (error) {
-      lastError = error;
-      const failure = classifyGeminiFailure(error);
-      const message = failure.message;
-      console.warn("[ANVIX BUILD] Model attempt failed", {
-        model: modelName,
-        attempt,
-        failureCategory: failure.category,
-        httpStatus: failure.status ?? null,
-        retryable: failure.retryable,
-        reason: message,
-      });
-
-      if (!failure.retryable) {
-        throw error;
-      }
-
-      if (attempt < MAX_RETRIES_PER_MODEL) {
-        await delay(MODEL_RETRY_DELAYS_MS[attempt - 1] ?? 500);
-        continue;
-      }
-
-      throw error;
-    }
-  }
-
-  throw lastError ?? new Error("Gemini request failed");
-}
-
-export async function generateProjectTextWithFallback(
-  apiKey: string,
-  prompt: string,
-  modelFactory: (
-    key: string,
-    modelName: string
-  ) => ReturnType<GoogleGenerativeAI["getGenerativeModel"]> = (key, modelName) => {
-    const genAI = new GoogleGenerativeAI(key);
-    return genAI.getGenerativeModel({
-      model: modelName,
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: PROJECT_RESPONSE_SCHEMA as never,
-        temperature: 0.2,
-        maxOutputTokens: 12000,
-      },
-    });
-  }
-): Promise<GeneratedProject> {
-  const failures: Array<{ model: string; attempt: number; failureCategory: string; httpStatus?: number; retryable: boolean; reason: string }> = [];
-
-  for (const modelName of GENERATION_MODELS) {
-    const model = modelFactory(apiKey, modelName);
-    let lastModelError: unknown;
-
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        console.info("[ANVIX BUILD] Trying model", {
-          model: modelName,
-          attempt,
-        });
-
-        const text = await generateProjectText(model, prompt, modelName);
-        let jsonParsed = false;
-        let schemaValid = false;
-
-        try {
-          const parsed = parseGeminiJson(text);
-          jsonParsed = true;
-          const project = validateGeneratedProject(parsed);
-          schemaValid = true;
-          console.info("[ANVIX BUILD] Model output validated", {
-            model: modelName,
-            attempt,
-            jsonParsed,
-            schemaValid,
-            fileCount: project.files.length,
-          });
-          return project;
-        } catch (error) {
-          const validationFailure = classifyGeminiFailure(error);
-          console.warn("[ANVIX BUILD] Model output validation failed", {
-            model: modelName,
-            attempt,
-            jsonParsed,
-            schemaValid,
-            failureCategory: validationFailure.category,
-            httpStatus: validationFailure.status ?? null,
-            retryable: validationFailure.retryable,
-            reason: validationFailure.message,
-          });
-          throw error;
-        }
-      } catch (error) {
-        lastModelError = error;
-        const failure = classifyGeminiFailure(error);
-        const message = failure.message;
-        failures.push({
-          model: modelName,
-          attempt,
-          failureCategory: failure.category,
-          httpStatus: failure.status,
-          retryable: failure.retryable,
-          reason: message,
-        });
-
-        const shouldRetryModel = failure.retryable || /Gemini returned malformed JSON|Generated project|Gemini response/.test(message);
-
-        if (!shouldRetryModel) {
-          throw error;
-        }
-
-        if (attempt < 2) {
-          await delay(MODEL_RETRY_DELAYS_MS[attempt - 1] ?? 500);
-          continue;
-        }
-
-        console.warn("[ANVIX BUILD] Model failed after all regeneration attempts", {
-          model: modelName,
-          retries: attempt,
-          failureCategory: failure.category,
-          httpStatus: failure.status ?? null,
-          retryable: failure.retryable,
-          reason: message,
-        });
-        break;
-      }
-    }
-
-    if (modelName !== GENERATION_MODELS[GENERATION_MODELS.length - 1]) {
-      const nextModel = GENERATION_MODELS[GENERATION_MODELS.indexOf(modelName) + 1];
-      console.warn("[ANVIX BUILD] Falling back to next model", {
-        from: modelName,
-        to: nextModel,
-        failureCategory: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).category,
-        httpStatus: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).status ?? null,
-        retryable: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).retryable,
-        reason: classifyGeminiFailure(lastModelError ?? new Error("Unknown failure")).message,
-      });
-      await delay(MODEL_FALLBACK_DELAY_MS);
-      continue;
-    }
-
-    throw new Error(
-      failures.length > 0
-        ? `Gemini project generation failed on all configured models: ${failures.map((entry) => `${entry.model} (${entry.failureCategory})`).join("; ")}`
-        : "Gemini request failed"
-    );
-  }
-
-  throw new Error(
-    failures.length > 0
-      ? `Gemini project generation failed on all configured models: ${failures.map((entry) => `${entry.model} (${entry.failureCategory})`).join("; ")}`
-      : "Gemini request failed"
-  );
-}
 
 export async function POST(req: Request) {
   let body: BuildRequestBody;
@@ -562,7 +293,19 @@ export async function POST(req: Request) {
       promptLength: normalizedPrompt.length,
     });
 
-    const project = await generateProjectTextWithFallback(apiKey, normalizedPrompt);
+    const project = await generateProjectTextWithFallback(apiKey, normalizedPrompt, (key, modelName) => {
+      const genAI = new GoogleGenerativeAI(key);
+      return genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: SYSTEM_INSTRUCTION,
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: PROJECT_RESPONSE_SCHEMA as never,
+          temperature: 0.2,
+          maxOutputTokens: 12000,
+        },
+      });
+    });
     console.info("[ANVIX BUILD] Successful generation", {
       projectName: project.name,
       fileCount: project.files.length,
