@@ -43,15 +43,16 @@ const PROJECT_RESPONSE_SCHEMA = {
   required: ["project"],
 } as const;
 
-const PRIMARY_MODEL_NAME = "gemini-2.5-flash";
-const FALLBACK_MODEL_NAMES = [
+const GENERATION_MODELS = [
+  "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
   "gemini-2.0-flash",
 ] as const;
-const MODEL_NAMES = [PRIMARY_MODEL_NAME, ...FALLBACK_MODEL_NAMES] as const;
 const MAX_PROMPT_LENGTH = 20000;
 const GEMINI_TIMEOUT_MS = 60000;
-const MAX_RETRIES = 2;
+const MAX_RETRIES_PER_MODEL = 2;
+const MODEL_RETRY_DELAYS_MS = [250, 700];
+const MODEL_FALLBACK_DELAY_MS = 400;
 const REQUIRED_PROJECT_FILES = [
   "package.json",
   "app/layout.tsx",
@@ -400,9 +401,54 @@ function getProviderStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return typeof error === "string" ? error : "Unknown error";
+}
+
 function isRetryableProviderError(error: unknown): boolean {
   const status = getProviderStatus(error);
-  return status === 429 || status === 503;
+  if (
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  ) {
+    return true;
+  }
+
+  const message = getErrorMessage(error).toLowerCase();
+  const transientPatterns = [
+    "timeout",
+    "temporarily unavailable",
+    "temporary unavailable",
+    "model temporarily unavailable",
+    "high demand",
+    "overloaded",
+    "service unavailable",
+    "rate limit",
+    "too many requests",
+    "quota exceeded",
+    "try again later",
+    "capacity",
+    "busy",
+    "overloaded",
+    "unavailable",
+  ];
+
+  if (/api key|authentication|unauthorized|forbidden|invalid api|invalid request|malformed|schema|unsupported model|unsupported request/.test(message)) {
+    return false;
+  }
+
+  return transientPatterns.some((pattern) => message.includes(pattern));
+}
+
+async function delay(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function generateProjectText(
@@ -412,7 +458,7 @@ async function generateProjectText(
 ) {
   let lastError: unknown;
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+  for (let attempt = 1; attempt <= MAX_RETRIES_PER_MODEL; attempt += 1) {
     try {
       const result = await withTimeout(
         model.generateContent(`The user's prompt is:\n\n${prompt}`),
@@ -422,18 +468,24 @@ async function generateProjectText(
       return await result.response.text();
     } catch (error) {
       lastError = error;
-      console.warn("[api/build] Gemini request failed", {
+      const message = getErrorMessage(error);
+      console.warn("[ANVIX BUILD] Model failed", {
         model: modelName,
         attempt,
-        error: error instanceof Error ? error.message : "Unknown error",
+        retryable: isRetryableProviderError(error),
+        error: message,
       });
 
-      if (
-        !isRetryableProviderError(error) ||
-        attempt === MAX_RETRIES
-      ) {
+      if (!isRetryableProviderError(error)) {
         throw error;
       }
+
+      if (attempt < MAX_RETRIES_PER_MODEL) {
+        await delay(MODEL_RETRY_DELAYS_MS[attempt - 1] ?? 500);
+        continue;
+      }
+
+      throw error;
     }
   }
 
@@ -446,7 +498,7 @@ async function generateProjectTextWithFallback(
 ) {
   const failures: string[] = [];
 
-  for (const modelName of MODEL_NAMES) {
+  for (const modelName of GENERATION_MODELS) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: modelName,
@@ -460,23 +512,26 @@ async function generateProjectTextWithFallback(
     });
 
     try {
-      console.info("[api/build] Trying Gemini model", {
+      console.info("[ANVIX BUILD] Trying model", {
         model: modelName,
       });
       return await generateProjectText(model, prompt, modelName);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown error";
+      const message = getErrorMessage(error);
       failures.push(`${modelName}: ${message}`);
 
       if (!isRetryableProviderError(error)) {
         throw error;
       }
 
-      console.warn("[api/build] Gemini model unavailable; falling back", {
-        model: modelName,
-        error: message,
+      console.warn("[ANVIX BUILD] Falling back to next model", {
+        from: modelName,
+        reason: message,
       });
+
+      if (modelName !== GENERATION_MODELS[GENERATION_MODELS.length - 1]) {
+        await delay(MODEL_FALLBACK_DELAY_MS);
+      }
     }
   }
 
@@ -525,15 +580,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    console.info("[api/build] Starting Gemini generation", {
-      model: MODEL_NAMES.join(", "),
+    console.info("[ANVIX BUILD] Starting generation", {
+      models: GENERATION_MODELS.join(", "),
       promptLength: normalizedPrompt.length,
     });
 
     const text = await generateProjectTextWithFallback(apiKey, normalizedPrompt);
-    console.info("[api/build] Gemini response received", {
+    console.info("[ANVIX BUILD] Successful generation", {
       responseLength: text.length,
-      model: MODEL_NAMES.join(", "),
+      models: GENERATION_MODELS.join(", "),
     });
 
     const parsedResponse = parseGeminiJson(text);
@@ -544,8 +599,8 @@ export async function POST(req: Request) {
       project,
     });
   } catch (error) {
-    console.error("[api/build] Project build generation failed", {
-      model: MODEL_NAMES.join(", "),
+    console.error("[ANVIX BUILD] Project generation failed", {
+      models: GENERATION_MODELS.join(", "),
       promptLength: normalizedPrompt.length,
       error: error instanceof Error ? error.message : "Unknown error",
     });
