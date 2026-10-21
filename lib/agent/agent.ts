@@ -209,13 +209,24 @@ function validateSuiteResponse(raw: unknown): {
     );
   }
 
-  const actions = candidate.actions.map((action, index) => {
-    if (!action || typeof action !== "object") {
-      throw new Error(`Action ${index + 1} is not a valid object`);
-    }
+  // One malformed action should not sink the whole plan: keep the valid
+  // actions and drop the rest. If the model returned actions but every one
+  // is unusable, treat the response as invalid so the caller can retry.
+  const actions: AgentToolCall[] = [];
 
-    return validateActionInput(action as AgentToolCall);
-  });
+  for (const action of candidate.actions) {
+    if (!action || typeof action !== "object") continue;
+
+    try {
+      actions.push(validateActionInput(action as AgentToolCall));
+    } catch {
+      // Skip the invalid action; the remaining ones may still be useful.
+    }
+  }
+
+  if (candidate.actions.length > 0 && actions.length === 0) {
+    throw new Error("Gemini response contained no valid actions");
+  }
 
   return {
     message: candidate.message.trim(),
@@ -277,6 +288,30 @@ async function generateStructuredActions(request: AgentRequest) {
   return validateSuiteResponse(parsed);
 }
 
+async function generateStructuredActionsWithRetry(request: AgentRequest) {
+  try {
+    return await generateStructuredActions(request);
+  } catch (error) {
+    // A missing key will fail every attempt — don't waste a retry on it.
+    if (error instanceof Error && error.message.includes("GEMINI_API_KEY")) {
+      throw error;
+    }
+
+    console.error(
+      "[ANVIX AGENT] Model returned an unusable plan, retrying once:",
+      error instanceof Error ? error.message : error
+    );
+
+    return generateStructuredActions(request);
+  }
+}
+
+function isPlanValidationError(message: string): boolean {
+  return /Gemini response|Action |Each action|Unsupported tool|too many actions|malformed|invalid json/i.test(
+    message
+  );
+}
+
 export async function runAgentService(
   request: AgentRequest
 ): Promise<AgentResponse> {
@@ -320,7 +355,7 @@ export async function runAgentService(
       };
     }
 
-    const structured = await generateStructuredActions(request);
+    const structured = await generateStructuredActionsWithRetry(request);
 
     let workingProject = {
       ...currentProject,
@@ -385,10 +420,14 @@ export async function runAgentService(
     const message =
       error instanceof Error ? error.message : "Agent service failed";
 
+    console.error("[ANVIX AGENT] Request failed:", message);
+
     return {
       success: false,
       message: "Agent request failed.",
-      error: message,
+      error: isPlanValidationError(message)
+        ? "The AI returned an invalid plan for this project. Please rephrase the request and try again."
+        : message,
     };
   }
 }

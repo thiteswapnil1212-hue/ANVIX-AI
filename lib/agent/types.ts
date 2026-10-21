@@ -18,7 +18,7 @@ export interface AgentToolResult<T = unknown> {
   error?: string;
 }
 
-export interface ListFilesInput {}
+export type ListFilesInput = Record<string, never>;
 
 export interface ListFilesOutput {
   files: string[];
@@ -28,7 +28,7 @@ export interface ReadFileInput {
   path: string;
 }
 
-export interface ReadFileOutput extends ProjectFile {}
+export type ReadFileOutput = ProjectFile;
 
 export interface WriteFileInput {
   path: string;
