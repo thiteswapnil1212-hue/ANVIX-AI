@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import {
   ArrowRight,
@@ -100,6 +101,21 @@ const faqs = [
 ];
 
 export default function PricingPage() {
+  const router = useRouter();
+
+  function handlePlanClick(tierName: string) {
+    // Paid checkout is not live yet: builders go straight into the product,
+    // and Enterprise goes to the contact channel named in our Terms.
+    if (tierName === "Enterprise") {
+      window.open(
+        "https://github.com/thiteswapnil1212-hue/ANVIX-AI",
+        "_blank",
+        "noopener,noreferrer"
+      );
+      return;
+    }
+    router.push("/generate");
+  }
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
@@ -586,6 +602,7 @@ export default function PricingPage() {
 
                   <button
                     type="button"
+                    onClick={() => handlePlanClick(tier.name)}
                     className={`
                       mt-7
                       flex
@@ -1018,6 +1035,7 @@ export default function PricingPage() {
 
             <button
               type="button"
+              onClick={() => router.push("/generate")}
               className="
                 mt-6
                 inline-flex
