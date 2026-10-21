@@ -7,8 +7,7 @@ import {
   Zap,
   Code2,
   Bot,
-  Layers3,
-} from "lucide-react";
+  } from "lucide-react";
 
 export default function Hero() {
   return (
@@ -172,7 +171,7 @@ export default function Hero() {
               />
             </span>
 
-            AI Softwares Platform
+            AI Software Platform
           </div>
         </div>
 
