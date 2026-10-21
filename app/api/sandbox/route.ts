@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 import { SandboxManager } from "@/lib/sandbox/manager";
+import type { GeneratedProject } from "@/lib/project/project-schema";
 
 const sandboxManager = new SandboxManager();
 
@@ -15,6 +17,9 @@ function jsonError(error: string, status: number) {
 }
 
 export async function POST(req: Request) {
+  const limited = enforceRateLimit(req, "sandbox", 10, 60_000);
+  if (limited) return limited;
+
   try {
     const body = (await req.json()) as Record<string, unknown>;
 
@@ -34,7 +39,7 @@ export async function POST(req: Request) {
           return jsonError("Project payload is required for create action.", 400);
         }
 
-        const result = await sandboxManager.create(body.project as any);
+        const result = await sandboxManager.create(body.project as GeneratedProject);
 
         if (!result.success) {
           return NextResponse.json(

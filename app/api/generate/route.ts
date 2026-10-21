@@ -1,4 +1,5 @@
 
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
@@ -61,6 +62,9 @@ async function startGeminiStream(
 }
 
 export async function POST(req: Request) {
+  const limited = enforceRateLimit(req, "generate", 15, 60_000);
+  if (limited) return limited;
+
   let body: ChatRequestBody;
 
   try {

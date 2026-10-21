@@ -1,4 +1,5 @@
 import { runAgentService, type AgentProgressEvent } from "@/lib/agent/agent";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { isGeneratedProject, type GeneratedProject } from "@/lib/project/project-schema";
 
 const MAX_PROMPT_LENGTH = 20000;
@@ -76,6 +77,9 @@ function encodeEvent(event: StreamEvent) {
 }
 
 export async function POST(request: Request) {
+  const limited = enforceRateLimit(request, "agent-stream", 15, 60_000);
+  if (limited) return limited;
+
   let body: Record<string, unknown>;
 
   try {

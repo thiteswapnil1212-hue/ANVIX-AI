@@ -6,7 +6,7 @@ export const pool = new Pool({
   connectionString,
   ssl:
     process.env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
+      ? { rejectUnauthorized: true }
       : undefined,
   max: 10,
 });

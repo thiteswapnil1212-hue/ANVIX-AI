@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 import { runAgentService } from "@/lib/agent/agent";
 import type { GeneratedProject } from "@/lib/project/project-schema";
@@ -88,6 +89,9 @@ function validateGeneratedProject(payload: unknown): GeneratedProject {
 }
 
 export async function POST(req: Request) {
+  const limited = enforceRateLimit(req, "agent", 15, 60_000);
+  if (limited) return limited;
+
   try {
     const body = (await req.json()) as Record<string, unknown>;
 
