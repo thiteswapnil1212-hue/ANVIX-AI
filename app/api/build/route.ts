@@ -1,23 +1,12 @@
-import path from "node:path";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
-import {
-  generateProjectTextWithFallback,
-  classifyGeminiFailure,
-} from "@/lib/gemini/fallback";
-import {
-  validateGeneratedProject,
-  type GeneratedProject,
-} from "@/lib/project/project-schema";
+import { generateProjectTextWithFallback } from "@/lib/gemini/fallback";
 
 type BuildRequestBody = {
   prompt?: unknown;
-};
-
-type GeminiProjectPayload = {
-  project?: unknown;
 };
 
 const PROJECT_RESPONSE_SCHEMA = {
@@ -53,10 +42,6 @@ const GENERATION_MODELS = [
   "gemini-2.0-flash",
 ] as const;
 const MAX_PROMPT_LENGTH = 20000;
-const GEMINI_TIMEOUT_MS = 60000;
-const MAX_RETRIES_PER_MODEL = 2;
-const MODEL_RETRY_DELAYS_MS = [250, 700];
-const MODEL_FALLBACK_DELAY_MS = 400;
 const SYSTEM_INSTRUCTION = `You are the project generation engine for ANVIX AI.
 
 Your responsibility is to generate a complete, coherent, runnable Next.js application from the user's requirements.
@@ -119,138 +104,10 @@ function jsonError(error: string, status: number) {
   );
 }
 
-function stripJsonCodeFence(text: string) {
-  const trimmed = text.trim();
-  const fencedMatch = trimmed.match(
-    /^```(?:json)?\s*([\s\S]*?)\s*```$/i
-  );
-
-  return fencedMatch ? fencedMatch[1].trim() : trimmed;
-}
-
-function findJsonFragments(text: string): string[] {
-  const trimmed = text.trim();
-  const fragments: string[] = [];
-
-  if (!trimmed) {
-    return fragments;
-  }
-
-  let start = -1;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = 0; index < trimmed.length; index += 1) {
-    const character = trimmed[index];
-
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (character === "\\") {
-        escaped = true;
-      } else if (character === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (character === '"') {
-      inString = true;
-      continue;
-    }
-
-    if (character === "{") {
-      if (depth === 0) {
-        start = index;
-      }
-      depth += 1;
-      continue;
-    }
-
-    if (character === "}") {
-      if (depth > 0) {
-        depth -= 1;
-      }
-
-      if (depth === 0 && start !== -1) {
-        fragments.push(trimmed.slice(start, index + 1));
-        start = -1;
-      }
-    }
-  }
-
-  return fragments;
-}
-
-function parseGeminiJson(text: string) {
-  const variations = new Set<string>();
-  const stripped = stripJsonCodeFence(text);
-
-  if (stripped) {
-    variations.add(stripped);
-  }
-
-  for (const fragment of findJsonFragments(text)) {
-    variations.add(fragment);
-  }
-
-  for (const candidate of variations) {
-    const trimmed = candidate.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
-    try {
-      return JSON.parse(trimmed) as unknown;
-    } catch {
-      // Keep trying any candidate fragments until we find a valid JSON object.
-    }
-  }
-
-  throw new Error("Gemini returned malformed JSON");
-}
-
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number
-) {
-  let timeoutId: ReturnType<typeof setTimeout>;
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error("Gemini request timed out"));
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    clearTimeout(timeoutId!);
-  }
-}
-
-function getProviderStatus(error: unknown): number | undefined {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    typeof error.status === "number"
-  ) {
-    return error.status;
-  }
-
-  return undefined;
-}
-
-
-async function delay(ms: number) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-
 export async function POST(req: Request) {
+  const limited = enforceRateLimit(req, "build", 6, 60_000);
+  if (limited) return limited;
+
   let body: BuildRequestBody;
 
   try {

@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { generateProjectTextWithFallback } from "./route.ts";
+import {
+  generateProjectTextWithFallback,
+  type GeminiModelFactory,
+} from "../../../lib/gemini/fallback.ts";
 
 function makeValidProject() {
   return {
@@ -55,7 +58,7 @@ test("falls back to the next model when the first model returns malformed JSON",
           },
         };
       },
-    } as any;
+    } as unknown as GeminiModelFactory;
   };
 
   const project = await generateProjectTextWithFallback("test-key", "Build a coffee shop", modelFactory);
@@ -83,7 +86,7 @@ test("falls back when the current model has a retryable provider error", async (
           },
         };
       },
-    } as any;
+    } as unknown as GeminiModelFactory;
   };
 
   const project = await generateProjectTextWithFallback("test-key", "Build a coffee shop", modelFactory);
@@ -103,7 +106,7 @@ test("throws if all models fail and preserves permanent-error classification", a
         error.status = 401;
         throw error;
       },
-    } as any;
+    } as unknown as GeminiModelFactory;
   };
 
   await assert.rejects(
@@ -111,5 +114,7 @@ test("throws if all models fail and preserves permanent-error classification", a
     /Invalid API key/
   );
 
-  assert.deepEqual(calls, ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]);
+  // A 401 is a permanent error: the same bad key would fail on every model,
+  // so the fallback must stop after the first model instead of burning all three.
+  assert.deepEqual(calls, ["gemini-2.5-flash"]);
 });

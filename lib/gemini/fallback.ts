@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-import { validateGeneratedProject, type GeneratedProject } from "@/lib/project/project-schema";
+import { validateGeneratedProject, type GeneratedProject } from "../project/project-schema.ts";
 
 export const MODEL_RETRY_DELAYS_MS = [250, 700] as const;
 export const MODEL_FALLBACK_DELAY_MS = 400;
