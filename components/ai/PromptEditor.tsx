@@ -54,6 +54,7 @@ export default function PromptEditor() {
   const [result, setResult] = useState<
     GenerateProjectResponse["result"] | null
   >(null);
+  const [submittedPrompt, setSubmittedPrompt] = useState("");
 
   const trimmedPrompt = prompt.trim();
   const remainingChars = MAX_CHARS - prompt.length;
@@ -96,6 +97,7 @@ export default function PromptEditor() {
     try {
       const data = await generateProject(trimmedPrompt);
 
+      setSubmittedPrompt(trimmedPrompt);
       setResult(data.result);
       setStatus("success");
       setStatusMessage("Your blueprint is ready.");
@@ -414,7 +416,7 @@ Describe your product, who it's for, the features you need, and any preferred te
         {/* Result */}
         {result && (
           <div className="mt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <GenerationResultCard result={result} />
+            <GenerationResultCard result={result} prompt={submittedPrompt} />
           </div>
         )}
 

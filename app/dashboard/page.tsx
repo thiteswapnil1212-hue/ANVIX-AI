@@ -32,13 +32,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     try {
-      const stored = sessionStorage.getItem("anvix.generatedProject");
+      const stored =
+        localStorage.getItem("anvix.generatedProject") ??
+        sessionStorage.getItem("anvix.generatedProject");
 
       if (!stored) return;
 
       const parsed = JSON.parse(stored);
 
       if (parsed && typeof parsed === "object") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- browser storage is an external system that only exists after mount; lazy init would break hydration
         setProject(parsed);
       }
     } catch {

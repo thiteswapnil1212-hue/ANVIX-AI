@@ -9,15 +9,32 @@ import {
   Layers3,
   Sparkles,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import type { GenerationResult } from "@/lib/api/generate";
 
 interface GenerationResultCardProps {
   result: GenerationResult;
+  prompt?: string;
 }
 
 export default function GenerationResultCard({
   result,
+  prompt,
 }: GenerationResultCardProps) {
+  const router = useRouter();
+
+  function handleContinue() {
+    // The blueprint itself has no project files — the actual build happens
+    // in the /generate pipeline. Hand the prompt over and send the user there.
+    try {
+      if (prompt?.trim()) {
+        sessionStorage.setItem("anvix.generatePrefill", prompt.trim());
+      }
+    } catch {
+      // Storage unavailable — /generate simply starts with an empty prompt.
+    }
+    router.push("/generate");
+  }
   return (
     <motion.section
       initial={{ opacity: 0, y: 16, scale: 0.99 }}
@@ -163,9 +180,10 @@ export default function GenerationResultCard({
           {/* CTA */}
           <button
             type="button"
+            onClick={handleContinue}
             className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-2.5 text-sm font-semibold text-black transition-all duration-200 hover:bg-[#E2C259] hover:shadow-[0_8px_30px_rgba(212,175,55,0.15)] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:ring-offset-2 focus:ring-offset-[#0B0B0B]"
           >
-            Continue
+            Continue to Build
 
             <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
           </button>

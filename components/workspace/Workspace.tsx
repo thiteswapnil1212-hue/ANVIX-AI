@@ -65,9 +65,9 @@ function readStoredProject(): GeneratedProject | null {
     return null;
   }
 
-  const rawProject = window.sessionStorage.getItem(
-    GENERATED_PROJECT_STORAGE_KEY
-  );
+  const rawProject =
+    window.localStorage.getItem(GENERATED_PROJECT_STORAGE_KEY) ??
+    window.sessionStorage.getItem(GENERATED_PROJECT_STORAGE_KEY);
 
   if (!rawProject) {
     return null;
@@ -117,18 +117,30 @@ export default function Workspace({
   const [initialAgentPrompt, setInitialAgentPrompt] = useState("");
   const agentAbortControllerRef = useRef<AbortController | null>(null);
   const agentStreamingRef = useRef(false);
-  const activityIdRef = useRef(
-    `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
+  const activityIdBaseRef = useRef<string | null>(null);
+  const activityCounterRef = useRef(0);
+
+  function nextActivityId(): string {
+    if (!activityIdBaseRef.current) {
+      activityIdBaseRef.current = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}`;
+    }
+    activityCounterRef.current += 1;
+    return `${activityIdBaseRef.current}-${activityCounterRef.current}`;
+  }
 
   useEffect(() => {
     const storedProject = readStoredProject();
-    const storedPrompt = window.sessionStorage.getItem(
-      AGENT_PROMPT_STORAGE_KEY
+    const storedPrompt = (
+      window.localStorage.getItem(AGENT_PROMPT_STORAGE_KEY) ??
+      window.sessionStorage.getItem(AGENT_PROMPT_STORAGE_KEY)
     )?.trim() ?? "";
+    window.localStorage.removeItem(AGENT_PROMPT_STORAGE_KEY);
     window.sessionStorage.removeItem(AGENT_PROMPT_STORAGE_KEY);
 
     if (!storedProject || storedProject.files.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- browser storage is an external system that only exists after mount; lazy init would break hydration
       setProject(null);
       setSavedProject(null);
       setSelectedFilePath(null);
@@ -146,14 +158,8 @@ export default function Workspace({
     text: string,
     status: AgentActivity["status"]
   ) {
-    setAgentActivities((current) => [
-      ...current,
-      {
-        id: `${activityIdRef.current}-${current.length}`,
-        text,
-        status,
-      },
-    ]);
+    const id = nextActivityId();
+    setAgentActivities((current) => [...current, { id, text, status }]);
   }
 
   function getToolStartMessage(tool: string, filePath?: string) {
@@ -329,12 +335,14 @@ export default function Workspace({
     };
   }, []);
 
+  const consumedAgentPromptRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!project || !initialAgentPrompt) return;
+    if (consumedAgentPromptRef.current === initialAgentPrompt) return;
 
-    const prompt = initialAgentPrompt;
-    setInitialAgentPrompt("");
-    void streamAgent(prompt, project);
+    consumedAgentPromptRef.current = initialAgentPrompt;
+    void streamAgent(initialAgentPrompt, project);
   }, [initialAgentPrompt, project]);
 
   const selectedFile = useMemo(() => {
@@ -414,7 +422,7 @@ export default function Workspace({
     if (!project) return;
 
     const serializedProject = JSON.stringify(project);
-    window.sessionStorage.setItem(
+    window.localStorage.setItem(
       GENERATED_PROJECT_STORAGE_KEY,
       serializedProject
     );
@@ -459,7 +467,7 @@ export default function Workspace({
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-zinc-500">
-            Go back to Generate and create a project first.
+            Projects are stored in this browser. Generate a project in this browser, or open one from a tab where you created it.
           </p>
 
           <button

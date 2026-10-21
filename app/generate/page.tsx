@@ -3,12 +3,13 @@
 
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
 import type { KeyboardEvent } from "react";
-import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
+import { AlertCircle, ArrowRight } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
 import type { BuildApiResponse } from "@/lib/project/project-schema";
@@ -64,6 +65,20 @@ export default function GeneratePage() {
     );
 
   const submissionLock = useRef(false);
+
+  // Landing blueprint "Continue to Build" hands the prompt over via storage.
+  useEffect(() => {
+    try {
+      const prefill = sessionStorage.getItem("anvix.generatePrefill");
+      if (prefill) {
+        sessionStorage.removeItem("anvix.generatePrefill");
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- browser storage is an external system that only exists after mount; lazy init would break hydration
+        setPrompt(prefill.slice(0, MAX_CHARS));
+      }
+    } catch {
+      // Storage unavailable (private mode) — start with an empty prompt.
+    }
+  }, []);
 
   const trimmedPrompt = prompt.trim();
   const isPromptEmpty = trimmedPrompt.length === 0;
@@ -144,12 +159,12 @@ export default function GeneratePage() {
         );
       }
 
-      sessionStorage.setItem(
+      localStorage.setItem(
         GENERATED_PROJECT_STORAGE_KEY,
         JSON.stringify(data.project)
       );
 
-      sessionStorage.setItem(
+      localStorage.setItem(
         AGENT_PROMPT_STORAGE_KEY,
         trimmedPrompt
       );
