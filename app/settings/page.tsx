@@ -101,6 +101,7 @@ export default function SettingsPage() {
       if (stored) {
         const parsed = JSON.parse(stored);
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- browser storage is an external system that only exists after mount; lazy init would break hydration
         setPreferences({
           ...defaultPreferences,
           ...parsed,

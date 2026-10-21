@@ -23,8 +23,7 @@ import {
   Trash2,
   MoreHorizontal,
   X,
-  Check,
-  Sparkles,
+    Sparkles,
 } from "lucide-react";
 
 interface Thread {

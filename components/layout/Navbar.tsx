@@ -43,10 +43,13 @@ export default function Navbar() {
     [pathname]
   );
 
-  // Close the mobile menu after route changes.
-  useEffect(() => {
+  // Close the mobile menu after route changes (adjust state during render,
+  // the React-endorsed replacement for a setState-in-effect here).
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
     setMobileOpen(false);
-  }, [pathname]);
+  }
 
   // Escape key closes the mobile menu.
   useEffect(() => {

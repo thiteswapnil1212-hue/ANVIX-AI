@@ -8,8 +8,7 @@ import {
   Layers3,
   Sparkles,
   WandSparkles,
-  Check,
-} from "lucide-react";
+  } from "lucide-react";
 
 interface ExamplePrompt {
   id: string;
