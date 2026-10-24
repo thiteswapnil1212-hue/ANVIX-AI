@@ -33,11 +33,12 @@ export const PROJECT_RESPONSE_SCHEMA = {
   required: ["project"],
 } as const;
 
-export const GENERATION_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-3.8-flash",
-] as const;
+// Single-model chain, deliberately: gemini-2.5-flash-lite and
+// gemini-2.0-flash return 404 "no longer available" and gemini-3.8-flash
+// hangs until the request timeout on this API (all verified live
+// 2026-10-24). A chain of dead models only turns a fast, honest error
+// into a 60s+ hang. Add a second model only after verifying it answers.
+export const GENERATION_MODELS = ["gemini-2.5-flash"] as const;
 
 export const MAX_PROMPT_LENGTH = 20000;
 
