@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import logo from "../favicon.png";
@@ -19,10 +20,19 @@ import {
   BrainCircuit,
 } from "lucide-react";
 
+import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/components/auth/AuthProvider";
+
 type AuthMode = "signin" | "signup";
 
+const NOT_CONFIGURED_MESSAGE =
+  "Authentication is not connected on this deployment yet — the Supabase environment variables are missing, so accounts are unavailable. Guest mode still works everywhere else.";
+
 export default function AuthPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<AuthMode>("signin");
+  const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -32,13 +42,19 @@ export default function AuthPage() {
 
   const isSignup = mode === "signup";
 
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/chat");
+    }
+  }, [authLoading, user, router]);
+
   function switchMode(nextMode: AuthMode) {
     setMode(nextMode);
     setMessage("");
     setShowPassword(false);
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
 
@@ -57,10 +73,98 @@ export default function AuthPage() {
       return;
     }
 
-    // Connect Supabase Auth here later.
-    // Do not claim authentication succeeded before backend confirmation.
+    if (!supabase) {
+      setMessage(NOT_CONFIGURED_MESSAGE);
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      if (isSignup) {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { data: { display_name: name.trim() } },
+        });
+
+        if (error) {
+          setMessage(error.message);
+          return;
+        }
+
+        if (!data.session) {
+          setMessage(
+            "Account created — check your email to confirm it, then sign in."
+          );
+          setMode("signin");
+          return;
+        }
+
+        router.push("/chat");
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      router.push("/chat");
+    } catch {
+      setMessage("Something went wrong while contacting the auth service. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setMessage("");
+
+    if (!supabase) {
+      setMessage(NOT_CONFIGURED_MESSAGE);
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/chat` },
+    });
+
+    if (error) {
+      setMessage(error.message);
+    }
+  }
+
+  async function handleForgotPassword() {
+    setMessage("");
+
+    if (!email.trim()) {
+      setMessage("Enter your email above first, then tap Forgot password.");
+      return;
+    }
+
+    if (!supabase) {
+      setMessage(NOT_CONFIGURED_MESSAGE);
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
     setMessage(
-      "Authentication is not connected yet. Please try again after setup."
+      "If an account exists for that email, a password reset link is on its way."
     );
   }
 
@@ -310,6 +414,26 @@ export default function AuthPage() {
                 </button>
               </div>
 
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/[0.1] bg-white/[0.03] text-sm font-medium text-white transition hover:border-white/[0.2] hover:bg-white/[0.06] active:scale-[0.99]"
+              >
+                <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.58v2.97h3.87c2.26-2.09 3.57-5.16 3.57-8.74z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.87-2.97c-1.07.72-2.44 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.06A11.99 11.99 0 0 0 12 24z" />
+                  <path fill="#FBBC05" d="M5.27 14.31A7.2 7.2 0 0 1 4.89 12c0-.8.14-1.58.38-2.31V6.63H1.29a12 12 0 0 0 0 10.74l3.98-3.06z" />
+                  <path fill="#EA4335" d="M12 4.74c1.76 0 3.34.61 4.58 1.8l3.44-3.44A11.98 11.98 0 0 0 12 0 12 12 0 0 0 1.29 6.63l3.98 3.06C6.22 6.85 8.87 4.74 12 4.74z" />
+                </svg>
+                Continue with Google
+              </button>
+
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-white/[0.08]" />
+                <span className="text-xs text-white/25">OR</span>
+                <div className="h-px flex-1 bg-white/[0.08]" />
+              </div>
+
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5">
                 {isSignup && (
@@ -381,11 +505,7 @@ export default function AuthPage() {
                     {!isSignup && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setMessage(
-                            "Password reset will be available after Supabase Auth is connected."
-                          )
-                        }
+                        onClick={handleForgotPassword}
                         className="text-xs text-[#d4b35e] transition hover:text-[#f0d98d]"
                       >
                         Forgot password?
@@ -480,9 +600,14 @@ export default function AuthPage() {
 
                 <button
                   type="submit"
-                  className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4b35e] to-[#c6a34a] text-sm font-semibold text-black shadow-lg shadow-[#c9a44c]/10 transition hover:brightness-110 active:scale-[0.99]"
+                  disabled={submitting}
+                  className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4b35e] to-[#c6a34a] text-sm font-semibold text-black shadow-lg shadow-[#c9a44c]/10 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
                 >
-                  {isSignup ? "Create account" : "Sign in"}
+                  {submitting
+                    ? "Please wait…"
+                    : isSignup
+                      ? "Create account"
+                      : "Sign in"}
 
                   <ArrowRight
                     size={17}
