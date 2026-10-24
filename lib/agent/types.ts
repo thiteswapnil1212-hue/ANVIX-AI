@@ -43,8 +43,15 @@ export interface WriteFileOutput {
 
 export interface EditFileInput {
   path: string;
-  content: string;
+  // Full-file replacement (existing behaviour).
+  content?: string;
   language?: string;
+  // Diff-style edit: replace the first occurrence of oldText with
+  // newText. Either content or the oldText/newText pair is required.
+  oldText?: string;
+  newText?: string;
+  old_text?: string;
+  new_text?: string;
 }
 
 export interface DeleteFileInput {
