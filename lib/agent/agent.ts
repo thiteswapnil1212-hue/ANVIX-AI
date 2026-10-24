@@ -30,11 +30,13 @@ export interface AgentResponse {
   error?: string;
 }
 
-const AGENT_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-3.8-flash",
-] as const;
+// Single-model chain, deliberately: every other candidate is dead on
+// this API today (verified live 2026-10-24) — gemini-2.5-flash-lite and
+// gemini-2.0-flash return 404 "no longer available", and gemini-3.8-flash
+// hangs until the request timeout. A chain of dead models only turns a
+// fast, honest error into a 60s+ hang. Add a second model here only
+// after verifying it answers on this API.
+const AGENT_MODELS = ["gemini-2.5-flash"] as const;
 const GEMINI_TIMEOUT_MS = 60000;
 const MAX_ACTIONS_PER_REQUEST = 10;
 const ALLOWED_TOOLS: AgentToolName[] = [
@@ -44,6 +46,18 @@ const ALLOWED_TOOLS: AgentToolName[] = [
   "edit_file",
   "delete_file",
 ];
+
+// Models often emit a near-miss tool name ("edit" for "edit_file").
+// Map the common ones instead of dropping an otherwise valid action.
+const TOOL_ALIASES: Record<string, AgentToolName> = {
+  edit: "edit_file",
+  update: "edit_file",
+  create: "write_file",
+  remove: "delete_file",
+  rm: "delete_file",
+  read: "read_file",
+  list: "list_files",
+};
 
 function stripJsonCodeFence(text: string) {
   const trimmed = text.trim();
@@ -127,19 +141,37 @@ function validateActionInput(
     throw new Error("Each action must include a valid tool name");
   }
 
-  const toolName = candidate.tool as string;
+  const rawToolName = candidate.tool as string;
+  const toolName = TOOL_ALIASES[rawToolName] ?? rawToolName;
 
   if (!ALLOWED_TOOLS.includes(toolName as AgentToolName)) {
-    throw new Error(`Unsupported tool: ${toolName}`);
+    throw new Error(`Unsupported tool: ${rawToolName}`);
   }
 
   const validatedToolName = toolName as AgentToolName;
 
-  if (!candidate.input || typeof candidate.input !== "object" || Array.isArray(candidate.input)) {
+  // Models sometimes emit a flat action ({ tool, path, content }) with
+  // no "input" wrapper. Accept that shape by wrapping it, instead of
+  // dropping an otherwise valid action.
+  let rawInput: unknown = candidate.input;
+  if (
+    (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput)) &&
+    typeof candidate.path === "string"
+  ) {
+    rawInput = {
+      path: candidate.path,
+      content: candidate.content,
+      language: candidate.language,
+      oldText: candidate.oldText ?? candidate.old_text,
+      newText: candidate.newText ?? candidate.new_text,
+    };
+  }
+
+  if (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput)) {
     throw new Error(`Tool ${validatedToolName} requires a valid input object`);
   }
 
-  const input = candidate.input as Record<string, unknown>;
+  const input = rawInput as Record<string, unknown>;
 
   if (validatedToolName === "list_files") {
     return {
@@ -154,7 +186,7 @@ function validateActionInput(
 
   const safePath = normalizeProjectPath(input.path);
 
-  if (validatedToolName === "write_file" || validatedToolName === "edit_file") {
+  if (validatedToolName === "write_file") {
     if (typeof input.content !== "string") {
       throw new Error(`Tool ${validatedToolName} requires content`);
     }
@@ -167,6 +199,45 @@ function validateActionInput(
         language: typeof input.language === "string" ? input.language : undefined,
       },
     };
+  }
+
+  if (validatedToolName === "edit_file") {
+    // Diff-style edit: replace one exact snippet instead of the whole
+    // file. Accepted alongside full-content edits (see tools.ts).
+    const oldText =
+      typeof input.oldText === "string"
+        ? input.oldText
+        : typeof input.old_text === "string"
+          ? input.old_text
+          : undefined;
+    const newText =
+      typeof input.newText === "string"
+        ? input.newText
+        : typeof input.new_text === "string"
+          ? input.new_text
+          : undefined;
+
+    if (typeof input.content === "string") {
+      return {
+        tool: validatedToolName,
+        input: {
+          path: safePath,
+          content: input.content,
+          language: typeof input.language === "string" ? input.language : undefined,
+        },
+      };
+    }
+
+    if (oldText !== undefined && newText !== undefined) {
+      return {
+        tool: validatedToolName,
+        input: { path: safePath, oldText, newText },
+      };
+    }
+
+    throw new Error(
+      `Tool ${validatedToolName} requires content or oldText/newText`
+    );
   }
 
   if (validatedToolName === "delete_file") {
@@ -294,6 +365,13 @@ IMPORTANT BOUNDARIES:
 - Paths must stay inside the project and must not include traversal such as ../, absolute paths, or Windows absolute paths.
 - The output must be a JSON object with: { "message": "...", "actions": [...] }
 - Limit actions to 10 or fewer.
+- Example of the exact shape (edit_file replaces the WHOLE file, so
+  "content" must be the complete new file, not just the changed lines):
+  { "message": "Added a comment to the page.", "actions": [ { "tool": "edit_file", "input": { "path": "app/page.tsx", "content": "// Hello\nexport default function Page() { return <h1>Hi</h1>; }" } } ] }
+- If you only want to change part of a file, you may instead use
+  edit_file with "oldText" (exact text already in the file) and "newText"
+  (what replaces it) — never emit an edit with neither "content" nor
+  "oldText"/"newText".
 
 User request:
 ${request.prompt}
