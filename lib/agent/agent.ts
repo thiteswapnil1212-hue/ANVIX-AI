@@ -234,8 +234,49 @@ function validateSuiteResponse(raw: unknown): {
   };
 }
 
+const AGENT_PROMPT_CONTENT_BUDGET = 12000;
+const AGENT_PROMPT_FILE_BUDGET = 3000;
+
 function buildAgentPrompt(request: AgentRequest) {
   const filePaths = request.project.files.map((file) => file.path).sort();
+
+  // The agent used to see only file PATHS and had to spend tool calls
+  // discovering code it was about to edit. Small files are now inlined
+  // (capped, so a huge project cannot blow up the context window);
+  // large files stay behind read_file, and omitted ones are named.
+  let contentBudget = AGENT_PROMPT_CONTENT_BUDGET;
+  const contentBlocks: string[] = [];
+  const omittedPaths: string[] = [];
+
+  for (const file of [...request.project.files].sort((a, b) =>
+    a.path.localeCompare(b.path)
+  )) {
+    if (contentBudget <= 0) {
+      omittedPaths.push(file.path);
+      continue;
+    }
+    const body =
+      file.content.length > AGENT_PROMPT_FILE_BUDGET
+        ? `${file.content.slice(0, AGENT_PROMPT_FILE_BUDGET)}\n... [truncated]`
+        : file.content;
+    const block = `--- ${file.path} ---\n${body}`;
+    if (block.length > contentBudget && contentBlocks.length > 0) {
+      omittedPaths.push(file.path);
+      continue;
+    }
+    contentBlocks.push(block);
+    contentBudget -= block.length;
+  }
+
+  const fileContents =
+    contentBlocks.length > 0
+      ? contentBlocks.join("\n\n")
+      : "(no file contents inlined — use read_file)";
+
+  const omittedNote =
+    omittedPaths.length > 0
+      ? `\n\nOmitted from inline contents (use read_file for these):\n${omittedPaths.map((path) => `  - ${path}`).join("\n")}`
+      : "";
 
   return `
 You are ANVIX Agent, a careful file-editing assistant for a GeneratedProject.
@@ -258,6 +299,9 @@ Project context:
 - framework: ${request.project.framework}
 - file paths:
 ${filePaths.length > 0 ? filePaths.map((path) => `  - ${path}`).join("\n") : "  - none"}
+
+- file contents (inline, truncated where noted):
+${fileContents}${omittedNote}
 
 Return only JSON.
   `.trim();
