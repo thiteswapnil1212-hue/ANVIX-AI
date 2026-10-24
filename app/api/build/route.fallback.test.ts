@@ -58,7 +58,7 @@ test("falls back to the next model when the first model returns malformed JSON",
           },
         };
       },
-    } as unknown as GeminiModelFactory;
+    } as unknown as ReturnType<GeminiModelFactory>;
   };
 
   const project = await generateProjectTextWithFallback("test-key", "Build a coffee shop", modelFactory);
@@ -86,7 +86,7 @@ test("falls back when the current model has a retryable provider error", async (
           },
         };
       },
-    } as unknown as GeminiModelFactory;
+    } as unknown as ReturnType<GeminiModelFactory>;
   };
 
   const project = await generateProjectTextWithFallback("test-key", "Build a coffee shop", modelFactory);
@@ -106,7 +106,7 @@ test("throws if all models fail and preserves permanent-error classification", a
         error.status = 401;
         throw error;
       },
-    } as unknown as GeminiModelFactory;
+    } as unknown as ReturnType<GeminiModelFactory>;
   };
 
   await assert.rejects(
