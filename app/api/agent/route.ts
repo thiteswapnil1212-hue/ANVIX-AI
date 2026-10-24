@@ -123,7 +123,9 @@ export async function POST(req: Request) {
       // Quota/availability failures are transient server problems, not
       // bad requests — report them as 503 so clients retry instead of
       // telling the user their request was wrong.
-      const status = /quota|busy right now/i.test(errorText) ? 503 : 400;
+      const status = /quota|busy right now|currently unavailable/i.test(errorText)
+        ? 503
+        : 400;
       return NextResponse.json(
         {
           success: false,
