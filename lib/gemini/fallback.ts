@@ -200,7 +200,7 @@ export async function generateProjectTextWithFallback(
 ): Promise<GeneratedProject> {
   const failures: Array<{ model: string; attempt: number; failureCategory: string; httpStatus?: number; retryable: boolean; reason: string }> = [];
 
-  for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]) {
+  for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]) {
     const model = modelFactory(apiKey, modelName);
     let lastModelError: unknown;
 
@@ -286,10 +286,10 @@ export async function generateProjectTextWithFallback(
       }
     }
 
-    if (modelName !== "gemini-2.0-flash") {
+    if (modelName !== "gemini-3.8-flash") {
       const nextModel = modelName === "gemini-2.5-flash"
         ? "gemini-2.5-flash-lite"
-        : "gemini-2.0-flash";
+        : "gemini-3.8-flash";
       const failure = classifyGeminiFailure(lastModelError ?? new Error("Unknown failure"));
       console.warn("[ANVIX BUILD] Falling back to next model", {
         from: modelName,
