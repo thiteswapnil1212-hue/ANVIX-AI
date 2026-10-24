@@ -174,7 +174,53 @@ export function editFile(
   project: GeneratedProject,
   input: EditFileInput
 ): AgentToolResult<WriteFileOutput> {
-  return writeFile(project, input);
+  const oldText = input.oldText ?? input.old_text;
+  const newText = input.newText ?? input.new_text;
+
+  // Diff-style edit: replace one exact snippet in the existing file.
+  if (oldText !== undefined || newText !== undefined) {
+    if (typeof oldText !== "string" || typeof newText !== "string") {
+      return {
+        success: false,
+        error: "edit_file with oldText requires newText as well",
+      };
+    }
+
+    const existing = project.files.find((file) => file.path === input.path);
+
+    if (!existing) {
+      return {
+        success: false,
+        error: `File not found: ${input.path}`,
+      };
+    }
+
+    if (!existing.content.includes(oldText)) {
+      return {
+        success: false,
+        error: `Text to replace was not found in ${input.path}`,
+      };
+    }
+
+    return writeFile(project, {
+      path: input.path,
+      content: existing.content.replace(oldText, newText),
+      language: existing.language,
+    });
+  }
+
+  if (typeof input.content !== "string") {
+    return {
+      success: false,
+      error: "edit_file requires content or oldText/newText",
+    };
+  }
+
+  return writeFile(project, {
+    path: input.path,
+    content: input.content,
+    language: input.language,
+  });
 }
 
 export function deleteFile(
