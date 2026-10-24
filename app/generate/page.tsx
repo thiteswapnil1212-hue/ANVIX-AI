@@ -25,6 +25,8 @@ import BuildOptions, {
   defaultBuildConfiguration,
 } from "@/components/generate/BuildOptions";
 import GenerateProgress from "@/components/generate/GenerationProgress";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { insertProject } from "@/lib/supabase/cloud";
 
 const MAX_CHARS = 2200;
 
@@ -150,6 +152,7 @@ async function streamBuildProject(
 
 export default function GeneratePage() {
   const router = useRouter();
+  const { user } = useAuth();
 
   const [prompt, setPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -293,6 +296,18 @@ export default function GeneratePage() {
         trimmedPrompt
       );
 
+      // Signed-in users also get the project in their account, so it
+      // appears on the dashboard from any device. Fire-and-forget: the
+      // local copy above is already saved if the cloud write fails.
+      if (user) {
+        void insertProject(user.id, {
+          name: data.project.name,
+          framework: data.project.framework,
+          files: data.project.files,
+          prompt: trimmedPrompt,
+        });
+      }
+
       router.push(
         `/workspace/${createProjectSlug(data.project.name)}`
       );
@@ -308,6 +323,7 @@ export default function GeneratePage() {
     isPromptTooLong,
     trimmedPrompt,
     router,
+    user,
   ]);
 
   const handleKeyDown = useCallback(
