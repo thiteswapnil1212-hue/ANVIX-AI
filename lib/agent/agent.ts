@@ -30,7 +30,11 @@ export interface AgentResponse {
   error?: string;
 }
 
-const MODEL_NAME = "gemini-2.5-flash";
+const AGENT_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+] as const;
 const GEMINI_TIMEOUT_MS = 60000;
 const MAX_ACTIONS_PER_REQUEST = 10;
 const ALLOWED_TOOLS: AgentToolName[] = [
@@ -307,7 +311,10 @@ Return only JSON.
   `.trim();
 }
 
-async function generateStructuredActions(request: AgentRequest) {
+async function generateStructuredActions(
+  request: AgentRequest,
+  modelName: string
+) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -316,7 +323,7 @@ async function generateStructuredActions(request: AgentRequest) {
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
+    model: modelName,
   });
 
   const result = await withTimeout(
@@ -332,22 +339,37 @@ async function generateStructuredActions(request: AgentRequest) {
   return validateSuiteResponse(parsed);
 }
 
+function isQuotaError(message: string): boolean {
+  return /429|quota|rate limit|resource exhausted|overloaded|service unavailable|503/i.test(
+    message
+  );
+}
+
 async function generateStructuredActionsWithRetry(request: AgentRequest) {
-  try {
-    return await generateStructuredActions(request);
-  } catch (error) {
-    // A missing key will fail every attempt — don't waste a retry on it.
-    if (error instanceof Error && error.message.includes("GEMINI_API_KEY")) {
-      throw error;
+  let lastError: unknown;
+
+  // Same model chain as the build pipeline: one bad model (quota,
+  // overload, malformed plan) no longer kills the whole edit — the
+  // next model gets a chance. A missing key fails every model, so it
+  // throws immediately instead of burning three attempts.
+  for (const modelName of AGENT_MODELS) {
+    try {
+      return await generateStructuredActions(request, modelName);
+    } catch (error) {
+      lastError = error;
+
+      if (error instanceof Error && error.message.includes("GEMINI_API_KEY")) {
+        throw error;
+      }
+
+      console.error("[ANVIX AGENT] Model failed, trying next model:", {
+        model: modelName,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
     }
-
-    console.error(
-      "[ANVIX AGENT] Model returned an unusable plan, retrying once:",
-      error instanceof Error ? error.message : error
-    );
-
-    return generateStructuredActions(request);
   }
+
+  throw lastError ?? new Error("Agent request failed");
 }
 
 function isPlanValidationError(message: string): boolean {
@@ -469,9 +491,11 @@ export async function runAgentService(
     return {
       success: false,
       message: "Agent request failed.",
-      error: isPlanValidationError(message)
-        ? "The AI returned an invalid plan for this project. Please rephrase the request and try again."
-        : message,
+      error: isQuotaError(message)
+        ? "AI service is busy right now (quota limit). Please wait a bit and try again."
+        : isPlanValidationError(message)
+          ? "The AI returned an invalid plan for this project. Please rephrase the request and try again."
+          : message,
     };
   }
 }

@@ -119,12 +119,17 @@ export async function POST(req: Request) {
     });
 
     if (!response.success) {
+      const errorText = response.error || response.message || "Agent failed";
+      // Quota/availability failures are transient server problems, not
+      // bad requests — report them as 503 so clients retry instead of
+      // telling the user their request was wrong.
+      const status = /quota|busy right now/i.test(errorText) ? 503 : 400;
       return NextResponse.json(
         {
           success: false,
-          error: response.error || response.message || "Agent failed",
+          error: errorText,
         },
-        { status: 400 }
+        { status }
       );
     }
 

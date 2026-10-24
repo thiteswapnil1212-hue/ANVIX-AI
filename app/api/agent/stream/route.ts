@@ -155,7 +155,15 @@ export async function POST(request: Request) {
 
           emit({ type: "agent_complete" });
         } catch (error) {
-          emit({ type: "error", message: getErrorMessage(error) });
+          const rawMessage = getErrorMessage(error);
+          emit({
+            type: "error",
+            // Never leak the provider URL or raw quota payload to the
+            // client — quota failures get a plain, actionable message.
+            message: /429|quota/i.test(rawMessage)
+              ? "AI quota is exhausted right now — please wait a bit and try again."
+              : rawMessage,
+          });
         } finally {
           closeStream();
         }
