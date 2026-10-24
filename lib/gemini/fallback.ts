@@ -200,9 +200,10 @@ export async function generateProjectTextWithFallback(
 ): Promise<GeneratedProject> {
   const failures: Array<{ model: string; attempt: number; failureCategory: string; httpStatus?: number; retryable: boolean; reason: string }> = [];
 
-  for (const modelName of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"]) {
+  // Single-model chain: the lite/2.0/3.8 fallbacks are dead or hang on
+  // this API (verified live 2026-10-24) — see GENERATION_MODELS.
+  for (const modelName of ["gemini-2.5-flash"]) {
     const model = modelFactory(apiKey, modelName);
-    let lastModelError: unknown;
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
@@ -251,7 +252,6 @@ export async function generateProjectTextWithFallback(
           throw error;
         }
       } catch (error) {
-        lastModelError = error;
         const failure = classifyGeminiFailure(error);
         const message = failure.message;
         failures.push({
@@ -284,23 +284,6 @@ export async function generateProjectTextWithFallback(
         });
         break;
       }
-    }
-
-    if (modelName !== "gemini-3.8-flash") {
-      const nextModel = modelName === "gemini-2.5-flash"
-        ? "gemini-2.5-flash-lite"
-        : "gemini-3.8-flash";
-      const failure = classifyGeminiFailure(lastModelError ?? new Error("Unknown failure"));
-      console.warn("[ANVIX BUILD] Falling back to next model", {
-        from: modelName,
-        to: nextModel,
-        failureCategory: failure.category,
-        httpStatus: failure.status ?? null,
-        retryable: failure.retryable,
-        reason: failure.message,
-      });
-      await delay(MODEL_FALLBACK_DELAY_MS);
-      continue;
     }
 
     throw new Error(
