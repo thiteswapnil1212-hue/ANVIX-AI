@@ -13,8 +13,9 @@ import { parseGeminiJson, type GeminiModelFactory } from "./fallback";
  * arriving one by one instead of a blank progress screen.
  *
  * Safety rules:
- * - The model chain is the same as the classic path (flash → flash-lite
- *   → 3.8-flash). A model that fails BEFORE any file is emitted falls
+ * - The model chain is the same as the classic path (flash only — the
+ *   lite/2.0/3.8 fallbacks are dead or hang on this API, verified live
+ *   2026-10-24). A model that fails BEFORE any file is emitted falls
  *   through to the next model; after files are emitted, restarting
  *   would duplicate output, so the error is surfaced instead.
  * - The final text is still validated with the same
@@ -30,11 +31,7 @@ export interface StreamCallbacks {
   onFile?: (file: ProjectFile) => void;
 }
 
-const STREAM_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-3.8-flash",
-];
+const STREAM_MODELS = ["gemini-2.5-flash"];
 
 const STREAM_TIMEOUT_MS = 180000;
 
