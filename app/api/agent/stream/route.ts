@@ -162,7 +162,11 @@ export async function POST(request: Request) {
             // client — quota failures get a plain, actionable message.
             message: /429|quota/i.test(rawMessage)
               ? "AI quota is exhausted right now — please wait a bit and try again."
-              : rawMessage,
+              : /GoogleGenerativeAI Error|\b404\b|\b500\b|\b502\b|\b503\b|\b504\b|not found|no longer available/i.test(
+                  rawMessage
+                )
+                ? "AI service is currently unavailable. Please try again shortly."
+                : rawMessage,
           });
         } finally {
           closeStream();
