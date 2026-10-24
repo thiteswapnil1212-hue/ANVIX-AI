@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
+import AuthProvider from "@/components/auth/AuthProvider";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -106,7 +107,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-[#090909] font-sans text-white antialiased">
         <PwaRegister />
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
