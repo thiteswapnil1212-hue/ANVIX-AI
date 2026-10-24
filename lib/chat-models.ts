@@ -15,14 +15,6 @@ export const CHAT_MODELS: ChatModel[] = [
     locked: false,
     apiModelId: "gemini-2.5-flash",
   },
-  {
-    id: "gemini-2.5-flash-lite",
-    name: "Gemini 2.5 Flash-Lite",
-    provider: "Google Gemini",
-    locked: false,
-    apiModelId: "gemini-2.5-flash-lite",
-  },
-
   // Locked models — not connected to an API yet.
   {
     id: "gpt-5.5",
