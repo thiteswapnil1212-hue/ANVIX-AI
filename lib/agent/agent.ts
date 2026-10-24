@@ -33,7 +33,7 @@ export interface AgentResponse {
 const AGENT_MODELS = [
   "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
-  "gemini-2.0-flash",
+  "gemini-3.8-flash",
 ] as const;
 const GEMINI_TIMEOUT_MS = 60000;
 const MAX_ACTIONS_PER_REQUEST = 10;
@@ -339,6 +339,16 @@ async function generateStructuredActions(
   return validateSuiteResponse(parsed);
 }
 
+function isProviderError(message: string): boolean {
+  // A retired model, a 4xx/5xx from the provider, or a raw SDK error
+  // must never reach the user verbatim — it leaks provider internals
+  // and reads as gibberish. These are server-side problems, not bad
+  // requests, so they get a plain message (and a 503 at the route).
+  return /GoogleGenerativeAI Error|\b404\b|\b500\b|\b502\b|\b503\b|\b504\b|not found|no longer available/i.test(
+    message
+  );
+}
+
 function isQuotaError(message: string): boolean {
   return /429|quota|rate limit|resource exhausted|overloaded|service unavailable|503/i.test(
     message
@@ -493,6 +503,8 @@ export async function runAgentService(
       message: "Agent request failed.",
       error: isQuotaError(message)
         ? "AI service is busy right now (quota limit). Please wait a bit and try again."
+        : isProviderError(message)
+          ? "AI service is currently unavailable. Please try again shortly."
         : isPlanValidationError(message)
           ? "The AI returned an invalid plan for this project. Please rephrase the request and try again."
           : message,
