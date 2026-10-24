@@ -43,12 +43,6 @@ const MODEL_INFO: Record<string, ModelInfo> = {
     bestFor: ["Everyday questions", "Learning", "Coding", "Brainstorming"],
     example: "Explain React useEffect with a simple example.",
   },
-  "gemini-2.5-flash-lite": {
-    description:
-      "A lightweight option for short, straightforward tasks where concise responses are useful.",
-    bestFor: ["Quick questions", "Summaries", "Rewrites", "Basic explanations"],
-    example: "Summarize this paragraph in 3 bullet points.",
-  },
   "gpt-5.5": {
     description:
       "An OpenAI model entry. Actual capabilities depend on the configured provider integration.",
