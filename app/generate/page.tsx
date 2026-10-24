@@ -12,7 +12,10 @@ import type { KeyboardEvent } from "react";
 import { AlertCircle, ArrowRight } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
-import type { BuildApiResponse } from "@/lib/project/project-schema";
+import type {
+  BuildApiResponse,
+  BuildProjectResponse,
+} from "@/lib/project/project-schema";
 
 import GenerateHero from "@/components/generate/GenerateHero";
 import PromptBuilder from "@/components/generate/PromptBuilder";
@@ -52,12 +55,108 @@ function getErrorMessage(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
+interface StreamBuildCallbacks {
+  onFile: (path: string) => void;
+  onStatus: (message: string) => void;
+}
+
+/**
+ * Consume /api/build/stream (SSE). Resolves with the finished project
+ * on the done event; throws on any error event or a stream that ends
+ * early, so the caller can fall back to the classic endpoint.
+ */
+async function streamBuildProject(
+  prompt: string,
+  callbacks: StreamBuildCallbacks
+): Promise<BuildProjectResponse> {
+  const response = await fetch("/api/build/stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prompt }),
+  });
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!response.ok || !response.body || !contentType.includes("text/event-stream")) {
+    throw new Error("Stream unavailable");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let filesSeen = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    let boundary = buffer.indexOf("\n\n");
+
+    while (boundary !== -1) {
+      const chunk = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+
+        let event: Record<string, unknown>;
+        try {
+          event = JSON.parse(line.slice(6)) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+
+        if (event.type === "file" && typeof event.file === "object" && event.file) {
+          const path = (event.file as Record<string, unknown>).path;
+          if (typeof path === "string") {
+            filesSeen += 1;
+            callbacks.onFile(path);
+          }
+        } else if (event.type === "status" && typeof event.message === "string") {
+          callbacks.onStatus(event.message);
+        } else if (event.type === "done") {
+          const project = event.project as BuildProjectResponse["project"];
+          const autoFix = event.autoFix as
+            | { applied?: boolean; fixedFileCount?: number; issues?: string[]; remainingIssues?: string[] }
+            | undefined;
+          return {
+            success: true,
+            project,
+            autoFixNote: autoFix?.applied
+              ? `Auto-fixed ${autoFix.fixedFileCount ?? 0} file(s) — ${autoFix.remainingIssues?.length ?? 0} issue(s) left.`
+              : autoFix && (autoFix.issues?.length ?? 0) > 0
+                ? `Checked the project: ${autoFix.issues?.length} issue(s) found, fix pass did not apply.`
+                : null,
+          } as BuildProjectResponse & { autoFixNote: string | null };
+        } else if (event.type === "error") {
+          throw new Error(
+            typeof event.message === "string" ? event.message : "Generation failed"
+          );
+        }
+      }
+
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+
+  throw new Error(
+    filesSeen > 0
+      ? "Stream ended before the project was complete. Please try again."
+      : "Stream unavailable"
+  );
+}
+
 export default function GeneratePage() {
   const router = useRouter();
 
   const [prompt, setPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [streamedFiles, setStreamedFiles] = useState<string[]>([]);
+  const [streamNote, setStreamNote] = useState("");
+  const [streamAutoFix, setStreamAutoFix] = useState<string | null>(null);
 
   const [buildConfig, setBuildConfig] =
     useState<BuildConfiguration>(
@@ -124,33 +223,58 @@ export default function GeneratePage() {
     setErrorMessage("");
 
     try {
-      const response = await fetch("/api/build", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: trimmedPrompt,
-        }),
-      });
+      setStreamedFiles([]);
+      setStreamNote("");
+      setStreamAutoFix(null);
 
-      let data: BuildApiResponse;
+      let data: BuildApiResponse | null = null;
 
       try {
-        data = (await response.json()) as BuildApiResponse;
-      } catch {
-        throw new Error(
-          "The server returned an invalid response. Please try again."
+        const streamed = await streamBuildProject(trimmedPrompt, {
+          onFile: (path) =>
+            setStreamedFiles((prev) =>
+              prev.includes(path) ? prev : [...prev, path]
+            ),
+          onStatus: (message) => setStreamNote(message),
+        });
+        data = streamed;
+        setStreamAutoFix(
+          (streamed as BuildProjectResponse & { autoFixNote?: string | null })
+            .autoFixNote ?? null
         );
+      } catch {
+        // Stream unavailable or failed before producing a project —
+        // fall back to the classic one-shot endpoint below.
+        data = null;
       }
 
-      if (!response.ok || !data.success) {
-        const message =
-          data.success === false && data.error
-            ? data.error
-            : "Unable to generate your project. Please try again.";
+      if (!data) {
+        const response = await fetch("/api/build", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: trimmedPrompt,
+          }),
+        });
 
-        throw new Error(message);
+        try {
+          data = (await response.json()) as BuildApiResponse;
+        } catch {
+          throw new Error(
+            "The server returned an invalid response. Please try again."
+          );
+        }
+
+        if (!response.ok || !data.success) {
+          const message =
+            data.success === false && data.error
+              ? data.error
+              : "Unable to generate your project. Please try again.";
+
+          throw new Error(message);
+        }
       }
 
       if (!data.project?.name) {
@@ -279,7 +403,36 @@ export default function GeneratePage() {
                   bg-[#0D0D0F]
                 "
               >
-                <GenerateProgress />
+                <GenerateProgress
+                  currentStep={streamedFiles.length > 0 ? 3 : 1}
+                />
+
+                {(streamNote || streamedFiles.length > 0 || streamAutoFix) && (
+                  <div className="border-t border-white/[0.06] px-5 py-4">
+                    {streamNote && (
+                      <p className="text-xs text-zinc-400">{streamNote}</p>
+                    )}
+
+                    {streamedFiles.length > 0 && (
+                      <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto pr-1">
+                        {streamedFiles.map((path) => (
+                          <li
+                            key={path}
+                            className="truncate font-mono text-[11px] text-zinc-500"
+                          >
+                            {path}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {streamAutoFix && (
+                      <p className="mt-3 text-xs text-[#d4b35e]">
+                        {streamAutoFix}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
