@@ -49,12 +49,6 @@ const MODEL_INFO: Record<string, ModelInfo> = {
     bestFor: ["Quick questions", "Summaries", "Rewrites", "Basic explanations"],
     example: "Summarize this paragraph in 3 bullet points.",
   },
-  "gemini-2.0-flash": {
-    description:
-      "A general-purpose option for common prompts, explanations, and basic coding questions.",
-    bestFor: ["General questions", "Simple coding", "Explanations", "Comparisons"],
-    example: "Explain the difference between an array and a linked list.",
-  },
   "gpt-5.5": {
     description:
       "An OpenAI model entry. Actual capabilities depend on the configured provider integration.",
