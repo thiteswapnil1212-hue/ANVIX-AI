@@ -2,7 +2,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { fetchProfile, upsertProfile } from "@/lib/supabase/cloud";
 import {
   User,
   MoonStar,
@@ -30,7 +33,7 @@ const settingsSections = [
     title: "Profile",
     description: "Manage your identity and workspace preferences.",
     icon: User,
-    status: "Coming soon",
+    status: "Quick settings",
   },
   {
     title: "Appearance",
@@ -86,6 +89,36 @@ const defaultPreferences: Preferences = {
 };
 
 export default function SettingsPage() {
+  const { configured, user, signOut } = useAuth();
+  const [displayName, setDisplayName] = useState("");
+  const [profileStatus, setProfileStatus] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    void (async () => {
+      const profile = await fetchProfile(user.id);
+      if (!cancelled && profile?.displayName) {
+        setDisplayName(profile.displayName);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const saveProfile = async () => {
+    if (!user) return;
+    setProfileStatus("Saving…");
+    const ok = await upsertProfile(user.id, {
+      email: user.email ?? null,
+      displayName: displayName.trim() || null,
+    });
+    setProfileStatus(ok ? "Profile saved." : "Could not save your profile. Please try again.");
+  };
+
   const [preferences, setPreferences] =
     useState<Preferences>(defaultPreferences);
 
@@ -272,7 +305,11 @@ export default function SettingsPage() {
                   type="button"
                   disabled={!available}
                   onClick={() => {
-                    if (section.title === "Appearance") {
+                    if (section.title === "Profile") {
+                      document
+                        .getElementById("account-settings")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    } else if (section.title === "Appearance") {
                       document
                         .getElementById("appearance-settings")
                         ?.scrollIntoView({ behavior: "smooth" });
@@ -323,6 +360,91 @@ export default function SettingsPage() {
                 </button>
               );
             })}
+          </div>
+        </section>
+
+        {/* ACCOUNT */}
+        <section id="account-settings" className="mb-10 scroll-mt-24">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              Profile
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Your account
+            </h2>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
+            {!configured ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Accounts are not connected on this deployment yet — the
+                Supabase environment variables are missing. You are browsing
+                in guest mode; chats and projects stay in this browser.
+              </p>
+            ) : !user ? (
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="text-sm leading-6 text-zinc-400">
+                  You are in guest mode. Sign in to sync chats and projects
+                  to your account across devices.
+                </p>
+
+                <Link
+                  href="/auth"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-3.5 py-2 text-xs font-semibold text-black transition hover:bg-[#E2C259]"
+                >
+                  Sign in
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                    Email
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-200">{user.email}</p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="display-name"
+                    className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500"
+                  >
+                    Display name
+                  </label>
+
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    <input
+                      id="display-name"
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      placeholder="Your name"
+                      className="h-10 min-w-56 flex-1 rounded-lg border border-white/[0.08] bg-[#0D0D0D] px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-[#D4AF37]/40"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => void saveProfile()}
+                      className="inline-flex h-10 items-center rounded-lg bg-[#D4AF37] px-4 text-xs font-semibold text-black transition hover:bg-[#E2C259]"
+                    >
+                      Save profile
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void signOut()}
+                      className="inline-flex h-10 items-center rounded-lg border border-white/[0.1] px-4 text-xs font-medium text-zinc-300 transition hover:border-white/[0.2] hover:text-white"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+
+                  {profileStatus && (
+                    <p className="mt-2 text-xs text-zinc-500">{profileStatus}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
