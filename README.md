@@ -43,7 +43,7 @@ Chat supports Markdown + GFM rendering and streaming responses (`/api/agent/stre
 
 ### 🔐 Full app shell
 
-Authentication, per-user settings, pricing page, and PostgreSQL (`pg`) persistence for app data (`lib/db/chat-db.ts`).
+Supabase authentication (email, Google, password reset) with per-user cloud sync for chats and generated projects — guest mode with browser-only storage when Supabase is not configured — plus per-user settings and a pricing page.
 
 ## How it works
 
@@ -82,9 +82,13 @@ Create `.env.local` before running. Verified variable:
 ```bash
 # Google Generative AI key (required for chat + generation)
 GEMINI_API_KEY=...
+
+# Optional — enables accounts + cloud sync (without these, guest mode):
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-PostgreSQL connection is configured in `lib/db/chat-db.ts` — check that file for the exact connection variable it expects.
+Accounts are optional: to enable Supabase auth + cloud sync, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to `.env.local`, run `supabase/schema.sql` once in the Supabase SQL editor (profiles, conversations, messages, projects with row-level security), and add your deployment URL under Authentication → URL Configuration in the Supabase dashboard.
 
 ## Project structure
 
