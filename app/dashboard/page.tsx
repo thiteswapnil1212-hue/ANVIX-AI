@@ -15,7 +15,16 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { fetchProjects, type CloudProject } from "@/lib/supabase/cloud";
+
+const slugifyProjectName = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
 type StoredProject = {
   name?: string;
@@ -28,7 +37,45 @@ type StoredProject = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [project, setProject] = useState<StoredProject | null>(null);
+  const [cloudProjects, setCloudProjects] = useState<CloudProject[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    void (async () => {
+      const projects = await fetchProjects(user.id);
+      if (!cancelled && projects) {
+        setCloudProjects(projects);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const openCloudProject = (cloudProject: CloudProject) => {
+    try {
+      localStorage.setItem(
+        "anvix.generatedProject",
+        JSON.stringify({
+          id: cloudProject.id,
+          name: cloudProject.name,
+          framework: cloudProject.framework,
+          files: cloudProject.files,
+          createdAt: cloudProject.createdAt,
+          updatedAt: cloudProject.updatedAt,
+        })
+      );
+    } catch {
+      // Storage unavailable — the workspace will show its empty state.
+    }
+    router.push(`/workspace/${slugifyProjectName(cloudProject.name)}`);
+  };
 
   useEffect(() => {
     try {
@@ -149,31 +196,29 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {project && (
+              {(project || cloudProjects.length > 0) && (
                 <span className="hidden rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-zinc-500 sm:inline-flex">
-                  {projectFileCount} files
+                  {cloudProjects.length > 0
+                    ? `${cloudProjects.length} saved project${cloudProjects.length === 1 ? "" : "s"}`
+                    : `${projectFileCount} files`}
                 </span>
               )}
             </div>
 
-            {project ? (
+            {project || cloudProjects.length > 0 ? (
               <div className="grid gap-4">
+                {project && (
+                  <>
                 <ProjectCard
                   title={projectName}
                   description="AI-generated project in your ANVIX workspace."
                   updatedAt="Available in workspace"
-                  href={`/workspace/${projectName
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "-")
-                    .replace(/(^-|-$)/g, "")}`}
+                  href={`/workspace/${slugifyProjectName(projectName)}`}
                   accent="Active"
                 />
 
                 <Link
-                  href={`/workspace/${projectName
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "-")
-                    .replace(/(^-|-$)/g, "")}`}
+                  href={`/workspace/${slugifyProjectName(projectName)}`}
                   className="group flex items-center justify-between rounded-2xl border border-zinc-800/70 bg-[#0D0D0D] px-4 py-3 transition hover:border-zinc-700"
                 >
                   <div className="flex items-center gap-3">
@@ -190,6 +235,32 @@ export default function DashboardPage() {
 
                   <ArrowRight className="h-4 w-4 text-zinc-600 transition group-hover:translate-x-1 group-hover:text-[#D4AF37]" />
                 </Link>
+                  </>
+                )}
+
+                {cloudProjects.map((cloudProject) => (
+                  <button
+                    key={cloudProject.id}
+                    type="button"
+                    onClick={() => openCloudProject(cloudProject)}
+                    className="group flex items-center justify-between rounded-2xl border border-zinc-800/70 bg-[#0D0D0D] px-4 py-3 text-left transition hover:border-zinc-700"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Code2 className="h-4 w-4 text-zinc-500" />
+                      <div>
+                        <p className="text-sm font-medium text-zinc-200">
+                          {cloudProject.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-zinc-600">
+                          {cloudProject.framework} · {cloudProject.files.length}{" "}
+                          files · Saved to your account
+                        </p>
+                      </div>
+                    </div>
+
+                    <ArrowRight className="h-4 w-4 text-zinc-600 transition group-hover:translate-x-1 group-hover:text-[#D4AF37]" />
+                  </button>
+                ))}
               </div>
             ) : (
               <div className="flex min-h-[250px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-800 bg-[#0D0D0D] px-6 text-center">
