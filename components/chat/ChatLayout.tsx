@@ -1,4 +1,4 @@
-﻿
+
 "use client";
 
 import {
@@ -9,7 +9,16 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
+
+import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  deleteCloudConversation,
+  fetchConversations,
+  syncConversation,
+  type CloudConversation as CloudConversationShape,
+} from "@/lib/supabase/cloud";
 
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
@@ -226,6 +235,119 @@ export default function ChatLayout() {
     );
 
   const [isTyping, setIsTyping] = useState(false);
+
+  const router = useRouter();
+  const { user, signOut } = useAuth();
+
+  // Cloud sync bookkeeping: which conversation snapshots are already in
+  // Supabase, and which ids existed there (so deletions propagate).
+  const cloudReadyRef = useRef(false);
+  const syncedSnapshotsRef = useRef(new Map<string, string>());
+  const knownCloudIdsRef = useRef(new Set<string>());
+  const conversationsRef = useRef<GuestChatConversation[]>([]);
+  const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+  // Cloud rows need a concrete timestamp on every message; local
+  // messages may omit it, so fall back to the conversation's.
+  const toCloudConversation = (
+    conversation: GuestChatConversation
+  ): CloudConversationShape => ({
+    ...conversation,
+    messages: conversation.messages.map((message) => ({
+      ...message,
+      createdAt: message.createdAt ?? conversation.updatedAt,
+    })),
+  });
+
+
+  // On sign-in: load the user's cloud conversations. If the cloud is
+  // empty but this browser holds guest chats, import them once so
+  // signing in never loses history.
+  useEffect(() => {
+    if (!user) {
+      cloudReadyRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    const userId = user.id;
+
+    void (async () => {
+      const cloud = await fetchConversations(userId);
+      if (cancelled || !cloud) return;
+
+      let effective: GuestChatConversation[] = [];
+
+      if (cloud.length === 0 && conversationsRef.current.length > 0) {
+        const local = conversationsRef.current;
+        for (const conversation of local) {
+          await syncConversation(userId, toCloudConversation(conversation));
+        }
+        effective = local;
+      } else if (cloud.length > 0) {
+        effective = cloud;
+        setConversations(sortConversations(cloud));
+        setActiveConversationId(cloud[0]?.id ?? null);
+      }
+
+      syncedSnapshotsRef.current = new Map(
+        effective.map((conversation) => [
+          conversation.id,
+          JSON.stringify(conversation),
+        ])
+      );
+      knownCloudIdsRef.current = new Set(
+        effective.map((conversation) => conversation.id)
+      );
+      cloudReadyRef.current = true;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Debounced cloud sync: upsert changed conversations, delete removed
+  // ones. Local persistence stays as the always-on mirror.
+  useEffect(() => {
+    if (!user || !cloudReadyRef.current) return;
+
+    if (cloudSyncTimerRef.current) {
+      clearTimeout(cloudSyncTimerRef.current);
+    }
+
+    const userId = user.id;
+    const snapshot = conversations;
+
+    cloudSyncTimerRef.current = setTimeout(() => {
+      void (async () => {
+        const currentIds = new Set<string>();
+
+        for (const conversation of snapshot) {
+          currentIds.add(conversation.id);
+          const serialized = JSON.stringify(conversation);
+          if (syncedSnapshotsRef.current.get(conversation.id) !== serialized) {
+            const ok = await syncConversation(userId, toCloudConversation(conversation));
+            if (ok) {
+              syncedSnapshotsRef.current.set(conversation.id, serialized);
+              knownCloudIdsRef.current.add(conversation.id);
+            }
+          }
+        }
+
+        for (const knownId of [...knownCloudIdsRef.current]) {
+          if (!currentIds.has(knownId)) {
+            await deleteCloudConversation(userId, knownId);
+            knownCloudIdsRef.current.delete(knownId);
+            syncedSnapshotsRef.current.delete(knownId);
+          }
+        }
+      })();
+    }, 900);
+  }, [conversations, user]);
 
   const activeRequestRef = useRef<ActiveRequest | null>(null);
 
@@ -665,6 +787,16 @@ export default function ChatLayout() {
               onRenameThread={handleRenameConversation}
               onDeleteThread={handleDeleteConversation}
               onTogglePin={handleTogglePin}
+              onOpenSettings={() => router.push("/settings")}
+              onOpenAccount={() => {
+                if (user) {
+                  void signOut();
+                } else {
+                  router.push("/auth");
+                }
+              }}
+              userName={user?.email ?? "Guest"}
+              plan={user ? "Cloud sync on" : "Local workspace"}
             />
           </div>
         </aside>
@@ -769,6 +901,16 @@ export default function ChatLayout() {
                   onRenameThread={handleRenameConversation}
                   onDeleteThread={handleDeleteConversation}
                   onTogglePin={handleTogglePin}
+                  onOpenSettings={() => router.push("/settings")}
+                  onOpenAccount={() => {
+                    if (user) {
+                      void signOut();
+                    } else {
+                      router.push("/auth");
+                    }
+                  }}
+                  userName={user?.email ?? "Guest"}
+                  plan={user ? "Cloud sync on" : "Local workspace"}
                 />
               </div>
             </aside>
