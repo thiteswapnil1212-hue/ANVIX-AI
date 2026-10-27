@@ -412,9 +412,22 @@ async function generateStructuredActions(
   );
 
   const text = result.response.text();
-  const parsed = parseGeminiJson(text);
 
-  return validateSuiteResponse(parsed);
+  // When a plan is rejected, the raw output is the only evidence of what
+  // the model actually emitted. Log a truncated preview server-side so
+  // the next "no valid actions" failure is diagnosable from the logs
+  // instead of a guess.
+  try {
+    const parsed = parseGeminiJson(text);
+    return validateSuiteResponse(parsed);
+  } catch (error) {
+    console.error("[ANVIX AGENT] Model plan rejected", {
+      model: modelName,
+      reason: error instanceof Error ? error.message : "unknown",
+      preview: text.slice(0, 500),
+    });
+    throw error;
+  }
 }
 
 function isProviderError(message: string): boolean {
