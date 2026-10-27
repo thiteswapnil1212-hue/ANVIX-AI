@@ -164,6 +164,7 @@ export async function POST(req: Request) {
             fixedFileCount: 0,
             remainingIssues: errorMessages,
             applied: false,
+            error: undefined as string | undefined,
           };
 
           if (errorMessages.length > 0) {
@@ -173,7 +174,7 @@ export async function POST(req: Request) {
             });
 
             const fix = await autoFixProject(apiKey, project, issues);
-            if (fix) {
+            if (fix && fix.files.length > 0) {
               finalProject = applyFixFiles(project, fix.files);
               for (const file of fix.files) {
                 emit({ type: "file", file, replaces: true });
@@ -186,7 +187,10 @@ export async function POST(req: Request) {
                 fixedFileCount: fix.files.length,
                 remainingIssues: remaining,
                 applied: true,
+                error: undefined,
               };
+            } else if (fix?.error) {
+              autoFix.error = fix.error;
             }
           }
 
