@@ -1,3 +1,4 @@
+import { repairJsonText } from "./json-repair.ts";
 import type { GeneratedProject } from "./project-schema";
 
 /**
@@ -91,10 +92,14 @@ export function validateGeneratedProjectFiles(
       try {
         JSON.parse(file.content);
       } catch {
-        issues.push({
-          severity: "error",
-          message: `File ${file.path} is not valid JSON.`,
-        });
+        // Repairable comma mistakes are fixed at construction time (see
+        // project-schema.ts), so they are not errors here either.
+        if (repairJsonText(file.content) === null) {
+          issues.push({
+            severity: "error",
+            message: `File ${file.path} is not valid JSON.`,
+          });
+        }
       }
     }
   }
