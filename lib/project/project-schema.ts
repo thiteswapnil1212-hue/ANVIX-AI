@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { repairJsonText } from "./json-repair.ts";
+
 export interface ProjectFile {
   path: string;
   content: string;
@@ -100,7 +102,7 @@ function validateProjectFile(file: unknown): ProjectFile {
 
   const normalizedPath = validateAndNormalizePath(candidate.path);
   const language = candidate.language.trim();
-  const content = candidate.content;
+  let content = candidate.content;
 
   if (!language) {
     throw new Error("Generated project contains an empty file language");
@@ -110,6 +112,24 @@ function validateProjectFile(file: unknown): ProjectFile {
     throw new Error(
       `Generated project file contains empty content: ${normalizedPath}`
     );
+  }
+
+  // Models routinely emit JSON with a stray extra comma or a trailing
+  // comma (e.g. tsconfig.json). Repair only those commas, deterministically,
+  // so the shipped project is parseable; anything else still fails loudly
+  // here instead of shipping broken and relying on the fix pass.
+  if (normalizedPath.endsWith(".json")) {
+    try {
+      JSON.parse(content);
+    } catch {
+      const repaired = repairJsonText(content);
+      if (repaired === null) {
+        throw new Error(
+          `Generated project file is not valid JSON: ${normalizedPath}`
+        );
+      }
+      content = repaired;
+    }
   }
 
   return {
