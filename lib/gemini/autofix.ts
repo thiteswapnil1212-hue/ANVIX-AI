@@ -59,11 +59,17 @@ function isFixFile(value: unknown): value is {
   );
 }
 
+export interface AutoFixResult {
+  files: ProjectFile[];
+  /** Why the fix pass produced nothing usable, when it failed. */
+  error?: string;
+}
+
 export async function autoFixProject(
   apiKey: string,
   project: GeneratedProject,
   issues: ValidationIssue[]
-): Promise<{ files: ProjectFile[] } | null> {
+): Promise<AutoFixResult | null> {
   const errorIssues = issues.filter((issue) => issue.severity === "error");
   if (errorIssues.length === 0) return null;
 
@@ -116,13 +122,22 @@ ${renderedFiles.join("\n\n")}`;
         result.response.text()
       ) as unknown;
 
-      if (!parsed || typeof parsed !== "object") return null;
+      if (!parsed || typeof parsed !== "object") {
+        return { files: [], error: "Fix pass did not return a JSON object." };
+      }
       const files = (parsed as Record<string, unknown>).files;
-      if (!Array.isArray(files) || files.length === 0) return null;
+      if (!Array.isArray(files) || files.length === 0) {
+        return { files: [], error: "Fix pass returned no files." };
+      }
 
       const fixedFiles: ProjectFile[] = [];
       for (const file of files) {
-        if (!isFixFile(file)) return null;
+        if (!isFixFile(file)) {
+          return {
+            files: [],
+            error: "Fix pass returned a file without a path or content.",
+          };
+        }
         fixedFiles.push({
           path: file.path,
           content: file.content,
@@ -134,10 +149,11 @@ ${renderedFiles.join("\n\n")}`;
       clearTimeout(timeoutId);
     }
   } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown";
     console.warn("[ANVIX AUTOFIX] Fix pass failed, keeping original project.", {
-      reason: error instanceof Error ? error.message : "unknown",
+      reason,
     });
-    return null;
+    return { files: [], error: reason };
   }
 }
 
