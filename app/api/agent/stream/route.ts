@@ -7,7 +7,7 @@ const MAX_PROMPT_LENGTH = 20000;
 type StreamEvent =
   | { type: "agent_start" }
   | AgentProgressEvent
-  | { type: "agent_complete" }
+  | { type: "agent_complete"; project: GeneratedProject }
   | { type: "error"; message: string };
 
 function jsonError(error: string, status: number) {
@@ -153,7 +153,11 @@ export async function POST(request: Request) {
             return;
           }
 
-          emit({ type: "agent_complete" });
+          // The edited project is the whole point of the run: send it
+          // back, or the workspace can never apply the agent's edits.
+          // (Before this, agent_complete carried no payload and every
+          // edit was computed server-side and then discarded.)
+          emit({ type: "agent_complete", project: response.project ?? project });
         } catch (error) {
           const rawMessage = getErrorMessage(error);
           emit({
