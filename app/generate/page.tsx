@@ -121,7 +121,7 @@ async function streamBuildProject(
         } else if (event.type === "done") {
           const project = event.project as BuildProjectResponse["project"];
           const autoFix = event.autoFix as
-            | { applied?: boolean; fixedFileCount?: number; issues?: string[]; remainingIssues?: string[] }
+            | { applied?: boolean; fixedFileCount?: number; issues?: string[]; remainingIssues?: string[]; error?: string }
             | undefined;
           return {
             success: true,
@@ -129,7 +129,7 @@ async function streamBuildProject(
             autoFixNote: autoFix?.applied
               ? `Auto-fixed ${autoFix.fixedFileCount ?? 0} file(s) — ${autoFix.remainingIssues?.length ?? 0} issue(s) left.`
               : autoFix && (autoFix.issues?.length ?? 0) > 0
-                ? `Checked the project: ${autoFix.issues?.length} issue(s) found, fix pass did not apply.`
+                ? `Checked the project: ${autoFix.issues?.length} issue(s) found, fix pass did not apply.${autoFix.error ? ` (${autoFix.error})` : ""}`
                 : null,
           } as BuildProjectResponse & { autoFixNote: string | null };
         } else if (event.type === "error") {
