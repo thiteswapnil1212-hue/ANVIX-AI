@@ -7,17 +7,30 @@ import {
   CheckCircle2,
   ChevronDown,
   Code2,
+  Download,
   Eye,
   Folder,
   GitBranch,
   Loader2,
   MoreHorizontal,
   Play,
+  Redo2,
   Rocket,
   Sparkles,
   Terminal,
+  Undo2,
 } from "lucide-react";
 
+import {
+  canRedo,
+  canUndo,
+  createHistory,
+  pushHistory,
+  redoHistory,
+  undoHistory,
+  type ProjectHistory,
+} from "@/lib/agent/history";
+import { downloadProjectZip } from "@/lib/project/export-zip";
 import {
   isGeneratedProject,
   type GeneratedProject,
@@ -47,7 +60,7 @@ type AgentStreamEvent =
       path?: string;
     }
   | { type: "agent_message"; message: string }
-  | { type: "agent_complete" }
+  | { type: "agent_complete"; project: GeneratedProject }
   | { type: "error"; message: string };
 
 type AgentActivity = {
@@ -107,6 +120,9 @@ export default function Workspace({
   const router = useRouter();
   const [project, setProject] = useState<GeneratedProject | null>(null);
   const [savedProject, setSavedProject] = useState<GeneratedProject | null>(null);
+  const [history, setHistory] = useState<ProjectHistory>(() =>
+    createHistory()
+  );
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<"code" | "preview">("code");
 
@@ -225,6 +241,12 @@ export default function Workspace({
         return;
       case "agent_complete":
         addAgentActivity("Generation complete", "complete");
+        // The edited project arrives with this event. Before this fix the
+        // event carried no payload, so every agent edit was computed
+        // server-side and then silently discarded by the UI.
+        if (event.project && isGeneratedProject(event.project)) {
+          setProject(cloneProject(event.project));
+        }
         setIsAgentStreaming(false);
         agentStreamingRef.current = false;
         return;
@@ -342,6 +364,9 @@ export default function Workspace({
     if (consumedAgentPromptRef.current === initialAgentPrompt) return;
 
     consumedAgentPromptRef.current = initialAgentPrompt;
+    setHistory((currentHistory) =>
+      pushHistory(currentHistory, cloneProject(project))
+    );
     void streamAgent(initialAgentPrompt, project);
   }, [initialAgentPrompt, project]);
 
@@ -363,6 +388,31 @@ export default function Workspace({
     return JSON.stringify(project) !== JSON.stringify(savedProject);
   }, [project, savedProject]);
 
+  function handleUndo() {
+    if (!project || isAgentStreaming) return;
+
+    const result = undoHistory(history, project);
+    if (!result) return;
+
+    setHistory(result.history);
+    setProject(cloneProject(result.project));
+  }
+
+  function handleRedo() {
+    if (!project || isAgentStreaming) return;
+
+    const result = redoHistory(history, project);
+    if (!result) return;
+
+    setHistory(result.history);
+    setProject(cloneProject(result.project));
+  }
+
+  function handleExportZip() {
+    if (!project) return;
+    downloadProjectZip(project);
+  }
+
   function handleRun() {
     if (isRunning) return;
 
@@ -378,6 +428,11 @@ export default function Workspace({
 
     if (!prompt || !project || agentStreamingRef.current) return;
 
+    // Snapshot before the agent rewrites the project, so Undo can bring
+    // this exact state back.
+    setHistory((currentHistory) =>
+      pushHistory(currentHistory, cloneProject(project))
+    );
     setAiPrompt("");
     setAgentActivities([]);
     void streamAgent(prompt, project);
@@ -588,6 +643,42 @@ export default function Workspace({
             disabled={!isDirty || !selectedFilePath}
           >
             <span className="hidden sm:inline">Reset</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!canUndo(history) || isAgentStreaming}
+            title="Undo the last agent edit"
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Undo2 className="h-3 w-3" />
+
+            <span className="hidden sm:inline">Undo</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRedo}
+            disabled={!canRedo(history) || isAgentStreaming}
+            title="Redo the undone agent edit"
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Redo2 className="h-3 w-3" />
+
+            <span className="hidden sm:inline">Redo</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportZip}
+            disabled={!project}
+            title="Download the project as a ZIP file"
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-3 w-3" />
+
+            <span className="hidden sm:inline">Export</span>
           </button>
 
           <button
