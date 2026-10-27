@@ -101,11 +101,12 @@ export async function POST(req: Request) {
       fixedFileCount: 0,
       remainingIssues: errorMessages,
       applied: false,
+      error: undefined as string | undefined,
     };
 
     if (errorMessages.length > 0) {
       const fix = await autoFixProject(apiKey, project, issues);
-      if (fix) {
+      if (fix && fix.files.length > 0) {
         finalProject = applyFixFiles(project, fix.files);
         autoFix = {
           issues: errorMessages,
@@ -114,7 +115,12 @@ export async function POST(req: Request) {
             .filter((issue) => issue.severity === "error")
             .map((issue) => issue.message),
           applied: true,
+          error: undefined,
         };
+      } else if (fix?.error) {
+        // The fix pass ran but produced nothing usable — say why, so the
+        // failure is visible instead of silently keeping broken files.
+        autoFix.error = fix.error;
       }
     }
 
