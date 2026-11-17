@@ -43,11 +43,16 @@ Supabase authentication (email, Google, password reset) with per-user cloud sync
 
 ## How it works
 
-```
-You (natural language)
-  → /api/chat · /api/generate · /api/build(+/stream) · /api/agent(+/stream)
-    → Gemini 2.5 Flash (Google Generative AI, the only verified-live model)
-      → streamed response → workspace → Supabase (signed in) / browser storage (guest)
+```mermaid
+flowchart LR
+    User([You<br/>plain language]) --> UI["Chat · Generate · Workspace<br/>Next.js App Router"]
+    UI --> API["API routes<br/>/api/chat · /api/build · /api/agent"]
+    API --> FB["lib/gemini/fallback.ts<br/>retries on failure"]
+    FB --> Gem["Gemini 2.5 Flash<br/>only verified-live model"]
+    Gem --> Stream["Streamed response (SSE)<br/>/api/build/stream · /api/agent/stream"]
+    Stream --> WS["Workspace<br/>validate · auto-fix · undo/redo · ZIP"]
+    WS --> Store["Supabase · signed in<br/>chats + projects"]
+    WS --> Guest["Browser localStorage · guest"]
 ```
 
 `lib/gemini/fallback.ts` retries the model on retryable failures. There is no second model in the chain today — the other candidates were retired or hang on this API (see the chat section above).
@@ -108,7 +113,9 @@ lib/
 ├── chat-models.ts    # model registry (live vs locked) + tests
 ├── gemini/           # Gemini client, streaming generation, auto-fix
 ├── project/          # project domain logic (validation, JSON repair, ZIP export)
+├── rate-limit.ts     # request rate limiting
 ├── sandbox/          # sandbox helpers
+├── supabase/         # Supabase client + cloud sync (client.ts, cloud.ts)
 └── utils.ts
 components/           # shared UI (shadcn-based)
 hooks/                # React hooks
