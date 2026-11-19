@@ -13,8 +13,6 @@ import remarkGfm from "remark-gfm";
 import {
   Check,
   Copy,
-  Sparkles,
-  UserRound,
 } from "lucide-react";
 
 interface ChatMessageBubbleProps {
@@ -284,65 +282,29 @@ function ChatMessageBubble({
         ${isAssistant ? "justify-start" : "justify-end"}
       `}
     >
-      {isAssistant && (
-        <div
-          className="
-            mt-1 flex h-8 w-8 shrink-0 items-center
-            justify-center rounded-xl border
-            border-white/10
-            bg-[#1A1A1A]
-          "
-          title="AGI"
-        >
-          <Sparkles
-            className="h-4 w-4 text-[#FAFAFA]"
-            strokeWidth={1.8}
-            aria-hidden="true"
-          />
-        </div>
-      )}
-
       <div
         className={`
           relative min-w-0
           ${
             isAssistant
-              ? "max-w-[calc(100%-2.75rem)] sm:max-w-[82%]"
-              : "max-w-[calc(100%-2.75rem)] sm:max-w-[76%]"
+              ? "w-full"
+              : "max-w-[calc(100%-1rem)] sm:max-w-[76%]"
           }
         `}
       >
-        {isAssistant && (
-          <div className="mb-2 flex min-h-4 items-center gap-2 px-1">
-            <span className="text-[10px] font-bold uppercase tracking-[0.17em] text-[#FAFAFA]">
-              AGI
-            </span>
-            <span
-              className="h-1 w-1 rounded-full bg-zinc-700"
-              aria-hidden="true"
-            />
-            <span className="text-[10px] font-medium text-zinc-500">
-              Assistant
-            </span>
-          </div>
-        )}
-
         <div
           className={`
-            relative min-w-0 rounded-2xl border
+            relative min-w-0 rounded-[20px]
             px-4 py-3 transition-colors duration-200
             sm:px-5 sm:py-4
             ${
               isAssistant
                 ? `
-                  rounded-tl-md border-transparent
-                  bg-transparent text-zinc-200
+                  rounded-2xl
+                  bg-[#1F1F20] text-[#EDEDED]
                 `
                 : `
-                  rounded-tr-md border-[#FAFAFA]/20
-                  bg-[#262626] text-zinc-100
-                  shadow-[0_8px_30px_rgba(0,0,0,0.10)]
-                  hover:border-[#FAFAFA]/35
+                  bg-[#113254] text-white
                 `
             }
           `}
@@ -421,23 +383,6 @@ function ChatMessageBubble({
           </div>
         </div>
       </div>
-
-      {!isAssistant && (
-        <div
-          className="
-            mt-1 flex h-8 w-8 shrink-0 items-center
-            justify-center rounded-xl border
-            border-white/[0.10] bg-[#202023] text-zinc-400
-          "
-          title="You"
-        >
-          <UserRound
-            className="h-4 w-4"
-            strokeWidth={1.8}
-            aria-hidden="true"
-          />
-        </div>
-      )}
     </article>
   );
 }
