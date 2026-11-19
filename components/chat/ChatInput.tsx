@@ -262,8 +262,8 @@ export default function ChatInput({
           <div
             className="
               relative flex w-full items-end gap-2
-              rounded-2xl border border-zinc-800/90
-              bg-[#151518] p-2.5
+              rounded-3xl border border-zinc-800/90
+              bg-[#1A1A1A] p-2.5
               shadow-[0_8px_30px_rgba(0,0,0,0.22)]
               transition-[border-color,box-shadow]
               duration-200
@@ -315,9 +315,9 @@ export default function ChatInput({
               placeholder={
                 isGenerating
                   ? "Press Enter to stop..."
-                  : "Message ANVIX AI..."
+                  : "Message AGI..."
               }
-              aria-label="Message ANVIX AI"
+              aria-label="Message AGI"
               aria-describedby="chat-input-hint"
               className="
                 min-h-[36px] max-h-[120px] min-w-0 flex-1
@@ -404,16 +404,16 @@ export default function ChatInput({
                           inline-flex shrink-0
                           items-center gap-1.5
                           rounded-full
-                          border border-[#D4AF37]/40
-                          bg-[#D4AF37]/10
+                          border border-[#FAFAFA]/40
+                          bg-[#FAFAFA]/10
                           px-2.5 py-1.5
                           text-[11px] font-medium
-                          text-[#D4AF37]
+                          text-[#FAFAFA]
                           transition-colors
-                          hover:bg-[#D4AF37]/20
+                          hover:bg-[#FAFAFA]/20
                           focus-visible:outline-none
                           focus-visible:ring-2
-                          focus-visible:ring-[#D4AF37]
+                          focus-visible:ring-[#FAFAFA]
                         "
                         aria-label="Open model guide"
                       >
@@ -505,7 +505,7 @@ export default function ChatInput({
                               <Check
                                 className="
                                   h-4 w-4 shrink-0
-                                  text-[#D4AF37]
+                                  text-[#FAFAFA]
                                 "
                                 strokeWidth={2}
                                 aria-hidden="true"
@@ -549,14 +549,14 @@ export default function ChatInput({
                 transition-all duration-150
                 focus-visible:outline-none
                 focus-visible:ring-2
-                focus-visible:ring-[#D4AF37]
+                focus-visible:ring-[#FAFAFA]
                 focus-visible:ring-offset-2
                 focus-visible:ring-offset-[#151518]
                 ${
                   isGenerating
                     ? "bg-zinc-200 text-black hover:bg-white active:scale-95"
                     : canSend
-                      ? "bg-[#D4AF37] text-black hover:bg-[#E0BB4C] active:scale-95"
+                      ? "bg-[#FAFAFA] text-black hover:bg-[#E5E5E5] active:scale-95"
                       : "cursor-not-allowed bg-zinc-800 text-zinc-600"
                 }
               `}
