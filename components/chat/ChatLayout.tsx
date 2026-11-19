@@ -7,10 +7,10 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { ArrowLeft, PanelRight } from "lucide-react";
 import { DEFAULT_CHAT_MODEL_ID } from "@/lib/chat-models";
 
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -24,7 +24,13 @@ import {
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
-import AppShell from "@/components/layout/AppShell";
+import AgiShell from "@/components/agi/AgiShell";
+import IconRail from "@/components/agi/IconRail";
+import ApprovalsPanel from "@/components/agi/ApprovalsPanel";
+import {
+  readApprovals,
+  type ApprovalEntry,
+} from "@/components/agi/ApprovalsHistory";
 
 type Message = {
   id: string;
@@ -59,6 +65,19 @@ type ActiveRequest = {
 };
 
 const STORAGE_KEY = "anvix-guest-chats";
+
+/** Desktop viewport (lg breakpoint) via useSyncExternalStore — the
+ * sanctioned way to read a media query without a setState-in-effect. */
+const useIsDesktop = () =>
+  useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia("(min-width: 1024px)");
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia("(min-width: 1024px)").matches,
+    () => true
+  );
 
 const createTimestamp = () => new Date().toISOString();
 
@@ -224,7 +243,39 @@ export default function ChatLayout() {
     []
   );
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Right panel: open by default on desktop (D3). On phones it stays
+  // closed until the header toggle opens it as a slide-over, so the
+  // three panes are never squeezed onto a phone at once.
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const isDesktop = useIsDesktop();
+
+  // Approvals history (localStorage, starts empty).
+  const [approvals, setApprovals] = useState<ApprovalEntry[]>(() =>
+    readApprovals()
+  );
+
+  const togglePanel = useCallback(() => {
+    setApprovals(readApprovals());
+
+    if (isDesktop) {
+      setPanelOpen((open) => !open);
+    } else {
+      setMobilePanelOpen((open) => !open);
+    }
+  }, [isDesktop]);
+
+  const closePanel = useCallback(() => {
+    setPanelOpen(false);
+    setMobilePanelOpen(false);
+  }, []);
+
+  // "Connected" = last /api/chat call succeeded; "Not connected" after
+  // a key error (the route returns 500 "Gemini API key is not
+  // configured" without GEMINI_API_KEY). No new API.
+  const [chatConnected, setChatConnected] = useState(true);
 
   const [conversations, setConversations] = useState<
     GuestChatConversation[]
@@ -430,7 +481,7 @@ export default function ChatLayout() {
     );
 
     setActiveConversationId(id);
-    setSidebarOpen(false);
+    setDrawerOpen(false);
   }, [handleStop]);
 
   // Select a conversation.
@@ -438,7 +489,7 @@ export default function ChatLayout() {
     (id: string) => {
       handleStop();
       setActiveConversationId(id);
-      setSidebarOpen(false);
+      setDrawerOpen(false);
     },
     [handleStop]
   );
@@ -668,6 +719,9 @@ export default function ChatLayout() {
       const reader = response.body.getReader();
       request.reader = reader;
 
+      // A 200 + readable stream means the key works.
+      setChatConnected(true);
+
       while (!request.stopped) {
         const { value, done } = await reader.read();
 
@@ -723,6 +777,10 @@ export default function ChatLayout() {
           ? error.message
           : "Something went wrong while generating the response.";
 
+      if (/api key/i.test(errorMessage)) {
+        setChatConnected(false);
+      }
+
       updateAssistantMessage(
         streamedText.trim()
           ? `${streamedText}\n\n[Response interrupted. Please try again.]`
@@ -747,404 +805,248 @@ export default function ChatLayout() {
   };
 
   return (
-    <AppShell>
-      <div className="agi flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-[#0A0A0A]">
-        {/* DESKTOP SIDEBAR */}
-        <aside
-          className="
-            hidden
-            h-full
-            w-[260px]
-            min-h-0
-            shrink-0
-            overflow-hidden
-            border-r
-            border-white/10
-            bg-[#111111]
-            md:flex
-            md:flex-col
-          "
-        >
-          <div
-            className="
-              min-h-0
-              flex-1
-              overflow-y-auto
-              overscroll-contain
-              [scrollbar-color:#3f3f46_transparent]
-              [scrollbar-width:thin]
-              [&::-webkit-scrollbar]:w-1.5
-              [&::-webkit-scrollbar-track]:bg-transparent
-              [&::-webkit-scrollbar-thumb]:rounded-full
-              [&::-webkit-scrollbar-thumb]:bg-zinc-800
-              hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
-            "
-          >
-            <ChatSidebar
-              threads={conversations}
-              activeThread={activeConversationId ?? ""}
-              onSelectThread={handleSelectConversation}
-              onNewThread={handleNewConversation}
-              onRenameThread={handleRenameConversation}
-              onDeleteThread={handleDeleteConversation}
-              onTogglePin={handleTogglePin}
-              onOpenSettings={() => router.push("/settings")}
-              onOpenAccount={() => {
-                if (user) {
-                  void signOut();
-                } else {
-                  router.push("/auth");
-                }
-              }}
-              userName={user?.email ?? "Guest"}
-              plan={user ? "Cloud sync on" : "Local workspace"}
-            />
-          </div>
-        </aside>
-
-        {/* MOBILE SIDEBAR */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
-            <div
-              className="absolute inset-0 bg-black/25"
-              onClick={() => setSidebarOpen(false)}
-            />
-
-            <aside
-              className="
-                relative
-                z-10
-                flex
-                h-full
-                w-[280px]
-                min-h-0
-                flex-col
-                overflow-hidden
-                border-r
-                border-white/10
-                bg-[#111111]
-              "
+    <AgiShell
+      rail={
+        <IconRail active="chat" onNewChat={handleNewConversation} />
+      }
+      panel={
+        <ApprovalsPanel
+          open={panelOpen || mobilePanelOpen}
+          onClose={closePanel}
+          approvals={approvals}
+          status={chatConnected ? "connected" : "not-connected"}
+          userLabel={user?.email ?? "Guest"}
+          onOpenSettings={() => router.push("/settings")}
+        />
+      }
+      drawer={
+        <ChatSidebar
+          drawer
+          threads={conversations}
+          activeThread={activeConversationId ?? ""}
+          onSelectThread={handleSelectConversation}
+          onNewThread={handleNewConversation}
+          onRenameThread={handleRenameConversation}
+          onDeleteThread={handleDeleteConversation}
+          onTogglePin={handleTogglePin}
+          onOpenSettings={() => router.push("/settings")}
+          onOpenAccount={() => {
+            if (user) {
+              void signOut();
+            } else {
+              router.push("/auth");
+            }
+          }}
+          userName={user?.email ?? "Guest"}
+          plan={user ? "Cloud sync on" : "Local workspace"}
+        />
+      }
+      panelOpen={panelOpen}
+      mobilePanelOpen={mobilePanelOpen}
+      drawerOpen={drawerOpen}
+      onClosePanel={closePanel}
+      onCloseDrawer={() => setDrawerOpen(false)}
+      center={
+        <>
+          {/* HEADER — back arrow + pill title + panel toggle */}
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#181819] px-3 sm:px-4">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              aria-label="Back"
+              title="Back"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#262628] text-[#EDEDED] transition-colors hover:bg-[#313132] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
             >
+              <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Switch conversation"
+              title="Switch conversation"
+              className="flex min-w-0 items-center gap-2.5 rounded-full bg-[#262628] px-4 py-2 text-sm text-white transition-colors hover:bg-[#2E2E30] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
+            >
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 shrink-0 rounded-full bg-[#0074E8]"
+              />
+              <span className="truncate">
+                {activeConversation?.title ?? "New chat"}
+              </span>
+            </button>
+
+            <div className="flex-1" />
+
+            <button
+              type="button"
+              onClick={togglePanel}
+              aria-label="Toggle approvals panel"
+              aria-expanded={panelOpen || mobilePanelOpen}
+              title="Approvals panel"
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8] ${
+                panelOpen || mobilePanelOpen
+                  ? "bg-[#2A2A2C] text-white"
+                  : "bg-[#262628] text-[#A1A1AA] hover:bg-[#313132] hover:text-white"
+              }`}
+            >
+              <PanelRight className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          </header>
+
+          {/* MESSAGES */}
+          <div className="min-h-0 flex-1 overflow-hidden bg-[#181819]">
+            {messages.length === 0 && !isTyping ? (
               <div
                 className="
+                  mx-auto
                   flex
-                  shrink-0
-                  items-center
-                  justify-between
-                  border-b
-                  border-white/10
-                  px-4
-                  py-4
-                "
-              >
-                <div className="flex items-center gap-3">
-                  <Image
-                    src="/logo.png"
-                    alt="AGI Logo"
-                    width={40}
-                    height={40}
-                    className="h-10 w-10 object-contain"
-                  />
-
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      AGI
-                    </p>
-
-                    <p className="text-xs text-zinc-500">
-                      Personal AI
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(false)}
-                  className="
-                    flex
-                    h-9
-                    w-9
-                    items-center
-                    justify-center
-                    rounded-lg
-                    border
-                    border-zinc-700
-                    text-zinc-400
-                    transition
-                    hover:text-white
-                  "
-                  aria-label="Close sidebar"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div
-                className="
-                  min-h-0
-                  flex-1
-                  overflow-y-auto
-                  overscroll-contain
-                  [scrollbar-color:#3f3f46_transparent]
-                  [scrollbar-width:thin]
-                  [&::-webkit-scrollbar]:w-1.5
-                  [&::-webkit-scrollbar-track]:bg-transparent
-                  [&::-webkit-scrollbar-thumb]:rounded-full
-                  [&::-webkit-scrollbar-thumb]:bg-zinc-800
-                  hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
-                "
-              >
-                <ChatSidebar
-                  threads={conversations}
-                  activeThread={activeConversationId ?? ""}
-                  onSelectThread={handleSelectConversation}
-                  onNewThread={handleNewConversation}
-                  onRenameThread={handleRenameConversation}
-                  onDeleteThread={handleDeleteConversation}
-                  onTogglePin={handleTogglePin}
-                  onOpenSettings={() => router.push("/settings")}
-                  onOpenAccount={() => {
-                    if (user) {
-                      void signOut();
-                    } else {
-                      router.push("/auth");
-                    }
-                  }}
-                  userName={user?.email ?? "Guest"}
-                  plan={user ? "Cloud sync on" : "Local workspace"}
-                />
-              </div>
-            </aside>
-          </div>
-        )}
-
-        {/* MAIN CHAT */}
-        <main
-          className="
-            relative
-            flex
-            min-h-0
-            min-w-0
-            flex-1
-            flex-col
-            overflow-hidden
-            bg-[#0A0A0A]
-          "
-        >
-          <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* MOBILE HEADER */}
-            <header
-              className="
-                flex
-                h-16
-                shrink-0
-                items-center
-                justify-between
-                border-b
-                border-white/[0.08]
-                bg-transparent
-                px-4
-                md:hidden
-              "
-            >
-              <div className="flex items-center gap-3">
-                <Image
-                  src="/logo.png"
-                  alt="AGI Logo"
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 object-contain"
-                />
-
-                <div>
-                  <p className="text-sm font-semibold text-white">
-                    AGI
-                  </p>
-
-                  <p className="text-xs text-zinc-500">
-                    Personal AI
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="
-                  flex
-                  h-10
-                  w-10
+                  h-full
+                  w-full
+                  max-w-3xl
+                  flex-col
                   items-center
                   justify-center
-                  rounded-xl
-                  border
-                  border-white/[0.12]
-                  bg-transparent
-                  text-zinc-400
-                  transition
-                  hover:border-white/[0.2]
-                  hover:text-white
+                  px-4
+                  pb-6
+                  pt-16
+                  text-center
+                  sm:px-6
+                  sm:pb-8
+                  sm:pt-20
+                  lg:px-8
+                  lg:pt-24
                 "
-                aria-label="Open sidebar"
               >
-                <Menu className="h-5 w-5" />
-              </button>
-            </header>
-
-            {/* MESSAGES */}
-            <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
-              {messages.length === 0 && !isTyping ? (
                 <div
                   className="
-                    mx-auto
                     flex
-                    h-full
-                    w-full
-                    max-w-3xl
-                    flex-col
+                    h-14
+                    w-14
                     items-center
                     justify-center
-                    px-4
-                    pb-6
-                    pt-16
-                    text-center
-                    sm:px-6
-                    sm:pb-8
-                    sm:pt-20
-                    lg:px-8
-                    lg:pt-24
+                    rounded-2xl
+                    border
+                    border-white/10
+                    bg-[#1F1F20]
+                    text-sm
+                    font-semibold
+                    tracking-[0.2em]
+                    text-zinc-100
                   "
                 >
-                  <div
+                  AGI
+                </div>
+
+                <div className="mt-8">
+                  <p
                     className="
-                      flex
-                      h-14
-                      w-14
-                      items-center
-                      justify-center
-                      rounded-2xl
-                      border
-                      border-white/10
-                      bg-[#1A1A1A]
                       text-sm
                       font-semibold
-                      tracking-[0.2em]
-                      text-zinc-100
+                      uppercase
+                      tracking-[0.4em]
+                      text-zinc-500
                     "
                   >
                     AGI
-                  </div>
+                  </p>
 
-                  <div className="mt-8">
-                    <p
-                      className="
-                        text-sm
-                        font-semibold
-                        uppercase
-                        tracking-[0.4em]
-                        text-zinc-500
-                      "
-                    >
-                      AGI
-                    </p>
+                  <h1
+                    className="
+                      mt-5
+                      text-3xl
+                      font-semibold
+                      tracking-tight
+                      text-white
+                      sm:text-4xl
+                    "
+                  >
+                    How can I help?
+                  </h1>
 
-                    <h1
-                      className="
-                        mt-5
-                        text-3xl
-                        font-semibold
-                        tracking-tight
-                        text-white
-                        sm:text-4xl
-                      "
-                    >
-                      How can I help?
-                    </h1>
+                  <p
+                    className="
+                      mx-auto
+                      mt-3
+                      max-w-2xl
+                      text-sm
+                      leading-7
+                      text-zinc-400
+                      sm:text-base
+                    "
+                  >
+                    Ask a question, or give me a task to do.
+                  </p>
 
-                    <p
-                      className="
-                        mx-auto
-                        mt-3
-                        max-w-2xl
-                        text-sm
-                        leading-7
-                        text-zinc-400
-                        sm:text-base
-                      "
-                    >
-                      Ask a question, or give me a task to do.
-                    </p>
-
-                    <div className="mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-center gap-2">
-                      {[
-                        "Explain a topic",
-                        "Help me write a message",
-                        "Plan my day",
-                        "Summarise an idea",
-                      ].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => {
-                            void handleSend(
-                              suggestion,
-                              DEFAULT_CHAT_MODEL_ID
-                            );
-                          }}
-                          className="rounded-full border border-white/10 bg-[#1A1A1A] px-4 py-2 text-[13px] text-zinc-300 transition hover:border-white/25 hover:bg-[#222222] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-center gap-2">
+                    {[
+                      "Explain a topic",
+                      "Help me write a message",
+                      "Plan my day",
+                      "Summarise an idea",
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => {
+                          void handleSend(
+                            suggestion,
+                            DEFAULT_CHAT_MODEL_ID
+                          );
+                        }}
+                        className="rounded-full border border-white/10 bg-[#262628] px-4 py-2 text-[13px] text-zinc-300 transition hover:border-white/25 hover:bg-[#313132] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <MessageList
-                  messages={messages}
-                  isTyping={isTyping}
-                />
-              )}
-            </div>
-
-            {/* INPUT */}
-            <div
-              className="
-                relative
-                z-50
-                shrink-0
-                border-t
-                border-white/[0.06]
-                bg-transparent
-                px-3
-                pt-4
-                sm:px-6
-                sm:py-4
-              "
-            >
-              <div className="mx-auto w-full max-w-3xl">
-                <ChatInput
-                  onSend={handleSend}
-                  isGenerating={isTyping}
-                  onStop={handleStop}
-                />
-
-                <p
-                  className="
-                    mt-3
-                    text-center
-                    text-[11px]
-                    leading-5
-                    text-zinc-400/70
-                  "
-                >
-                  AGI can make mistakes. Verify important information.
-                </p>
               </div>
+            ) : (
+              <MessageList
+                messages={messages}
+                isTyping={isTyping}
+              />
+            )}
+          </div>
+
+          {/* INPUT */}
+          <div
+            className="
+              relative
+              z-50
+              shrink-0
+              border-t
+              border-white/[0.06]
+              bg-[#181819]
+              px-3
+              pt-4
+              sm:px-6
+              sm:py-4
+            "
+          >
+            <div className="mx-auto w-full max-w-3xl">
+              <ChatInput
+                onSend={handleSend}
+                isGenerating={isTyping}
+                onStop={handleStop}
+              />
+
+              <p
+                className="
+                  mt-3
+                  text-center
+                  text-[11px]
+                  leading-5
+                  text-zinc-400/70
+                "
+              >
+                AGI can make mistakes. Verify important information.
+              </p>
             </div>
           </div>
-        </main>
-      </div>
-    </AppShell>
+        </>
+      }
+    />
   );
 }
