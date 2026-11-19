@@ -17,7 +17,7 @@ import {
   ChevronDown,
   Lock,
   Check,
-  Paperclip,
+  Plus,
   Square,
   LoaderCircle,
   BookOpen,
@@ -262,35 +262,32 @@ export default function ChatInput({
           <div
             className="
               relative flex w-full items-end gap-2
-              rounded-3xl border border-zinc-800/90
-              bg-[#1A1A1A] p-2.5
-              shadow-[0_8px_30px_rgba(0,0,0,0.22)]
-              transition-[border-color,box-shadow]
+              rounded-full bg-[#313132] p-2.5
+              transition-[box-shadow]
               duration-200
-              focus-within:border-zinc-700
-              focus-within:shadow-[0_10px_34px_rgba(0,0,0,0.28)]
+              focus-within:shadow-[0_0_0_1px_rgba(255,255,255,0.18)]
               sm:gap-2.5 sm:p-3
             "
           >
-            {/* Attachment button */}
+            {/* Add button */}
             <button
               type="button"
               disabled={isSubmitting || isGenerating}
               className="
-                mb-0.5 flex h-8 w-8 shrink-0
-                items-center justify-center rounded-xl
-                text-zinc-500 transition-colors
-                hover:bg-zinc-800/70 hover:text-zinc-200
+                mb-0.5 flex h-9 w-9 shrink-0
+                items-center justify-center rounded-full
+                text-white transition-colors
+                hover:bg-white/10
                 active:scale-95
                 disabled:cursor-not-allowed
                 disabled:opacity-40
               "
-              aria-label="Attach file"
+              aria-label="Add attachment"
               title="File attachments coming soon"
             >
-              <Paperclip
-                className="h-[17px] w-[17px]"
-                strokeWidth={1.8}
+              <Plus
+                className="h-5 w-5"
+                strokeWidth={2}
                 aria-hidden="true"
               />
             </button>
@@ -324,7 +321,7 @@ export default function ChatInput({
                 resize-none overflow-y-auto bg-transparent
                 px-0.5 py-1.5 text-[15px] leading-6
                 text-zinc-100 outline-none
-                placeholder:text-zinc-600
+                placeholder:text-zinc-400
                 disabled:cursor-wait disabled:opacity-70
               "
             />
@@ -544,20 +541,18 @@ export default function ChatInput({
                     : "Send message"
               }
               className={`
-                mb-0.5 flex h-8 w-8 shrink-0
+                mb-0.5 flex h-9 w-9 shrink-0
                 items-center justify-center rounded-full
                 transition-all duration-150
                 focus-visible:outline-none
                 focus-visible:ring-2
-                focus-visible:ring-[#FAFAFA]
+                focus-visible:ring-[#0074E8]
                 focus-visible:ring-offset-2
-                focus-visible:ring-offset-[#151518]
+                focus-visible:ring-offset-[#181819]
                 ${
-                  isGenerating
-                    ? "bg-zinc-200 text-black hover:bg-white active:scale-95"
-                    : canSend
-                      ? "bg-[#FAFAFA] text-black hover:bg-[#E5E5E5] active:scale-95"
-                      : "cursor-not-allowed bg-zinc-800 text-zinc-600"
+                  isGenerating || isSubmitting || canSend
+                    ? "bg-[#0074E8] text-white hover:bg-[#0A7FF0] active:scale-95"
+                    : "cursor-not-allowed bg-[#0074E8] text-white/50"
                 }
               `}
             >
