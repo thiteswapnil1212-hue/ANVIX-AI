@@ -11,6 +11,7 @@ import {
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import { DEFAULT_CHAT_MODEL_ID } from "@/lib/chat-models";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -747,19 +748,19 @@ export default function ChatLayout() {
 
   return (
     <AppShell>
-      <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
+      <div className="agi flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-[#0A0A0A]">
         {/* DESKTOP SIDEBAR */}
         <aside
           className="
             hidden
             h-full
-            w-64
+            w-[260px]
             min-h-0
             shrink-0
             overflow-hidden
             border-r
-            border-[#3F3F46]
-            bg-[#18181B]
+            border-white/10
+            bg-[#111111]
             md:flex
             md:flex-col
           "
@@ -815,13 +816,13 @@ export default function ChatLayout() {
                 z-10
                 flex
                 h-full
-                w-72
+                w-[280px]
                 min-h-0
                 flex-col
                 overflow-hidden
                 border-r
-                border-[#3F3F46]
-                bg-[#18181B]
+                border-white/10
+                bg-[#111111]
               "
             >
               <div
@@ -831,7 +832,7 @@ export default function ChatLayout() {
                   items-center
                   justify-between
                   border-b
-                  border-[#3F3F46]
+                  border-white/10
                   px-4
                   py-4
                 "
@@ -839,7 +840,7 @@ export default function ChatLayout() {
                 <div className="flex items-center gap-3">
                   <Image
                     src="/logo.png"
-                    alt="ANVIX AI Logo"
+                    alt="AGI Logo"
                     width={40}
                     height={40}
                     className="h-10 w-10 object-contain"
@@ -847,11 +848,11 @@ export default function ChatLayout() {
 
                   <div>
                     <p className="text-sm font-semibold text-white">
-                      ANVIX AI
+                      AGI
                     </p>
 
                     <p className="text-xs text-zinc-500">
-                      Expert Partner
+                      Personal AI
                     </p>
                   </div>
                 </div>
@@ -927,28 +928,9 @@ export default function ChatLayout() {
             flex-1
             flex-col
             overflow-hidden
-            bg-transparent
+            bg-[#0A0A0A]
           "
         >
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            preload="auto"
-            className="
-              pointer-events-none
-              absolute
-              inset-0
-              h-full
-              w-full
-              object-cover
-              opacity-100
-            "
-          >
-            <source src="/anvix-bg.mp4" type="video/mp4" />
-          </video>
-
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
             {/* MOBILE HEADER */}
             <header
@@ -968,7 +950,7 @@ export default function ChatLayout() {
               <div className="flex items-center gap-3">
                 <Image
                   src="/logo.png"
-                  alt="ANVIX AI Logo"
+                  alt="AGI Logo"
                   width={40}
                   height={40}
                   className="h-10 w-10 object-contain"
@@ -976,11 +958,11 @@ export default function ChatLayout() {
 
                 <div>
                   <p className="text-sm font-semibold text-white">
-                    ANVIX AI
+                    AGI
                   </p>
 
                   <p className="text-xs text-zinc-500">
-                    Expert Partner
+                    Personal AI
                   </p>
                 </div>
               </div>
@@ -1018,7 +1000,7 @@ export default function ChatLayout() {
                     flex
                     h-full
                     w-full
-                    max-w-5xl
+                    max-w-3xl
                     flex-col
                     items-center
                     justify-center
@@ -1036,24 +1018,21 @@ export default function ChatLayout() {
                   <div
                     className="
                       flex
-                      h-16
-                      w-16
+                      h-14
+                      w-14
                       items-center
                       justify-center
                       rounded-2xl
                       border
                       border-white/10
-                      bg-transparent
+                      bg-[#1A1A1A]
+                      text-sm
+                      font-semibold
+                      tracking-[0.2em]
+                      text-zinc-100
                     "
                   >
-                    <Image
-                      src="/logo.png"
-                      alt="ANVIX AI"
-                      width={64}
-                      height={64}
-                      className="h-full w-full rounded-2xl object-contain"
-                      priority
-                    />
+                    AGI
                   </div>
 
                   <div className="mt-8">
@@ -1063,10 +1042,10 @@ export default function ChatLayout() {
                         font-semibold
                         uppercase
                         tracking-[0.4em]
-                        text-[#D4AF37]
+                        text-zinc-500
                       "
                     >
-                      ANVIX AI
+                      AGI
                     </p>
 
                     <h1
@@ -1079,7 +1058,7 @@ export default function ChatLayout() {
                         sm:text-4xl
                       "
                     >
-                      How can I help you today?
+                      How can I help?
                     </h1>
 
                     <p
@@ -1093,8 +1072,31 @@ export default function ChatLayout() {
                         sm:text-base
                       "
                     >
-                      Built for thinking. Designed for building.
+                      Ask a question, or give me a task to do.
                     </p>
+
+                    <div className="mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-center gap-2">
+                      {[
+                        "Explain a topic",
+                        "Help me write a message",
+                        "Plan my day",
+                        "Summarise an idea",
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => {
+                            void handleSend(
+                              suggestion,
+                              DEFAULT_CHAT_MODEL_ID
+                            );
+                          }}
+                          className="rounded-full border border-white/10 bg-[#1A1A1A] px-4 py-2 text-[13px] text-zinc-300 transition hover:border-white/25 hover:bg-[#222222] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1136,7 +1138,7 @@ export default function ChatLayout() {
                     text-zinc-400/70
                   "
                 >
-                  ANVIX AI can make mistakes. Verify important information.
+                  AGI can make mistakes. Verify important information.
                 </p>
               </div>
             </div>
