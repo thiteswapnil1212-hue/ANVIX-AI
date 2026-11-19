@@ -123,9 +123,9 @@ export default function ChatMessage({
                   bg-white/[0.035]
                 `
                 : `
-                  border-[#D4AF37]/20
-                  bg-[#D4AF37]/[0.07]
-                  shadow-[0_0_18px_rgba(212,175,55,0.05)]
+                  border-[#FAFAFA]/20
+                  bg-[#FAFAFA]/[0.07]
+                  shadow-[0_0_18px_rgba(250,250,250,0.05)]
                 `
             }
           `}
@@ -138,7 +138,7 @@ export default function ChatMessage({
             />
           ) : (
             <Sparkles
-              className="h-4 w-4 text-[#D4AF37]"
+              className="h-4 w-4 text-[#FAFAFA]"
               strokeWidth={1.8}
             />
           )}
@@ -149,7 +149,7 @@ export default function ChatMessage({
           {/* HEADER */}
           <div className="mb-2 flex min-h-5 items-center gap-2">
             <span className="text-[13px] font-semibold text-zinc-200">
-              {isUser ? "You" : "ANVIX AI"}
+              {isUser ? "You" : "AGI"}
             </span>
 
             {isAssistant && (
@@ -166,7 +166,7 @@ export default function ChatMessage({
                   className="
                     text-[10px] font-medium
                     uppercase tracking-[0.12em]
-                    text-[#D4AF37]/75
+                    text-[#FAFAFA]/75
                   "
                 >
                   Assistant
@@ -187,11 +187,11 @@ export default function ChatMessage({
                   ? `
                     whitespace-pre-wrap
                     text-zinc-300
-                    selection:bg-[#D4AF37]/20
+                    selection:bg-[#FAFAFA]/20
                   `
                   : `
                     text-zinc-300
-                    selection:bg-[#D4AF37]/20
+                    selection:bg-[#FAFAFA]/20
                   `
               }
             `}
@@ -241,19 +241,19 @@ export default function ChatMessage({
 
                   [&_li]:my-1
                   [&_li]:pl-1
-                  [&_li::marker]:text-[#D4AF37]
+                  [&_li::marker]:text-[#FAFAFA]
 
                   [&_blockquote]:my-3
                   [&_blockquote]:border-l-2
-                  [&_blockquote]:border-[#D4AF37]/50
+                  [&_blockquote]:border-[#FAFAFA]/50
                   [&_blockquote]:pl-4
                   [&_blockquote]:text-zinc-400
 
                   [&_a]:break-words
-                  [&_a]:text-[#D4AF37]
+                  [&_a]:text-[#FAFAFA]
                   [&_a]:underline
                   [&_a]:underline-offset-4
-                  [&_a:hover]:text-yellow-300
+                  [&_a:hover]:text-zinc-100
 
                   [&_hr]:my-5
                   [&_hr]:border-white/10
@@ -281,7 +281,7 @@ export default function ChatMessage({
                   [&_code]:py-0.5
                   [&_code]:font-mono
                   [&_code]:text-[0.9em]
-                  [&_code]:text-[#E9C96B]
+                  [&_code]:text-[#EDEDED]
 
                   [&_pre]:my-4
                   [&_pre]:max-w-full
@@ -364,7 +364,7 @@ export default function ChatMessage({
                   hover:text-zinc-200
                   focus-visible:outline-none
                   focus-visible:ring-1
-                  focus-visible:ring-[#D4AF37]/60
+                  focus-visible:ring-[#FAFAFA]/60
                 "
               >
                 {copied ? (
@@ -416,7 +416,7 @@ export default function ChatMessage({
                     hover:text-zinc-200
                     focus-visible:outline-none
                     focus-visible:ring-1
-                    focus-visible:ring-[#D4AF37]/60
+                    focus-visible:ring-[#FAFAFA]/60
                   "
                 >
                   <RotateCcw
