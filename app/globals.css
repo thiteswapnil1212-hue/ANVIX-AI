@@ -520,15 +520,24 @@ pre code {
    ========================================================= */
 
 .agi {
-  --agi-bg: #0a0a0a;
-  --agi-sidebar: #111111;
-  --agi-surface: #1a1a1a;
-  --agi-bubble: #262626;
-  --agi-border: rgba(255, 255, 255, 0.1);
+  --agi-bg: #181819;
+  --agi-card: #1f1f20;
+  --agi-bubble: #113254;
+  --agi-input: #313132;
+  --agi-send: #0074e8;
+  --agi-green: #07b123;
+  --agi-segmented: #28292b;
+  --agi-segmented-active: #424344;
+  --agi-rail-active: #2a2a2c;
+  --agi-pill: #262628;
   --agi-text: #ededed;
   --agi-muted: #a1a1aa;
-  --agi-accent: #fafafa;
-  --agi-accent-foreground: #090909;
+  --agi-icon: #8a8a8a;
+  --agi-border: rgba(255, 255, 255, 0.07);
+  --agi-sidebar: #181819;
+  --agi-surface: #1f1f20;
+  --agi-accent: #0074e8;
+  --agi-accent-foreground: #ffffff;
   background: var(--agi-bg);
   color: var(--agi-text);
 }
