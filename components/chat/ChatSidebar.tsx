@@ -279,10 +279,10 @@ function ChatSidebar({
             transition-colors duration-150
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#D4AF37]/60
+            focus-visible:ring-[#FAFAFA]/60
             ${
               active
-                ? "bg-[#292821] text-white shadow-[inset_0_0_0_1px_rgba(212,175,55,0.10)]"
+                ? "bg-[#262626] text-white shadow-[inset_0_0_0_1px_rgba(250,250,250,0.10)]"
                 : "text-zinc-400 hover:bg-[#222225] hover:text-zinc-200"
             }
           `}
@@ -292,7 +292,7 @@ function ChatSidebar({
               aria-hidden="true"
               className="
                 absolute bottom-2 left-0 top-2
-                w-[3px] rounded-r-full bg-[#D4AF37]
+                w-[3px] rounded-r-full bg-[#FAFAFA]
               "
             />
           )}
@@ -302,7 +302,7 @@ function ChatSidebar({
               mt-0.5 h-4 w-4 shrink-0
               ${
                 active
-                  ? "text-[#D4AF37]"
+                  ? "text-[#FAFAFA]"
                   : "text-zinc-600 group-hover/thread:text-zinc-400"
               }
             `}
@@ -337,9 +337,9 @@ function ChatSidebar({
                   onBlur={() => commitRename(thread.id)}
                   className="
                     w-full rounded-md border
-                    border-[#D4AF37]/40 bg-[#151518]
+                    border-[#FAFAFA]/40 bg-[#151518]
                     px-2 py-1 text-xs text-zinc-100
-                    outline-none focus:border-[#D4AF37]/70
+                    outline-none focus:border-[#FAFAFA]/70
                   "
                 />
               ) : (
@@ -383,7 +383,7 @@ function ChatSidebar({
               focus-visible:opacity-100
               focus-visible:outline-none
               focus-visible:ring-1
-              focus-visible:ring-[#D4AF37]/60
+              focus-visible:ring-[#FAFAFA]/60
               ${
                 menuOpen
                   ? "bg-[#343438] text-zinc-100 opacity-100"
@@ -480,13 +480,13 @@ function ChatSidebar({
       className={`
         relative flex h-dvh min-h-0 min-w-0
         shrink-0 flex-col overflow-hidden
-        border-r border-[#2A2A2E]
-        bg-[#18181B] text-white
+        border-r border-white/10
+        bg-[#111111] text-white
         transition-[width] duration-200 ease-in-out
         ${
           collapsed
             ? "w-[68px]"
-            : "w-[min(280px,85vw)]"
+            : "w-full"
         }
       `}
     >
@@ -498,13 +498,13 @@ function ChatSidebar({
                 relative flex h-9 w-9 shrink-0
                 items-center justify-center
                 overflow-hidden rounded-xl
-                border border-[#D4AF37]/20
+                border border-[#FAFAFA]/20
                 bg-[#101011]
               "
             >
               <Image
                 src="/logo.png"
-                alt="ANVIX AI"
+                alt="AGI"
                 width={36}
                 height={36}
                 className="h-9 w-9 object-contain"
@@ -514,13 +514,13 @@ function ChatSidebar({
 
             {!collapsed && (
               <div className="min-w-0">
-                <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#F2CA50]">
-                  ANVIX AI
+                <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#FAFAFA]">
+                  AGI
                 </p>
                 <div className="mt-0.5 flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                   <p className="text-[10px] text-zinc-600">
-                    AI workspace
+                    Personal AI
                   </p>
                 </div>
               </div>
@@ -539,7 +539,7 @@ function ChatSidebar({
               transition hover:bg-[#27272A] hover:text-zinc-200
               focus-visible:outline-none
               focus-visible:ring-1
-              focus-visible:ring-[#D4AF37]/60
+              focus-visible:ring-[#FAFAFA]/60
             "
           >
             <PanelLeft
@@ -560,17 +560,17 @@ function ChatSidebar({
             rounded-xl border border-[#3F3F46]
             bg-[#202023] px-3 py-2.5
             text-left transition-colors
-            hover:border-[#D4AF37]/35 hover:bg-[#27272A]
+            hover:border-[#FAFAFA]/35 hover:bg-[#27272A]
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#D4AF37]/60
+            focus-visible:ring-[#FAFAFA]/60
             ${collapsed ? "justify-center px-0" : ""}
           `}
         >
           <span
             className="
               flex h-7 w-7 shrink-0 items-center
-              justify-center rounded-lg bg-[#D4AF37]
+              justify-center rounded-lg bg-[#FAFAFA]
               text-black transition-transform
               group-hover/new:scale-105
             "
@@ -611,13 +611,13 @@ function ChatSidebar({
                 aria-label="Search conversations"
                 className="
                   w-full rounded-xl border
-                  border-[#2A2A2E] bg-[#151518]
+                  border-white/10 bg-[#1A1A1A]
                   py-2.5 pl-9 pr-9 text-xs
                   text-zinc-300 placeholder:text-zinc-600
                   outline-none transition
-                  focus:border-[#D4AF37]/40
+                  focus:border-[#FAFAFA]/40
                   focus:bg-[#1A1A1D]
-                  focus:ring-2 focus:ring-[#D4AF37]/[0.06]
+                  focus:ring-2 focus:ring-[#FAFAFA]/[0.06]
                 "
               />
 
@@ -657,7 +657,7 @@ function ChatSidebar({
               {pinned.length > 0 && (
                 <section aria-label="Pinned conversations">
                   <p className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
-                    <Pin className="h-3 w-3 text-[#D4AF37]/70" />
+                    <Pin className="h-3 w-3 text-[#FAFAFA]/70" />
                     Pinned
                   </p>
                   <div className="space-y-1">
@@ -691,15 +691,15 @@ function ChatSidebar({
               <button
                 type="button"
                 onClick={() => setQuery("")}
-                className="mt-3 text-[11px] font-medium text-[#D4AF37] hover:text-yellow-300"
+                className="mt-3 text-[11px] font-medium text-[#FAFAFA] hover:text-zinc-100"
               >
                 Clear search
               </button>
             </div>
           ) : (
             <div className="px-2 py-12 text-center">
-              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-[#D4AF37]/15 bg-[#D4AF37]/[0.04]">
-                <Sparkles className="h-4 w-4 text-[#D4AF37]/70" />
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-[#FAFAFA]/15 bg-[#FAFAFA]/[0.04]">
+                <Sparkles className="h-4 w-4 text-[#FAFAFA]/70" />
               </div>
               <p className="mt-3 text-xs font-medium text-zinc-400">
                 Your chats live here
@@ -712,10 +712,10 @@ function ChatSidebar({
                 onClick={onNewThread}
                 className="
                   mt-4 inline-flex items-center gap-1.5
-                  rounded-lg border border-[#D4AF37]/20
-                  bg-[#D4AF37]/[0.05] px-3 py-2
-                  text-[11px] font-medium text-[#D4AF37]
-                  transition hover:bg-[#D4AF37]/[0.10]
+                  rounded-lg border border-[#FAFAFA]/20
+                  bg-[#FAFAFA]/[0.05] px-3 py-2
+                  text-[11px] font-medium text-[#FAFAFA]
+                  transition hover:bg-[#FAFAFA]/[0.10]
                 "
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -745,13 +745,13 @@ function ChatSidebar({
                     justify-center rounded-xl transition
                     ${
                       active
-                        ? "bg-[#292821] text-[#D4AF37]"
+                        ? "bg-[#262626] text-[#FAFAFA]"
                         : "text-zinc-600 hover:bg-[#27272A] hover:text-zinc-300"
                     }
                   `}
                 >
                   {active && (
-                    <span className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-[#D4AF37]" />
+                    <span className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-[#FAFAFA]" />
                   )}
                   <MessageSquare className="h-4 w-4" />
                 </button>
@@ -761,7 +761,7 @@ function ChatSidebar({
         </div>
       )}
 
-      <div className="shrink-0 border-t border-[#2A2A2E] bg-[#18181B] px-3 py-3">
+      <div className="shrink-0 border-t border-white/10 bg-[#111111] px-3 py-3">
         <button
           type="button"
           title={collapsed ? "Settings" : undefined}
@@ -774,7 +774,7 @@ function ChatSidebar({
             hover:bg-[#222225] hover:text-zinc-200
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#D4AF37]/60
+            focus-visible:ring-[#FAFAFA]/60
             ${collapsed ? "justify-center" : ""}
           `}
         >
@@ -794,7 +794,7 @@ function ChatSidebar({
             hover:bg-[#222225]
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#D4AF37]/60
+            focus-visible:ring-[#FAFAFA]/60
             ${collapsed ? "justify-center" : ""}
           `}
         >
