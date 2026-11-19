@@ -45,29 +45,29 @@ const MessageRow = memo(function MessageRow({
 function TypingIndicator() {
   return (
     <div className="flex items-start gap-3 sm:gap-3.5">
-      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/[0.07] shadow-[0_0_20px_rgba(212,175,55,0.04)]">
+      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#FAFAFA]/20 bg-[#FAFAFA]/[0.07] shadow-[0_0_20px_rgba(250,250,250,0.04)]">
         <Sparkles
-          className="h-4 w-4 text-[#D4AF37]"
+          className="h-4 w-4 text-[#FAFAFA]"
           strokeWidth={1.8}
           aria-hidden="true"
         />
 
-        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-[#0B0B0C] bg-[#D4AF37]" />
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-[#0B0B0C] bg-[#FAFAFA]" />
       </div>
 
       <div className="min-w-0">
         <p className="mb-2 text-xs font-medium text-zinc-500">
-          ANVIX AI
+          AGI
         </p>
 
         <div
           className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl rounded-tl-md border border-white/[0.07] bg-[#151518] px-4 py-3"
           role="status"
-          aria-label="ANVIX AI is thinking"
+          aria-label="AGI is thinking"
         >
           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#D4AF37]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#FAFAFA]" />
         </div>
       </div>
     </div>
@@ -263,7 +263,7 @@ export default function MessageList({
       {/* Top edge fade */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#0B0B0C]/50 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#0A0A0A]/50 to-transparent"
       />
 
       {/* Scroll container */}
@@ -286,7 +286,7 @@ export default function MessageList({
       >
         <div
           ref={contentRef}
-          className="mx-auto flex w-full max-w-5xl flex-col gap-7 pb-4 sm:gap-9"
+          className="mx-auto flex w-full max-w-3xl flex-col gap-7 pb-4 sm:gap-9"
         >
           {messages.map((message) => (
             <MessageRow
@@ -307,7 +307,7 @@ export default function MessageList({
       {/* Bottom edge fade */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[#0B0B0C]/30 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[#0A0A0A]/30 to-transparent"
       />
 
       {/* Jump to latest */}
@@ -331,11 +331,11 @@ export default function MessageList({
             backdrop-blur-xl
             transition-all duration-200
             hover:-translate-x-1/2 hover:-translate-y-0.5
-            hover:border-[#D4AF37]/40
-            hover:bg-[#222225] hover:text-[#D4AF37]
+            hover:border-[#FAFAFA]/40
+            hover:bg-[#222225] hover:text-[#FAFAFA]
             active:scale-95
             focus-visible:outline-none
-            focus-visible:ring-2 focus-visible:ring-[#D4AF37]
+            focus-visible:ring-2 focus-visible:ring-[#FAFAFA]
           "
         >
           <ArrowDown className="h-4 w-4" strokeWidth={2} />
