@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowDown, Sparkles } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -44,30 +44,20 @@ const MessageRow = memo(function MessageRow({
 
 function TypingIndicator() {
   return (
-    <div className="flex items-start gap-3 sm:gap-3.5">
-      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#FAFAFA]/20 bg-[#FAFAFA]/[0.07] shadow-[0_0_20px_rgba(250,250,250,0.04)]">
-        <Sparkles
-          className="h-4 w-4 text-[#FAFAFA]"
-          strokeWidth={1.8}
-          aria-hidden="true"
-        />
-
-        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-[#0B0B0C] bg-[#FAFAFA]" />
-      </div>
-
+    <div className="flex items-start">
       <div className="min-w-0">
-        <p className="mb-2 text-xs font-medium text-zinc-500">
+        <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.17em] text-[#A1A1AA]">
           AGI
         </p>
 
         <div
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl rounded-tl-md border border-white/[0.07] bg-[#151518] px-4 py-3"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl bg-[#1F1F20] px-4 py-3"
           role="status"
           aria-label="AGI is thinking"
         >
           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.3s]" />
           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-500 [animation-delay:-0.15s]" />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#FAFAFA]" />
+          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#EDEDED]" />
         </div>
       </div>
     </div>
@@ -263,7 +253,7 @@ export default function MessageList({
       {/* Top edge fade */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#0A0A0A]/50 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#181819]/50 to-transparent"
       />
 
       {/* Scroll container */}
@@ -286,7 +276,7 @@ export default function MessageList({
       >
         <div
           ref={contentRef}
-          className="mx-auto flex w-full max-w-3xl flex-col gap-7 pb-4 sm:gap-9"
+          className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-4"
         >
           {messages.map((message) => (
             <MessageRow
@@ -307,7 +297,7 @@ export default function MessageList({
       {/* Bottom edge fade */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[#0A0A0A]/30 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[#181819]/30 to-transparent"
       />
 
       {/* Jump to latest */}
