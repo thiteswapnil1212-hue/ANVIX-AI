@@ -333,7 +333,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#19191E]">
               <Image
                 src="/anvix-logo.png"
-                alt="ANVIX AI"
+                alt="AGI"
                 width={40}
                 height={40}
                 className="h-full w-full object-contain"
@@ -349,8 +349,8 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                   Model Library
                 </h2>
 
-                <span className="rounded-full border border-[#D4AF37]/20 bg-[#D4AF37]/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[#D4AF37]">
-                  ANVIX AI
+                <span className="rounded-full border border-[#FAFAFA]/20 bg-[#FAFAFA]/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[#FAFAFA]">
+                  AGI
                 </span>
               </div>
 
@@ -368,7 +368,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
             type="button"
             onClick={handleClose}
             aria-label="Close model library"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-zinc-400 transition hover:border-white/15 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-zinc-400 transition hover:border-white/15 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FAFAFA]"
           >
             <X className="h-5 w-5" />
           </button>
@@ -396,7 +396,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                     aria-pressed={active}
                     className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-3 text-left text-sm transition ${
                       active
-                        ? "border-[#D4AF37]/25 bg-[#D4AF37]/[0.08] font-medium text-[#E5C45B]"
+                        ? "border-[#FAFAFA]/25 bg-[#FAFAFA]/[0.08] font-medium text-[#EDEDED]"
                         : "border-transparent text-zinc-400 hover:border-white/[0.06] hover:bg-white/[0.04] hover:text-white"
                     }`}
                   >
@@ -405,7 +405,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                     <span
                       className={`rounded-md px-2 py-0.5 text-[10px] tabular-nums ${
                         active
-                          ? "bg-[#D4AF37]/10 text-[#D4AF37]"
+                          ? "bg-[#FAFAFA]/10 text-[#FAFAFA]"
                           : "bg-white/[0.04] text-zinc-500"
                       }`}
                     >
@@ -416,8 +416,8 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
               })}
             </div>
 
-            <div className="mt-auto rounded-2xl border border-[#D4AF37]/15 bg-gradient-to-br from-[#D4AF37]/[0.08] to-transparent p-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#D4AF37]/10 text-[#D4AF37]">
+            <div className="mt-auto rounded-2xl border border-[#FAFAFA]/15 bg-gradient-to-br from-[#FAFAFA]/[0.08] to-transparent p-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FAFAFA]/10 text-[#FAFAFA]">
                 <Sparkles className="h-4 w-4" />
               </div>
 
@@ -474,7 +474,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search models, providers, or use cases..."
                     aria-label="Search models"
-                    className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151519] pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-600 hover:border-white/[0.13] focus:border-[#D4AF37]/45 focus:ring-2 focus:ring-[#D4AF37]/10"
+                    className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151519] pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-600 hover:border-white/[0.13] focus:border-[#FAFAFA]/45 focus:ring-2 focus:ring-[#FAFAFA]/10"
                   />
                 </div>
 
@@ -485,7 +485,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                       setAvailability(event.target.value as AvailabilityFilter)
                     }
                     aria-label="Filter by availability"
-                    className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-[#151519] px-3 text-xs text-zinc-300 outline-none focus:border-[#D4AF37]/45 focus:ring-2 focus:ring-[#D4AF37]/10 sm:flex-none"
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-[#151519] px-3 text-xs text-zinc-300 outline-none focus:border-[#FAFAFA]/45 focus:ring-2 focus:ring-[#FAFAFA]/10 sm:flex-none"
                   >
                     <option value="all">All statuses</option>
                     <option value="available">Ready only</option>
@@ -501,7 +501,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                         setSortBy(event.target.value as SortOption)
                       }
                       aria-label="Sort models"
-                      className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151519] pl-8 pr-3 text-xs text-zinc-300 outline-none focus:border-[#D4AF37]/45 focus:ring-2 focus:ring-[#D4AF37]/10 sm:w-auto"
+                      className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#151519] pl-8 pr-3 text-xs text-zinc-300 outline-none focus:border-[#FAFAFA]/45 focus:ring-2 focus:ring-[#FAFAFA]/10 sm:w-auto"
                     >
                       <option value="default">Default order</option>
                       <option value="name">Name A–Z</option>
@@ -524,7 +524,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                       aria-pressed={active}
                       className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-medium transition ${
                         active
-                          ? "border-[#D4AF37]/35 bg-[#D4AF37]/10 text-[#D4AF37]"
+                          ? "border-[#FAFAFA]/35 bg-[#FAFAFA]/10 text-[#FAFAFA]"
                           : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:text-white"
                       }`}
                     >
@@ -553,7 +553,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-zinc-500 transition hover:bg-white/[0.04] hover:text-[#D4AF37] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37]"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-zinc-500 transition hover:bg-white/[0.04] hover:text-[#FAFAFA] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FAFAFA]"
                   >
                     <RotateCcw className="h-3 w-3" />
                     Reset filters
@@ -578,7 +578,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="mt-4 rounded-lg border border-[#D4AF37]/20 px-3 py-2 text-xs font-medium text-[#D4AF37] transition hover:bg-[#D4AF37]/[0.08]"
+                    className="mt-4 rounded-lg border border-[#FAFAFA]/20 px-3 py-2 text-xs font-medium text-[#FAFAFA] transition hover:bg-[#FAFAFA]/[0.08]"
                   >
                     Clear filters
                   </button>
@@ -593,11 +593,11 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                     return (
                       <article
                         key={model.id}
-                        className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.075] bg-[#121216] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#D4AF37]/25 hover:bg-[#17171C] hover:shadow-[0_12px_35px_rgba(0,0,0,0.2)] motion-reduce:transform-none motion-reduce:transition-none xl:p-5"
+                        className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.075] bg-[#121216] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#FAFAFA]/25 hover:bg-[#17171C] hover:shadow-[0_12px_35px_rgba(0,0,0,0.2)] motion-reduce:transform-none motion-reduce:transition-none xl:p-5"
                       >
                         <div
                           aria-hidden="true"
-                          className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37]/0 to-transparent transition-all duration-300 group-hover:via-[#D4AF37]/50"
+                          className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-[#FAFAFA]/0 to-transparent transition-all duration-300 group-hover:via-[#FAFAFA]/50"
                         />
 
                         <div className="flex items-start gap-3">
@@ -701,7 +701,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
           <button
             type="button"
             onClick={handleClose}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-zinc-300 transition hover:border-[#D4AF37]/25 hover:bg-[#D4AF37]/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-zinc-300 transition hover:border-[#FAFAFA]/25 hover:bg-[#FAFAFA]/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FAFAFA]"
           >
             Back to chat
             <ArrowUpDown className="h-3.5 w-3.5 rotate-45" />
