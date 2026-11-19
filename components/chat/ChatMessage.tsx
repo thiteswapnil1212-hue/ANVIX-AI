@@ -5,11 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-    User,
   Copy,
   Check,
   RotateCcw,
-  Sparkles,
 } from "lucide-react";
 
 type ChatMessageProps = {
@@ -94,87 +92,23 @@ export default function ChatMessage({
 
   return (
     <article
-      className="
-        group/message w-full
-        border-b border-white/[0.045]
-        bg-transparent
-        transition-colors duration-200
-        hover:bg-white/[0.008]
-      "
+      className={`
+        group/message flex w-full
+        ${isUser ? "justify-end" : "justify-start"}
+      `}
     >
       <div
-        className="
-          mx-auto flex w-full max-w-3xl
-          items-start gap-3.5
-          px-4 py-5
-          sm:gap-4 sm:px-6 sm:py-6
-        "
+        className={`
+          min-w-0
+          ${
+            isUser
+              ? "max-w-[76%] rounded-[20px] bg-[#113254] px-4 py-3 text-white sm:px-5 sm:py-4"
+              : "w-full rounded-2xl bg-[#1F1F20] px-4 py-3 text-[#EDEDED] sm:px-5 sm:py-4"
+          }
+        `}
       >
-        {/* AVATAR */}
-        <div
-          className={`
-            mt-0.5 flex h-8 w-8 shrink-0
-            items-center justify-center
-            rounded-xl border
-            ${
-              isUser
-                ? `
-                  border-white/[0.10]
-                  bg-white/[0.035]
-                `
-                : `
-                  border-[#FAFAFA]/20
-                  bg-[#FAFAFA]/[0.07]
-                  shadow-[0_0_18px_rgba(250,250,250,0.05)]
-                `
-            }
-          `}
-          aria-hidden="true"
-        >
-          {isUser ? (
-            <User
-              className="h-4 w-4 text-zinc-400"
-              strokeWidth={1.8}
-            />
-          ) : (
-            <Sparkles
-              className="h-4 w-4 text-[#FAFAFA]"
-              strokeWidth={1.8}
-            />
-          )}
-        </div>
-
         {/* MESSAGE BODY */}
         <div className="min-w-0 flex-1">
-          {/* HEADER */}
-          <div className="mb-2 flex min-h-5 items-center gap-2">
-            <span className="text-[13px] font-semibold text-zinc-200">
-              {isUser ? "You" : "AGI"}
-            </span>
-
-            {isAssistant && (
-              <>
-                <span
-                  className="
-                    h-1 w-1 rounded-full
-                    bg-zinc-700
-                  "
-                  aria-hidden="true"
-                />
-
-                <span
-                  className="
-                    text-[10px] font-medium
-                    uppercase tracking-[0.12em]
-                    text-[#FAFAFA]/75
-                  "
-                >
-                  Assistant
-                </span>
-              </>
-            )}
-          </div>
-
           {/* CONTENT */}
           <div
             className={`
@@ -186,11 +120,11 @@ export default function ChatMessage({
                 isUser
                   ? `
                     whitespace-pre-wrap
-                    text-zinc-300
-                    selection:bg-[#FAFAFA]/20
+                    text-white
+                    selection:bg-[#0074E8]/40
                   `
                   : `
-                    text-zinc-300
+                    text-[#EDEDED]
                     selection:bg-[#FAFAFA]/20
                   `
               }
