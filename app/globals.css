@@ -513,3 +513,27 @@ pre code {
     transition-duration: 0.01ms !important;
   }
 }
+/* =========================================================
+   AGI (Chat section) — Muse-style neutral tokens.
+   Scoped to .agi only; the gold brand tokens above stay
+   untouched for the rest of ANVIX.
+   ========================================================= */
+
+.agi {
+  --agi-bg: #0a0a0a;
+  --agi-sidebar: #111111;
+  --agi-surface: #1a1a1a;
+  --agi-bubble: #262626;
+  --agi-border: rgba(255, 255, 255, 0.1);
+  --agi-text: #ededed;
+  --agi-muted: #a1a1aa;
+  --agi-accent: #fafafa;
+  --agi-accent-foreground: #090909;
+  background: var(--agi-bg);
+  color: var(--agi-text);
+}
+
+.agi ::selection {
+  background: #fafafa;
+  color: #090909;
+}
