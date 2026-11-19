@@ -47,6 +47,14 @@ interface ChatSidebarProps {
   onOpenAccount?: () => void;
   userName?: string;
   plan?: string;
+  /**
+   * Drawer mode: the sidebar renders as the content of the header-pill
+   * thread drawer (AgiShell) instead of a permanent column. The collapse
+   * toggle is hidden and the root fills the drawer instead of sizing
+   * itself — all thread behaviour (search / pin / rename / delete /
+   * grouping) is unchanged.
+   */
+  drawer?: boolean;
 }
 
 const GROUP_ORDER = [
@@ -98,6 +106,7 @@ function ChatSidebar({
   onOpenAccount = () => {},
   userName = "Your account",
   plan = "Free plan",
+  drawer = false,
 }: ChatSidebarProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState(false);
@@ -478,15 +487,19 @@ function ChatSidebar({
     <aside
       aria-label="Chat sidebar"
       className={`
-        relative flex h-dvh min-h-0 min-w-0
+        relative flex min-h-0 min-w-0
         shrink-0 flex-col overflow-hidden
-        border-r border-white/10
-        bg-[#111111] text-white
-        transition-[width] duration-200 ease-in-out
+        text-white
         ${
-          collapsed
-            ? "w-[68px]"
-            : "w-full"
+          drawer
+            ? "h-full w-full bg-[#181819]"
+            : `
+              h-dvh w-full
+              border-r border-white/10
+              bg-[#111111]
+              transition-[width] duration-200 ease-in-out
+              ${collapsed ? "w-[68px]" : "w-full"}
+            `
         }
       `}
     >
@@ -527,27 +540,29 @@ function ChatSidebar({
             )}
           </div>
 
-          <button
-            type="button"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-expanded={!collapsed}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={toggleCollapse}
-            className="
-              flex h-8 w-8 shrink-0 items-center
-              justify-center rounded-lg text-zinc-500
-              transition hover:bg-[#27272A] hover:text-zinc-200
-              focus-visible:outline-none
-              focus-visible:ring-1
-              focus-visible:ring-[#FAFAFA]/60
-            "
-          >
-            <PanelLeft
-              className={`h-4 w-4 transition-transform ${
-                collapsed ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+          {!drawer && (
+            <button
+              type="button"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!collapsed}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              onClick={toggleCollapse}
+              className="
+                flex h-8 w-8 shrink-0 items-center
+                justify-center rounded-lg text-zinc-500
+                transition hover:bg-[#27272A] hover:text-zinc-200
+                focus-visible:outline-none
+                focus-visible:ring-1
+                focus-visible:ring-[#FAFAFA]/60
+              "
+            >
+              <PanelLeft
+                className={`h-4 w-4 transition-transform ${
+                  collapsed ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          )}
         </div>
 
         <button
@@ -761,7 +776,12 @@ function ChatSidebar({
         </div>
       )}
 
-      <div className="shrink-0 border-t border-white/10 bg-[#111111] px-3 py-3">
+      <div
+        className={`
+          shrink-0 border-t border-white/10 px-3 py-3
+          ${drawer ? "bg-[#181819]" : "bg-[#111111]"}
+        `}
+      >
         <button
           type="button"
           title={collapsed ? "Settings" : undefined}
