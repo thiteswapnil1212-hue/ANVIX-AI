@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 
 const links = [
   { href: "/generate", label: "Generate" },
-  { href: "/chat", label: "Chat" },
+  { href: "/chat", label: "AGI" },
   { href: "/dashboard", label: "Projects" },
   { href: "/pricing", label: "Pricing" },
 ];
@@ -36,6 +36,10 @@ export default function Navbar() {
           pathname === "/dashboard" ||
           pathname.startsWith("/dashboard/")
         );
+      }
+
+      if (href === "/chat") {
+        return pathname === "/chat" || pathname === "/agi";
       }
 
       return pathname === href;
