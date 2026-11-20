@@ -12,7 +12,8 @@ type AgiShellProps = {
   panel: ReactNode;
   /** Thread-list drawer content (ChatSidebar). */
   drawer: ReactNode;
-  /** Right panel visibility on desktop. Open by default (D3). */
+  /** Right panel visibility on desktop. Closed by default — the header
+   * toggle opens it — so the chat column is not squeezed. */
   panelOpen: boolean;
   /** Right panel visibility on mobile (slide-over, opened by its toggle). */
   mobilePanelOpen: boolean;

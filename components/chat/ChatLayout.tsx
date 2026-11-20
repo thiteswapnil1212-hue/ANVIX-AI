@@ -245,10 +245,12 @@ export default function ChatLayout() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Right panel: open by default on desktop (D3). On phones it stays
-  // closed until the header toggle opens it as a slide-over, so the
-  // three panes are never squeezed onto a phone at once.
-  const [panelOpen, setPanelOpen] = useState(true);
+  // Right panel: closed by default on desktop, so the chat column is
+  // not squeezed and the panel is not mostly empty black space. The
+  // header toggle opens it. On phones it stays closed until the header
+  // toggle opens it as a slide-over, so the three panes are never
+  // squeezed onto a phone at once.
+  const [panelOpen, setPanelOpen] = useState(false);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const isDesktop = useIsDesktop();
 
