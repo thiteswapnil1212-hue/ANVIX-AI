@@ -7,10 +7,14 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Relative import with an explicit .ts extension (same style as
+// lib/gemini/fallback.ts itself): the @/ alias only resolves inside
+// Next.js, but this file is also imported by node --test, where the
+// alias does not exist.
 import {
   classifyGeminiFailure,
   parseGeminiJson,
-} from "@/lib/gemini/fallback";
+} from "../gemini/fallback.ts";
 
 import type { WebPlan, WebStep, WebToolName } from "./types";
 
