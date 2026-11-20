@@ -356,10 +356,10 @@ export default function ChatLayout() {
     setMobilePanelOpen(false);
   }, []);
 
-  // "Connected" = last /api/chat call succeeded; "Not connected" after
-  // a key error (the route returns 500 "Gemini API key is not
-  // configured" without GEMINI_API_KEY). No new API.
-  const [chatConnected, setChatConnected] = useState(true);
+  // "Connected" = a real /api/chat (or web-task) stream has yielded
+  // real text. Starts false — the panel must not claim Connected
+  // before any call has ever succeeded. No new API.
+  const [chatConnected, setChatConnected] = useState(false);
 
   const [conversations, setConversations] = useState<
     GuestChatConversation[]
@@ -810,8 +810,9 @@ export default function ChatLayout() {
       const reader = response.body.getReader();
       request.reader = reader;
 
-      // A 200 + readable stream means the key works.
-      setChatConnected(true);
+      // Connected is set only below, when a chunk yields real text —
+      // never on a bare 200, and never on a stream error trailer.
+      let streamError = false;
 
       while (!request.stopped) {
         const { value, done } = await reader.read();
@@ -821,9 +822,37 @@ export default function ChatLayout() {
         }
 
         if (value) {
-          streamedText += decoder.decode(value, {
+          const chunk = decoder.decode(value, {
             stream: true,
           });
+
+          // Mid-stream Gemini failure: the route sends a distinct
+          // [STREAM_ERROR] marker (older builds sent the plain-text
+          // "[An error occurred while generating the response.]"
+          // trailer). Either marker means "not connected" — strip it
+          // and fail below instead of showing it as a reply.
+          const hasMarker =
+            chunk.includes("[STREAM_ERROR]") ||
+            chunk.includes(
+              "[An error occurred while generating the response.]"
+            );
+
+          if (hasMarker) {
+            streamError = true;
+          }
+
+          const cleanChunk = chunk
+            .replace("[STREAM_ERROR]", "")
+            .replace(
+              "[An error occurred while generating the response.]",
+              ""
+            );
+
+          streamedText += cleanChunk;
+
+          if (cleanChunk.trim()) {
+            setChatConnected(true);
+          }
 
           updateAssistantMessage(streamedText);
         }
@@ -831,15 +860,46 @@ export default function ChatLayout() {
 
       // Flush any remaining decoded text only if not stopped.
       if (!request.stopped) {
-        streamedText += decoder.decode();
+        const tail = decoder.decode();
 
-        if (streamedText) {
-          updateAssistantMessage(streamedText);
+        if (tail) {
+          const hasMarker =
+            tail.includes("[STREAM_ERROR]") ||
+            tail.includes(
+              "[An error occurred while generating the response.]"
+            );
+
+          if (hasMarker) {
+            streamError = true;
+          }
+
+          const cleanTail = tail
+            .replace("[STREAM_ERROR]", "")
+            .replace(
+              "[An error occurred while generating the response.]",
+              ""
+            );
+
+          streamedText += cleanTail;
+
+          if (cleanTail.trim()) {
+            setChatConnected(true);
+          }
+
+          if (streamedText) {
+            updateAssistantMessage(streamedText);
+          }
         }
       }
 
       if (request.stopped) {
         return true;
+      }
+
+      if (streamError) {
+        throw new Error(
+          "Gemini failed while generating the response."
+        );
       }
 
       if (!streamedText.trim()) {
