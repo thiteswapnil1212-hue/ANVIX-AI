@@ -31,6 +31,10 @@ Vercel's serverless functions do not have. On `anvix-ai.vercel.app`,
 > "Web agent runs on your own computer — it is not available on the
 > hosted deployment. Run ANVIX locally (npm run dev) to use browser tasks."
 
+This is verified live behaviour on the hosted deployment: the routes
+answer 503 before reading the request body, and a `GET` request answers
+JSON 405 ("Method not allowed. Use POST.").
+
 To use browser tasks, run ANVIX on your own computer:
 
 ```bash
