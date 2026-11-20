@@ -69,6 +69,14 @@ export class WebBrowser {
     // Only for Linux running as root (containers): Chromium refuses to
     // start as root without this. Never set it on a shared machine.
     const noSandbox = process.env.ANVIX_WEB_AGENT_NO_SANDBOX === "1";
+    // Chromium does not read proxy env vars on its own, but curl, npm,
+    // and Node do — on a proxied network (office, VPN, sandbox) every
+    // navigation would fail without this. The URL is passed straight to
+    // Chromium and never logged.
+    const proxyServer =
+      process.env.HTTPS_PROXY ?? process.env.https_proxy ?? undefined;
+    const proxyBypass =
+      process.env.NO_PROXY ?? process.env.no_proxy ?? undefined;
 
     let context: BrowserContext;
     try {
@@ -78,6 +86,14 @@ export class WebBrowser {
           headless: !headed,
           viewport: { width: 1280, height: 800 },
           ...(noSandbox ? { args: ["--no-sandbox"] } : {}),
+          ...(proxyServer
+            ? {
+                proxy: {
+                  server: proxyServer,
+                  ...(proxyBypass ? { bypass: proxyBypass } : {}),
+                },
+              }
+            : {}),
         }
       );
     } catch (error) {
