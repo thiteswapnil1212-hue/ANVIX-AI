@@ -115,7 +115,7 @@ export default function IconRail({
         isActive
           ? "bg-[#2A2A2C] text-[#EDEDED]"
           : disabled
-            ? "cursor-not-allowed text-[#8A8A8A]/40"
+            ? "cursor-not-allowed text-[#8A8A8A]/25 opacity-50"
             : "text-[#8A8A8A] hover:bg-white/[0.06] hover:text-[#EDEDED]"
       }
     `;
@@ -189,7 +189,7 @@ export default function IconRail({
           onMouseLeave={hideTooltip}
           onFocus={showTooltip("More — coming soon")}
           onBlur={hideTooltip}
-          className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#8A8A8A]/40"
+          className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#8A8A8A]/25 opacity-50"
         >
           <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
         </button>
