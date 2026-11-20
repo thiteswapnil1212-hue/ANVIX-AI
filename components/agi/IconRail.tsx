@@ -4,13 +4,23 @@ import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import {
+  Briefcase,
+  ChartColumn,
+  Download,
+  Ellipsis,
   Folder,
   FolderGit2,
   FolderOpen,
   LayoutGrid,
+  Lightbulb,
+  ListChecks,
+  Menu,
   MessageSquare,
+  Music,
+  NotebookPen,
   Search,
   Settings,
+  Sparkles,
   SquarePlus,
 } from "lucide-react";
 
@@ -52,19 +62,21 @@ function createProjectSlug(projectName: string) {
 
 /**
  * Left icon rail (~80 px, §2.2 of the AGI spec) — icons only, no labels.
- * Hybrid rail (§4.1 of the AGI/dashboard spec): 8 icons — the live
- * sections plus two honest placeholders (Search, Files) for real
- * near-term features. Dead icons with no destination and no roadmap
- * date are hidden, not disabled; they return when the feature ships.
- * Hovering (or focusing) an icon shows a visible tooltip with its name,
- * next to the native `title` tooltip.
+ * Full Muse-order icon set (17): the live sections plus disabled
+ * "coming soon" icons for destinations that do not exist yet. Disabled
+ * icons are SHOWN, not removed — the user's Muse-parity instruction
+ * supersedes the Phase 1 hybrid decision to hide the 9 icons with no
+ * destination. Hovering (or focusing) an icon shows a visible tooltip
+ * with its name, next to the native `title` tooltip.
  *
- * Destinations: Chat → /agi, Generate → /generate, Projects →
- * /dashboard, Workspace → the last opened workspace
- * (`/workspace/<slug>` from `anvix.generatedProject`, else
- * `/dashboard`; disabled "coming soon" only when no project was ever
- * generated), Settings → /settings, "+" → new chat. Search and Files
- * have no destination yet, so they render disabled/greyed with title
+ * Destinations: Chat → /agi, Generate → /generate (it uses the
+ * apps-grid icon, Muse position 6), Projects → /dashboard, Workspace
+ * → the last opened workspace (`/workspace/<slug>` from
+ * `anvix.generatedProject`, else `/dashboard`; disabled "coming soon"
+ * only when no project was ever generated), Settings → /settings,
+ * "+" → new chat. Search, Notes, Ideas, Checklist, Chart, Music,
+ * Briefcase, Sparkle folder, More, Download and Menu have no
+ * destination yet, so they render disabled/greyed with title
  * "coming soon" and never link anywhere (no dead `#` links).
  */
 export default function IconRail({
@@ -136,10 +148,15 @@ export default function IconRail({
   const topIcons: RailIcon[] = [
     { key: "chat", label: "Chat", Icon: MessageSquare, href: "/agi" },
     { key: "search", label: "Search — coming soon", Icon: Search },
+    { key: "notes", label: "Notes — coming soon", Icon: NotebookPen },
+    { key: "ideas", label: "Ideas — coming soon", Icon: Lightbulb },
+    { key: "checklist", label: "Checklist — coming soon", Icon: ListChecks },
     { key: "generate", label: "Generate", Icon: LayoutGrid, href: "/generate" },
   ];
 
   const middleIcons: RailIcon[] = [
+    { key: "chart", label: "Charts — coming soon", Icon: ChartColumn },
+    { key: "music", label: "Music — coming soon", Icon: Music },
     { key: "projects", label: "Projects", Icon: FolderGit2, href: "/dashboard" },
     {
       key: "workspace",
@@ -151,6 +168,12 @@ export default function IconRail({
       ...(workspaceHref ? { href: workspaceHref } : {}),
     },
     { key: "folder", label: "Files — coming soon", Icon: Folder },
+    { key: "briefcase", label: "Briefcase — coming soon", Icon: Briefcase },
+    {
+      key: "sparkle-folder",
+      label: "Sparkle folder — coming soon",
+      Icon: Sparkles,
+    },
     {
       key: "new",
       label: "New chat",
@@ -160,6 +183,9 @@ export default function IconRail({
   ];
 
   const bottomIcons: RailIcon[] = [
+    { key: "more", label: "More — coming soon", Icon: Ellipsis },
+    { key: "download", label: "Download — coming soon", Icon: Download },
+    { key: "menu", label: "Menu — coming soon", Icon: Menu },
     { key: "settings", label: "Settings", Icon: Settings, href: "/settings" },
   ];
 
