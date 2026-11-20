@@ -65,7 +65,7 @@ export default function PromptToolbar({
               <Bot size={15} className="text-[#D4AF37]" />
             </span>
 
-            <span>GPT-5</span>
+            <span>Gemini 2.5 Flash</span>
             <ChevronDown
               size={14}
               className="text-zinc-500 transition-transform duration-200 group-hover:text-[#D4AF37]"
