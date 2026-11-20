@@ -819,10 +819,10 @@ export default function ChatLayout() {
   // Send a web task: stream /api/web-agent/stream instead of /api/chat.
   // The conversation setup mirrors handleSend on purpose — the two paths
   // must never break each other, so they do not share the setup code.
-  const handleWebTask = async (
-    prompt: string,
-    _model: string
-  ): Promise<boolean> => {
+  // One parameter is enough: a web task ignores the chat model picker.
+  // (A two-parameter function would also type-check as onSend, but the
+  // unused second parameter trips the repo's no-unused-vars lint rule.)
+  const handleWebTask = async (prompt: string): Promise<boolean> => {
     const trimmedPrompt = prompt.trim();
 
     if (!trimmedPrompt || activeRequestRef.current) {
