@@ -7,6 +7,7 @@ import {
   Fingerprint,
   GitBranch,
   Globe,
+  List,
   Pencil,
   ShieldCheck,
   X,
@@ -16,7 +17,7 @@ import {
   type ApprovalEntry,
 } from "./ApprovalsHistory";
 
-type PanelTab = "approvals" | "identity";
+type PanelTab = "activity" | "approvals" | "identity";
 
 type ApprovalsPanelProps = {
   open: boolean;
@@ -102,10 +103,10 @@ function ApprovalCard({ entry }: { entry: ApprovalEntry }) {
 /**
  * Right panel (~420 px, §2.6 of the AGI spec): AGI avatar (ANVIX's own
  * public/logo.png, circular crop — never Muse's character), name, Connected
- * status, segmented Approvals / Identity tabs, and the Approvals history
- * list. Data is localStorage only; the list starts empty (no fake GitHub
- * entries are seeded). The Activity tab was folded away — there is no
- * activity data source, and an eternal "No activity yet" is a dead tab.
+ * status, segmented Activity / Approvals / Identity tabs, and the Approvals
+ * history list. Data is localStorage only; the list starts empty (no fake GitHub
+ * entries are seeded). The Activity tab has no activity data source yet, so
+ * it shows only the honest "No activity yet" empty state — no fake entries.
  */
 export default function ApprovalsPanel({
   open,
@@ -129,6 +130,7 @@ export default function ApprovalsPanel({
   const connected = status === "connected";
 
   const tabs: { key: PanelTab; label: string; Icon: typeof ShieldCheck }[] = [
+    { key: "activity", label: "Activity", Icon: List },
     { key: "approvals", label: "Approvals", Icon: ShieldCheck },
     { key: "identity", label: "Identity", Icon: Fingerprint },
   ];
@@ -216,6 +218,19 @@ export default function ApprovalsPanel({
 
       {/* Tab content */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-6">
+        {tab === "activity" && (
+          <div>
+            <h2 className="text-[15px] font-semibold text-white">
+              Activity
+            </h2>
+
+            <p className="mt-4 text-sm leading-6 text-ink-muted">
+              No activity yet — your recent AGI activity will appear
+              here.
+            </p>
+          </div>
+        )}
+
         {tab === "approvals" && (
           <div>
             <h2 className="text-[15px] font-semibold text-white">
