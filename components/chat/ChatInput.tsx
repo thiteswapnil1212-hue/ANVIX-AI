@@ -15,6 +15,7 @@ import type {
 import {
   ArrowUp,
   ChevronDown,
+  Globe,
   Lock,
   Check,
   Plus,
@@ -38,12 +39,17 @@ type ChatInputProps = {
   ) => boolean | Promise<boolean>;
   isGenerating: boolean;
   onStop: () => void;
+  /** Web-task mode: send to /api/web-agent instead of /api/chat. */
+  webTaskMode?: boolean;
+  onToggleWebTask?: () => void;
 };
 
 export default function ChatInput({
   onSend,
   isGenerating,
   onStop,
+  webTaskMode = false,
+  onToggleWebTask,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
@@ -312,9 +318,11 @@ export default function ChatInput({
               placeholder={
                 isGenerating
                   ? "Press Enter to stop..."
-                  : "Message AGI..."
+                  : webTaskMode
+                    ? "Give AGI a web task…"
+                    : "Message AGI..."
               }
-              aria-label="Message AGI"
+              aria-label={webTaskMode ? "Give AGI a web task" : "Message AGI"}
               aria-describedby="chat-input-hint"
               className="
                 min-h-[36px] max-h-[120px] min-w-0 flex-1
@@ -326,12 +334,39 @@ export default function ChatInput({
               "
             />
 
-            {/* Model selector */}
+            {/* Model selector + Web task toggle */}
             {!hasMessage && !isGenerating && (
               <div
                 ref={modelRef}
-                className="relative mb-0.5 shrink-0"
+                className="relative mb-0.5 flex shrink-0 items-center gap-1"
               >
+                {onToggleWebTask && (
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={onToggleWebTask}
+                    aria-pressed={webTaskMode}
+                    aria-label="Toggle web task mode"
+                    title="Web task: AGI opens a browser and does the task. Steps that send or submit ask you first."
+                    className={`
+                      flex h-8 shrink-0 items-center gap-1.5
+                      rounded-xl px-2 text-[11px] font-medium
+                      transition-colors sm:text-xs
+                      ${
+                        webTaskMode
+                          ? "bg-[#0074E8] text-white hover:bg-[#0A7FF0]"
+                          : "text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                      }
+                      disabled:opacity-40
+                    `}
+                  >
+                    <Globe
+                      className="h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span className="whitespace-nowrap">Web task</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={isSubmitting}
@@ -588,7 +623,9 @@ export default function ChatInput({
               sm:text-[11px]
             "
           >
-            
+            {webTaskMode
+              ? "Web task mode — AGI opens a browser and does the task. Steps that send or submit ask you first."
+              : ""}
           </div>
         </form>
       </div>
