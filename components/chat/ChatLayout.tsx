@@ -30,8 +30,10 @@ import IconRail from "@/components/agi/IconRail";
 import ApprovalsPanel from "@/components/agi/ApprovalsPanel";
 import {
   readApprovals,
+  recordApproval,
   type ApprovalEntry,
 } from "@/components/agi/ApprovalsHistory";
+import type { ApprovalRequest } from "@/lib/web-agent/types";
 
 type Message = {
   id: string;
@@ -290,6 +292,13 @@ export default function ChatLayout() {
     );
 
   const [isTyping, setIsTyping] = useState(false);
+
+  // Web-task mode: the next message goes to /api/web-agent/stream
+  // (real browser) instead of /api/chat. Off by default.
+  const [webTaskMode, setWebTaskMode] = useState(false);
+  // The approval the task is currently waiting on, if any.
+  const [pendingApproval, setPendingApproval] =
+    useState<ApprovalRequest | null>(null);
 
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -807,6 +816,317 @@ export default function ChatLayout() {
     }
   };
 
+  // Send a web task: stream /api/web-agent/stream instead of /api/chat.
+  // The conversation setup mirrors handleSend on purpose — the two paths
+  // must never break each other, so they do not share the setup code.
+  const handleWebTask = async (
+    prompt: string,
+    _model: string
+  ): Promise<boolean> => {
+    const trimmedPrompt = prompt.trim();
+
+    if (!trimmedPrompt || activeRequestRef.current) {
+      return false;
+    }
+
+    const controller = new AbortController();
+
+    const request: ActiveRequest = {
+      controller,
+      reader: null,
+      stopped: false,
+    };
+
+    activeRequestRef.current = request;
+
+    let workingConversationId = activeConversationId;
+    const timestamp = createTimestamp();
+
+    if (!workingConversationId) {
+      workingConversationId = crypto.randomUUID();
+
+      const newConversation: GuestChatConversation = {
+        id: workingConversationId,
+        title: generateChatTitle(trimmedPrompt),
+        preview: trimmedPrompt,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        pinned: false,
+        messages: [],
+      };
+
+      setConversations((prev) =>
+        sortConversations([newConversation, ...prev])
+      );
+
+      setActiveConversationId(workingConversationId);
+    }
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: trimmedPrompt,
+      createdAt: timestamp,
+    };
+
+    const assistantMessageId = crypto.randomUUID();
+
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      createdAt: createTimestamp(),
+    };
+
+    setConversations((prev) =>
+      sortConversations(
+        prev.map((conversation) => {
+          if (conversation.id !== workingConversationId) {
+            return conversation;
+          }
+
+          const nextTitle =
+            conversation.title === "New chat" ||
+            conversation.messages.length === 0
+              ? generateChatTitle(trimmedPrompt)
+              : conversation.title;
+
+          return {
+            ...conversation,
+            title: nextTitle,
+            preview: trimmedPrompt,
+            updatedAt: timestamp,
+            messages: [
+              ...conversation.messages,
+              userMessage,
+              assistantMessage,
+            ],
+          };
+        })
+      )
+    );
+
+    setIsTyping(true);
+
+    let progressText = "";
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    const updateAssistantMessage = (content: string) => {
+      setConversations((prev) =>
+        sortConversations(
+          prev.map((conversation) => {
+            if (conversation.id !== workingConversationId) {
+              return conversation;
+            }
+
+            return {
+              ...conversation,
+              preview: content || trimmedPrompt,
+              updatedAt: createTimestamp(),
+              messages: conversation.messages.map((message) =>
+                message.id === assistantMessageId
+                  ? { ...message, content }
+                  : message
+              ),
+            };
+          })
+        )
+      );
+    };
+
+    const appendProgress = (line: string) => {
+      progressText = progressText ? `${progressText}\n${line}` : line;
+      updateAssistantMessage(progressText);
+    };
+
+    try {
+      const response = await fetch("/api/web-agent/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ task: trimmedPrompt }),
+        signal: controller.signal,
+      });
+
+      if (request.stopped) {
+        return true;
+      }
+
+      if (!response.ok) {
+        let errorMessage = "Web task failed.";
+
+        try {
+          const data = (await response.json()) as ChatApiError;
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // Keep the fallback error message.
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      if (!response.body) {
+        throw new Error(
+          "Streaming is not supported by this response."
+        );
+      }
+
+      const reader = response.body.getReader();
+      request.reader = reader;
+
+      while (!request.stopped) {
+        const { value, done } = await reader.read();
+
+        if (request.stopped || done) {
+          break;
+        }
+
+        if (!value) {
+          continue;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) {
+            continue;
+          }
+
+          let event: Record<string, unknown>;
+          try {
+            event = JSON.parse(line) as Record<string, unknown>;
+          } catch {
+            continue;
+          }
+
+          if (event.type === "planning") {
+            appendProgress("Planning the steps…");
+          } else if (event.type === "step_complete") {
+            appendProgress(`• ${String(event.detail ?? "")}`);
+          } else if (event.type === "approval_needed") {
+            const approval = event.approval as ApprovalRequest;
+            setPendingApproval(approval);
+            appendProgress(
+              `Waiting for your approval — ${approval.title}`
+            );
+          } else if (event.type === "task_complete") {
+            const result = event.result as
+              | { message?: unknown }
+              | undefined;
+            if (
+              result &&
+              typeof result.message === "string" &&
+              result.message.trim()
+            ) {
+              progressText = result.message;
+              updateAssistantMessage(result.message);
+            }
+          } else if (event.type === "error") {
+            const message = String(event.message ?? "Web task failed.");
+            if (/api key/i.test(message)) {
+              setChatConnected(false);
+            }
+            throw new Error(message);
+          }
+        }
+      }
+
+      if (request.stopped) {
+        return true;
+      }
+
+      if (!progressText.trim()) {
+        throw new Error("Web task returned no result.");
+      }
+
+      return true;
+    } catch (error) {
+      if (
+        request.stopped ||
+        (error instanceof Error && error.name === "AbortError")
+      ) {
+        if (progressText.trim()) {
+          updateAssistantMessage(progressText);
+        } else {
+          updateAssistantMessage("Response stopped.");
+        }
+
+        return true;
+      }
+
+      console.error("Web task streaming error:", error);
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while running the web task.";
+
+      updateAssistantMessage(
+        progressText.trim()
+          ? `${progressText}\n\n[Web task interrupted. Please try again.]`
+          : errorMessage
+      );
+
+      return false;
+    } finally {
+      if (request.reader) {
+        try {
+          request.reader.releaseLock();
+        } catch {
+          // The reader may already be released.
+        }
+      }
+
+      if (activeRequestRef.current === request) {
+        activeRequestRef.current = null;
+        setIsTyping(false);
+      }
+
+      setPendingApproval(null);
+    }
+  };
+
+  // Answer an approval prompt: tell the server, then record the
+  // decision in the Approvals history panel.
+  const handleApprovalDecision = async (
+    decision: "allowed" | "denied"
+  ) => {
+    if (!pendingApproval) {
+      return;
+    }
+
+    const approval = pendingApproval;
+    setPendingApproval(null);
+
+    try {
+      await fetch("/api/web-agent/approve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          runId: approval.runId,
+          approvalId: approval.id,
+          decision,
+        }),
+      });
+    } catch {
+      // The run may already have timed out — it reports that itself.
+    }
+
+    const entry = recordApproval({
+      title: approval.title,
+      description: approval.description,
+      icon: "globe",
+      status: decision,
+    });
+    setApprovals((prev) => [entry, ...prev]);
+  };
+
   return (
     <AgiShell
       rail={
@@ -1032,11 +1352,45 @@ export default function ChatLayout() {
               sm:py-4
             "
           >
+            {pendingApproval && (
+              <div className="mx-auto mb-3 w-full max-w-3xl rounded-2xl border border-[#0074E8]/40 bg-[#1F1F20] p-4">
+                <p className="text-sm font-semibold text-white">
+                  Approval needed
+                </p>
+                <p className="mt-1 text-sm text-zinc-200">
+                  {pendingApproval.title}
+                </p>
+                <p className="mt-1 text-[13px] leading-6 text-zinc-400">
+                  {pendingApproval.description}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleApprovalDecision("allowed")}
+                    className="rounded-full bg-[#0074E8] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0A7FF0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleApprovalDecision("denied")}
+                    className="rounded-full border border-white/15 bg-transparent px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  >
+                    Deny
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="mx-auto w-full max-w-3xl">
               <ChatInput
-                onSend={handleSend}
+                onSend={webTaskMode ? handleWebTask : handleSend}
                 isGenerating={isTyping}
                 onStop={handleStop}
+                webTaskMode={webTaskMode}
+                onToggleWebTask={() =>
+                  setWebTaskMode((mode) => !mode)
+                }
               />
 
               <p
