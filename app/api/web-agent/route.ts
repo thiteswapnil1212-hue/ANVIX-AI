@@ -61,12 +61,18 @@ export async function POST(req: Request) {
     });
 
     if (!result.success) {
-      const message = result.error || result.message || "Web task failed";
-      const status = /quota|busy right now/i.test(message)
+      // result.message is the plain client-facing message; result.error
+      // can still hold the raw detail (e.g. "GEMINI_API_KEY is not set").
+      // The old code surfaced the raw error and its /Gemini API key/
+      // check missed the underscored form, so a missing key came back
+      // as a 400 with the raw message — verified live.
+      const message = result.message || result.error || "Web task failed";
+      const detail = `${result.error ?? ""} ${message}`;
+      const status = /quota|busy right now/i.test(detail)
         ? 503
-        : /not available on the hosted deployment/i.test(message)
+        : /not available on the hosted deployment/i.test(detail)
           ? 503
-          : /Gemini API key/i.test(message)
+          : /GEMINI_API_KEY|Gemini API key/i.test(detail)
             ? 500
             : 400;
       return NextResponse.json(
@@ -81,8 +87,16 @@ export async function POST(req: Request) {
       steps: result.steps,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Web task failed.";
-    return jsonError(message, 400);
+    const raw = error instanceof Error ? error.message : "Web task failed.";
+    if (/GEMINI_API_KEY|Gemini API key/i.test(raw)) {
+      return jsonError("Gemini API key is not configured on the server.", 500);
+    }
+    if (/quota|busy right now/i.test(raw)) {
+      return jsonError(
+        "AI service is busy right now (quota limit). Please wait a bit and try again.",
+        503
+      );
+    }
+    return jsonError(raw, 400);
   }
 }
