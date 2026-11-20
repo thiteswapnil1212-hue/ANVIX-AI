@@ -37,6 +37,25 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
 
+  /* Unified product tokens (promoted from the old .agi scope, §2.1). */
+  --color-app-bg: var(--app-bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-active: var(--surface-active);
+  --color-segmented: var(--segmented);
+  --color-segmented-active: var(--segmented-active);
+  --color-bubble-user: var(--bubble-user);
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-action-pressed: var(--action-pressed);
+  --color-action-soft: var(--action-soft);
+  --color-action-on: var(--action-on);
+  --color-ink: var(--text);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-faint: var(--text-faint);
+  --color-icon: var(--icon);
+
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
 
@@ -55,10 +74,10 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
@@ -71,7 +90,7 @@
 :root {
   color-scheme: dark;
 
-  /* Brand */
+  /* Brand — gold is brand-only (§2.3). Never a UI/action colour. */
   --gold: #d4af37;
   --gold-light: #f3d46b;
   --gold-dark: #9c7b17;
@@ -80,61 +99,84 @@
   --gold-border: rgba(212, 175, 55, 0.28);
   --gold-glow: rgba(212, 175, 55, 0.16);
 
+  /* Unified product tokens — one canvas, one action colour (§2.1).
+     Promoted from the old .agi scope; the .agi block below is now an alias. */
+  --app-bg: #181819;
+  --surface-1: #1f1f20;
+  --surface-2: #262628;
+  --surface-3: #313132;
+  --surface-active: #2a2a2c;
+  --segmented: #28292b;
+  --segmented-active: #424344;
+  --bubble-user: #113254;
+  --text: #ededed;
+  --text-muted: #a1a1aa;
+  --text-faint: #71717a;
+  --icon: #8a8a8a;
+  --border-strong: rgba(255, 255, 255, 0.1);
+  --action: #0074e8;
+  --action-hover: #1a8cff;
+  --action-pressed: #0066c8;
+  --action-soft: rgba(0, 116, 232, 0.12);
+  --action-on: #ffffff;
+  --selection-bg: rgba(0, 116, 232, 0.35);
+  --focus-ring: #0074e8;
+
   /* Background */
-  --background: #080808;
-  --foreground: #fafafa;
+  --background: #181819;
+  --foreground: #ededed;
 
   /* Surfaces */
-  --surface: #111111;
-  --surface-hover: #181818;
-  --surface-elevated: #151515;
+  --surface: #1f1f20;
+  --surface-hover: #262628;
+  --surface-elevated: #1f1f20;
 
   /* Cards */
-  --card: #111111;
-  --card-foreground: #fafafa;
+  --card: #1f1f20;
+  --card-foreground: #ededed;
 
   /* Popovers */
-  --popover: #111111;
-  --popover-foreground: #fafafa;
+  --popover: #1f1f20;
+  --popover-foreground: #ededed;
 
   /* Primary */
-  --primary: var(--gold);
-  --primary-foreground: #090909;
+  --primary: var(--action);
+  --primary-foreground: #ffffff;
 
   /* Secondary */
-  --secondary: #181818;
-  --secondary-foreground: #fafafa;
+  --secondary: #262628;
+  --secondary-foreground: #ededed;
 
   /* Muted */
-  --muted: #181818;
+  --muted: #262628;
   --muted-foreground: #a1a1aa;
 
   /* Accent */
-  --accent: #181818;
-  --accent-foreground: #fafafa;
+  --accent: #262628;
+  --accent-foreground: #ededed;
 
   /* Status */
   --destructive: #ef4444;
-  --success: #22c55e;
+  --success: #07b123;
   --warning: #f59e0b;
 
   /* UI */
-  --border: #2a2a2a;
-  --input: #262626;
-  --ring: var(--gold);
+  --border: rgba(255, 255, 255, 0.07);
+  --input: #262628;
+  --ring: var(--focus-ring);
 
   /* Radius */
   --radius: 1rem;
 
   /* Sidebar */
-  --sidebar: #111111;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: var(--gold);
-  --sidebar-primary-foreground: #090909;
-  --sidebar-accent: #181818;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #262626;
-  --sidebar-ring: var(--gold);
+  --sidebar: #181819;
+  --sidebar-foreground: #ededed;
+  --sidebar-primary: var(--action);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #262628;
+  --sidebar-accent-foreground: #ededed;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: var(--focus-ring);
 
   /* Motion */
   --transition-fast: 150ms ease;
@@ -173,13 +215,7 @@
     overflow-x: clip;
 
     font-family: var(--font-sans);
-    background:
-      radial-gradient(
-        ellipse at 50% -20%,
-        rgba(212, 175, 55, 0.045),
-        transparent 42%
-      ),
-      var(--background);
+    background: var(--background);
   }
 
   h1,
@@ -246,8 +282,8 @@
    ========================================================= */
 
 ::selection {
-  background: var(--gold);
-  color: #090909;
+  background: var(--selection-bg);
+  color: #ffffff;
 }
 
 /* =========================================================
@@ -262,7 +298,7 @@
   select,
   [tabindex]:not([tabindex="-1"])
 ):focus-visible {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -515,34 +551,30 @@ pre code {
 }
 /* =========================================================
    AGI (Chat section) — Muse-style neutral tokens.
-   Scoped to .agi only; the gold brand tokens above stay
-   untouched for the rest of ANVIX.
+   Alias scope: the values now live on :root (§2.1); this block
+   only keeps the old --agi-* names working for existing code.
+   New code uses the :root tokens (or bg-app-bg etc.) instead.
    ========================================================= */
 
 .agi {
-  --agi-bg: #181819;
-  --agi-card: #1f1f20;
-  --agi-bubble: #113254;
-  --agi-input: #313132;
-  --agi-send: #0074e8;
-  --agi-green: #07b123;
-  --agi-segmented: #28292b;
-  --agi-segmented-active: #424344;
-  --agi-rail-active: #2a2a2c;
-  --agi-pill: #262628;
-  --agi-text: #ededed;
-  --agi-muted: #a1a1aa;
-  --agi-icon: #8a8a8a;
-  --agi-border: rgba(255, 255, 255, 0.07);
-  --agi-sidebar: #181819;
-  --agi-surface: #1f1f20;
-  --agi-accent: #0074e8;
-  --agi-accent-foreground: #ffffff;
+  --agi-bg: var(--app-bg);
+  --agi-card: var(--surface-1);
+  --agi-bubble: var(--bubble-user);
+  --agi-input: var(--surface-3);
+  --agi-send: var(--action);
+  --agi-green: var(--success);
+  --agi-segmented: var(--segmented);
+  --agi-segmented-active: var(--segmented-active);
+  --agi-rail-active: var(--surface-active);
+  --agi-pill: var(--surface-2);
+  --agi-text: var(--text);
+  --agi-muted: var(--text-muted);
+  --agi-icon: var(--icon);
+  --agi-border: var(--border);
+  --agi-sidebar: var(--app-bg);
+  --agi-surface: var(--surface-1);
+  --agi-accent: var(--action);
+  --agi-accent-foreground: var(--action-on);
   background: var(--agi-bg);
   color: var(--agi-text);
-}
-
-.agi ::selection {
-  background: #fafafa;
-  color: #090909;
 }
