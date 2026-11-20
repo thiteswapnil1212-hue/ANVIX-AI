@@ -1,4 +1,3 @@
-
 "use client";
 
 import Image from "next/image";
@@ -288,11 +287,11 @@ function ChatSidebar({
             transition-colors duration-150
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#FAFAFA]/60
+            focus-visible:ring-[#EDEDED]/60
             ${
               active
-                ? "bg-[#262626] text-white shadow-[inset_0_0_0_1px_rgba(250,250,250,0.10)]"
-                : "text-zinc-400 hover:bg-[#222225] hover:text-zinc-200"
+                ? "bg-[#262628] text-[#EDEDED] shadow-[inset_0_0_0_1px_rgba(237,237,237,0.10)]"
+                : "text-[#A1A1AA] hover:bg-[#262628] hover:text-[#EDEDED]"
             }
           `}
         >
@@ -301,7 +300,7 @@ function ChatSidebar({
               aria-hidden="true"
               className="
                 absolute bottom-2 left-0 top-2
-                w-[3px] rounded-r-full bg-[#FAFAFA]
+                w-[3px] rounded-r-full bg-[#0074E8]
               "
             />
           )}
@@ -311,8 +310,8 @@ function ChatSidebar({
               mt-0.5 h-4 w-4 shrink-0
               ${
                 active
-                  ? "text-[#FAFAFA]"
-                  : "text-zinc-600 group-hover/thread:text-zinc-400"
+                  ? "text-[#EDEDED]"
+                  : "text-[#8A8A8A] group-hover/thread:text-[#A1A1AA]"
               }
             `}
             aria-hidden="true"
@@ -346,9 +345,9 @@ function ChatSidebar({
                   onBlur={() => commitRename(thread.id)}
                   className="
                     w-full rounded-md border
-                    border-[#FAFAFA]/40 bg-[#151518]
-                    px-2 py-1 text-xs text-zinc-100
-                    outline-none focus:border-[#FAFAFA]/70
+                    border-[#EDEDED]/40 bg-[#262628]
+                    px-2 py-1 text-xs text-[#EDEDED]
+                    outline-none focus:border-[#EDEDED]/70
                   "
                 />
               ) : (
@@ -356,14 +355,14 @@ function ChatSidebar({
                   <p
                     className={`
                       truncate text-[12px] font-medium
-                      ${active ? "text-zinc-100" : "text-zinc-300"}
+                      ${active ? "text-[#EDEDED]" : "text-[#EDEDED]"}
                     `}
                   >
                     {title}
                   </p>
 
                   {thread.preview && (
-                    <p className="mt-1 truncate text-[10px] leading-4 text-zinc-600">
+                    <p className="mt-1 truncate text-[10px] leading-4 text-[#A1A1AA]">
                       {thread.preview}
                     </p>
                   )}
@@ -386,16 +385,16 @@ function ChatSidebar({
             className={`
               absolute right-1.5 top-2
               flex h-7 w-7 items-center justify-center
-              rounded-lg text-zinc-500
+              rounded-lg text-[#A1A1AA]
               transition-colors
-              hover:bg-[#343438] hover:text-zinc-100
+              hover:bg-[#313132] hover:text-[#EDEDED]
               focus-visible:opacity-100
               focus-visible:outline-none
               focus-visible:ring-1
-              focus-visible:ring-[#FAFAFA]/60
+              focus-visible:ring-[#EDEDED]/60
               ${
                 menuOpen
-                  ? "bg-[#343438] text-zinc-100 opacity-100"
+                  ? "bg-[#313132] text-[#EDEDED] opacity-100"
                   : "opacity-0 group-hover/thread:opacity-100"
               }
             `}
@@ -419,8 +418,8 @@ function ChatSidebar({
               className="
                 absolute right-1 top-9 z-30 w-40
                 overflow-hidden rounded-xl
-                border border-[#353539]
-                bg-[#202023] p-1
+                border border-white/10
+                bg-[#262628] p-1
                 shadow-[0_12px_36px_rgba(0,0,0,0.55)]
               "
             >
@@ -434,11 +433,11 @@ function ChatSidebar({
                 className="
                   flex w-full items-center gap-2.5
                   rounded-lg px-3 py-2 text-left
-                  text-xs text-zinc-300 transition
-                  hover:bg-[#303034] hover:text-white
+                  text-xs text-[#EDEDED] transition
+                  hover:bg-[#313132] hover:text-white
                 "
               >
-                <Pin className="h-3.5 w-3.5 text-zinc-500" />
+                <Pin className="h-3.5 w-3.5 text-[#8A8A8A]" />
                 {thread.pinned ? "Unpin chat" : "Pin chat"}
               </button>
 
@@ -449,11 +448,11 @@ function ChatSidebar({
                 className="
                   flex w-full items-center gap-2.5
                   rounded-lg px-3 py-2 text-left
-                  text-xs text-zinc-300 transition
-                  hover:bg-[#303034] hover:text-white
+                  text-xs text-[#EDEDED] transition
+                  hover:bg-[#313132] hover:text-white
                 "
               >
-                <Pencil className="h-3.5 w-3.5 text-zinc-500" />
+                <Pencil className="h-3.5 w-3.5 text-[#8A8A8A]" />
                 Rename
               </button>
 
@@ -489,14 +488,14 @@ function ChatSidebar({
       className={`
         relative flex min-h-0 min-w-0
         shrink-0 flex-col overflow-hidden
-        text-white
+        text-[#EDEDED]
         ${
           drawer
             ? "h-full w-full bg-[#181819]"
             : `
               h-dvh w-full
               border-r border-white/10
-              bg-[#111111]
+              bg-[#181819]
               transition-[width] duration-200 ease-in-out
               ${collapsed ? "w-[68px]" : "w-full"}
             `
@@ -516,11 +515,11 @@ function ChatSidebar({
                 aria-hidden="true"
               />
 
-              <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#FAFAFA]">
+              <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#EDEDED]">
                 ANVIX
               </p>
 
-              <p className="text-[10px] text-zinc-600">AGI</p>
+              <p className="text-[10px] text-[#A1A1AA]">AGI</p>
             </div>
           ) : (
             <div className="flex min-w-0 items-center gap-2.5">
@@ -529,8 +528,8 @@ function ChatSidebar({
                   relative flex h-9 w-9 shrink-0
                   items-center justify-center
                   overflow-hidden rounded-xl
-                  border border-[#FAFAFA]/20
-                  bg-[#101011]
+                  border border-white/10
+                  bg-[#262628]
                 "
               >
                 <Image
@@ -545,12 +544,12 @@ function ChatSidebar({
 
               {!collapsed && (
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#FAFAFA]">
+                  <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#EDEDED]">
                     AGI
                   </p>
                   <div className="mt-0.5 flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    <p className="text-[10px] text-zinc-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#07B123]" />
+                    <p className="text-[10px] text-[#A1A1AA]">
                       Personal AI
                     </p>
                   </div>
@@ -568,11 +567,11 @@ function ChatSidebar({
               onClick={toggleCollapse}
               className="
                 flex h-8 w-8 shrink-0 items-center
-                justify-center rounded-lg text-zinc-500
-                transition hover:bg-[#27272A] hover:text-zinc-200
+                justify-center rounded-lg text-[#A1A1AA]
+                transition hover:bg-[#262628] hover:text-[#EDEDED]
                 focus-visible:outline-none
                 focus-visible:ring-1
-                focus-visible:ring-[#FAFAFA]/60
+                focus-visible:ring-[#EDEDED]/60
               "
             >
               <PanelLeft
@@ -591,21 +590,21 @@ function ChatSidebar({
           title={collapsed ? "New chat" : undefined}
           className={`
             group/new flex w-full items-center gap-3
-            rounded-xl border border-[#3F3F46]
-            bg-[#202023] px-3 py-2.5
+            rounded-xl border border-white/10
+            bg-[#262628] px-3 py-2.5
             text-left transition-colors
-            hover:border-[#FAFAFA]/35 hover:bg-[#27272A]
+            hover:border-[#0074E8]/60 hover:bg-[#313132]
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#FAFAFA]/60
+            focus-visible:ring-[#EDEDED]/60
             ${collapsed ? "justify-center px-0" : ""}
           `}
         >
           <span
             className="
               flex h-7 w-7 shrink-0 items-center
-              justify-center rounded-lg bg-[#FAFAFA]
-              text-black transition-transform
+              justify-center rounded-lg bg-[#0074E8]
+              text-white transition-transform
               group-hover/new:scale-105
             "
           >
@@ -614,10 +613,10 @@ function ChatSidebar({
 
           {!collapsed && (
             <>
-              <span className="flex-1 text-sm font-medium text-zinc-200">
+              <span className="flex-1 text-sm font-medium text-[#EDEDED]">
                 New chat
               </span>
-              <kbd className="hidden rounded-md border border-zinc-700/80 bg-[#151518] px-1.5 py-0.5 text-[9px] text-zinc-500 sm:block">
+              <kbd className="hidden rounded-md border border-white/10 bg-[#181819] px-1.5 py-0.5 text-[9px] text-[#A1A1AA] sm:block">
                 Ctrl K
               </kbd>
             </>
@@ -631,7 +630,7 @@ function ChatSidebar({
                 className="
                   pointer-events-none absolute left-3
                   top-1/2 h-3.5 w-3.5
-                  -translate-y-1/2 text-zinc-600
+                  -translate-y-1/2 text-[#8A8A8A]
                 "
                 aria-hidden="true"
               />
@@ -645,13 +644,13 @@ function ChatSidebar({
                 aria-label="Search conversations"
                 className="
                   w-full rounded-xl border
-                  border-white/10 bg-[#1A1A1A]
+                  border-white/10 bg-[#262628]
                   py-2.5 pl-9 pr-9 text-xs
-                  text-zinc-300 placeholder:text-zinc-600
+                  text-[#EDEDED] placeholder:text-[#A1A1AA]
                   outline-none transition
-                  focus:border-[#FAFAFA]/40
-                  focus:bg-[#1A1A1D]
-                  focus:ring-2 focus:ring-[#FAFAFA]/[0.06]
+                  focus:border-[#EDEDED]/40
+                  focus:bg-[#262628]
+                  focus:ring-2 focus:ring-[#EDEDED]/[0.06]
                 "
               />
 
@@ -664,9 +663,9 @@ function ChatSidebar({
                     absolute right-2 top-1/2
                     flex h-6 w-6 -translate-y-1/2
                     items-center justify-center
-                    rounded-md text-zinc-500
-                    transition hover:bg-[#303034]
-                    hover:text-zinc-200
+                    rounded-md text-[#A1A1AA]
+                    transition hover:bg-[#313132]
+                    hover:text-[#EDEDED]
                   "
                 >
                   <X className="h-3.5 w-3.5" />
@@ -690,8 +689,8 @@ function ChatSidebar({
             <div className="space-y-5">
               {pinned.length > 0 && (
                 <section aria-label="Pinned conversations">
-                  <p className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
-                    <Pin className="h-3 w-3 text-[#FAFAFA]/70" />
+                  <p className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A1A1AA]">
+                    <Pin className="h-3 w-3 text-[#0074E8]" />
                     Pinned
                   </p>
                   <div className="space-y-1">
@@ -702,7 +701,7 @@ function ChatSidebar({
 
               {grouped.map(({ label, items }) => (
                 <section key={label} aria-label={label}>
-                  <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
+                  <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A1A1AA]">
                     {label}
                   </p>
                   <div className="space-y-1">
@@ -713,29 +712,29 @@ function ChatSidebar({
             </div>
           ) : hasThreads ? (
             <div className="px-2 py-12 text-center">
-              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-[#151518]">
-                <Search className="h-4 w-4 text-zinc-600" />
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-[#262628]">
+                <Search className="h-4 w-4 text-[#8A8A8A]" />
               </div>
-              <p className="mt-3 text-xs font-medium text-zinc-400">
+              <p className="mt-3 text-xs font-medium text-[#A1A1AA]">
                 No matching chats
               </p>
-              <p className="mt-1 text-[10px] leading-4 text-zinc-600">
+              <p className="mt-1 text-[10px] leading-4 text-[#A1A1AA]">
                 Try another search term.
               </p>
               <button
                 type="button"
                 onClick={() => setQuery("")}
-                className="mt-3 text-[11px] font-medium text-[#FAFAFA] hover:text-zinc-100"
+                className="mt-3 text-[11px] font-medium text-[#EDEDED] hover:text-white"
               >
                 Clear search
               </button>
             </div>
           ) : (
             <div className="px-2 py-12 text-center">
-              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-[#FAFAFA]/15 bg-[#FAFAFA]/[0.04]">
-                <Sparkles className="h-4 w-4 text-[#FAFAFA]/70" />
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#262628]">
+                <Sparkles className="h-4 w-4 text-[#A1A1AA]" />
               </div>
-              <p className="mt-3 text-xs font-medium text-zinc-400">
+              <p className="mt-3 text-xs font-medium text-[#A1A1AA]">
                 No conversations yet — start one from the composer.
               </p>
               <button
@@ -743,10 +742,9 @@ function ChatSidebar({
                 onClick={onNewThread}
                 className="
                   mt-4 inline-flex items-center gap-1.5
-                  rounded-lg border border-[#FAFAFA]/20
-                  bg-[#FAFAFA]/[0.05] px-3 py-2
-                  text-[11px] font-medium text-[#FAFAFA]
-                  transition hover:bg-[#FAFAFA]/[0.10]
+                  rounded-lg bg-[#0074E8] px-3 py-2
+                  text-[11px] font-medium text-white
+                  transition hover:bg-[#0A7FF0]
                 "
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -776,13 +774,13 @@ function ChatSidebar({
                     justify-center rounded-xl transition
                     ${
                       active
-                        ? "bg-[#262626] text-[#FAFAFA]"
-                        : "text-zinc-600 hover:bg-[#27272A] hover:text-zinc-300"
+                        ? "bg-[#262628] text-[#EDEDED]"
+                        : "text-[#8A8A8A] hover:bg-[#262628] hover:text-[#EDEDED]"
                     }
                   `}
                 >
                   {active && (
-                    <span className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-[#FAFAFA]" />
+                    <span className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-[#0074E8]" />
                   )}
                   <MessageSquare className="h-4 w-4" />
                 </button>
@@ -794,8 +792,7 @@ function ChatSidebar({
 
       <div
         className={`
-          shrink-0 border-t border-white/10 px-3 py-3
-          ${drawer ? "bg-[#181819]" : "bg-[#111111]"}
+          shrink-0 border-t border-white/10 bg-[#181819] px-3 py-3
         `}
       >
         <button
@@ -806,15 +803,15 @@ function ChatSidebar({
           className={`
             group/settings flex w-full items-center gap-3
             rounded-xl px-2.5 py-2.5 text-xs
-            text-zinc-500 transition
-            hover:bg-[#222225] hover:text-zinc-200
+            text-[#A1A1AA] transition
+            hover:bg-[#262628] hover:text-[#EDEDED]
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#FAFAFA]/60
+            focus-visible:ring-[#EDEDED]/60
             ${collapsed ? "justify-center" : ""}
           `}
         >
-          <Settings className="h-4 w-4 shrink-0 text-zinc-600 transition group-hover/settings:text-zinc-400" />
+          <Settings className="h-4 w-4 shrink-0 text-[#8A8A8A] transition group-hover/settings:text-[#A1A1AA]" />
           {!collapsed && "Settings"}
         </button>
 
@@ -827,28 +824,28 @@ function ChatSidebar({
             group/account mt-1 flex w-full
             items-center gap-2.5 rounded-xl
             px-2.5 py-2.5 text-left transition
-            hover:bg-[#222225]
+            hover:bg-[#262628]
             focus-visible:outline-none
             focus-visible:ring-1
-            focus-visible:ring-[#FAFAFA]/60
+            focus-visible:ring-[#EDEDED]/60
             ${collapsed ? "justify-center" : ""}
           `}
         >
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/[0.06] bg-[#27272A] text-zinc-400">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/[0.06] bg-[#313132] text-[#A1A1AA]">
             <User className="h-3.5 w-3.5" />
           </div>
 
           {!collapsed && (
             <>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-zinc-300">
+                <p className="truncate text-xs font-medium text-[#EDEDED]">
                   {userName}
                 </p>
-                <p className="mt-0.5 truncate text-[10px] text-zinc-600">
+                <p className="mt-0.5 truncate text-[10px] text-[#A1A1AA]">
                   {plan}
                 </p>
               </div>
-              <ChevronRight className="h-3.5 w-3.5 text-zinc-700 transition group-hover/account:translate-x-0.5 group-hover/account:text-zinc-500" />
+              <ChevronRight className="h-3.5 w-3.5 text-[#8A8A8A] transition group-hover/account:translate-x-0.5 group-hover/account:text-[#A1A1AA]" />
             </>
           )}
         </button>
