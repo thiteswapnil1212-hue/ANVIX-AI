@@ -217,53 +217,20 @@ export default function BuildOptions({
         relative
         isolate
         overflow-hidden
-        rounded-3xl
+        rounded-2xl
         border
-        border-zinc-800/80
-        bg-[#111113]
+        border-white/[0.07]
+        bg-[#1F1F20]
         shadow-2xl
         shadow-black/10
       "
     >
-      {/* Ambient glow */}
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          -right-40
-          -top-40
-          -z-10
-          h-80
-          w-80
-          rounded-full
-          bg-[#D4AF37]/[0.045]
-          blur-[110px]
-        "
-      />
-
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          -bottom-40
-          left-1/3
-          -z-10
-          h-64
-          w-64
-          rounded-full
-          bg-[#D4AF37]/[0.02]
-          blur-[100px]
-        "
-      />
-
       {/* Header */}
       <header
         className="
           relative
           border-b
-          border-zinc-800/70
+          border-white/[0.07]
           px-5
           py-5
           sm:px-6
@@ -291,12 +258,12 @@ export default function BuildOptions({
                 justify-center
                 rounded-xl
                 border
-                border-[#D4AF37]/15
-                bg-[#D4AF37]/[0.06]
+                border-[#0074E8]/15
+                bg-[#0074E8]/[0.06]
               "
             >
               <WandSparkles
-                className="h-[18px] w-[18px] text-[#D4AF37]"
+                className="h-[18px] w-[18px] text-[#0074E8]"
                 strokeWidth={1.7}
               />
             </div>
@@ -453,7 +420,7 @@ export default function BuildOptions({
                       rounded-full
                       ${
                         selected
-                          ? "bg-[#D4AF37]/70"
+                          ? "bg-[#0074E8]"
                           : "bg-zinc-700"
                       }
                     `}
@@ -584,16 +551,16 @@ export default function BuildOptions({
                         disabled:cursor-not-allowed
                         disabled:opacity-40
                         focus-visible:ring-2
-                        focus-visible:ring-[#D4AF37]/35
+                        focus-visible:ring-[#0074E8]/35
                         focus-visible:ring-offset-2
-                        focus-visible:ring-offset-[#111113]
+                        focus-visible:ring-offset-[#1F1F20]
 
                         ${
                           selected
                             ? `
-                              border-[#D4AF37]/35
-                              bg-[#D4AF37]/[0.055]
-                              shadow-[0_0_25px_rgba(212,175,55,0.035)]
+                              border-[#0074E8]/35
+                              bg-[#0074E8]/[0.05]
+                              shadow-[0_0_25px_rgba(0,116,232,0.05)]
                             `
                             : `
                               border-zinc-800
@@ -622,8 +589,8 @@ export default function BuildOptions({
                           ${
                             selected
                               ? `
-                                border-[#D4AF37]/20
-                                bg-[#D4AF37]/[0.09]
+                                border-[#0074E8]/20
+                                bg-[#0074E8]/[0.09]
                               `
                               : `
                                 border-zinc-800
@@ -642,7 +609,7 @@ export default function BuildOptions({
                             motion-reduce:transition-none
                             ${
                               selected
-                                ? "text-[#D4AF37]"
+                                ? "text-[#0074E8]"
                                 : "text-zinc-600 group-hover:text-zinc-400"
                             }
                           `}
@@ -679,8 +646,8 @@ export default function BuildOptions({
                                 tracking-[0.08em]
                                 ${
                                   selected
-                                    ? "bg-[#D4AF37]/10 text-[#D4AF37]"
-                                    : "bg-zinc-800 text-zinc-600"
+                                    ? "bg-[#0074E8]/10 text-[#0074E8]"
+                                    : "bg-white/[0.06] text-zinc-400"
                                 }
                               `}
                             >
@@ -725,7 +692,7 @@ export default function BuildOptions({
                           motion-reduce:transition-none
                           ${
                             selected
-                              ? "border-[#D4AF37] bg-[#D4AF37]"
+                              ? "border-[#0074E8] bg-[#0074E8]"
                               : "border-zinc-700 bg-transparent group-hover:border-zinc-600"
                           }
                         `}
@@ -760,7 +727,7 @@ export default function BuildOptions({
       >
         <div className="flex items-start gap-2.5">
           <Sparkles
-            className="mt-0.5 h-3 w-3 shrink-0 text-[#D4AF37]/60"
+            className="mt-0.5 h-3 w-3 shrink-0 text-[#0074E8]/60"
             aria-hidden="true"
           />
 

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Folder,
   FolderGit2,
+  FolderOpen,
   LayoutGrid,
   MessageSquare,
   Search,
@@ -25,13 +26,33 @@ type RailIcon = {
 
 type IconRailProps = {
   /** Currently active section. */
-  active?: "chat" | "generate" | "projects" | "settings";
+  active?: "chat" | "generate" | "workspace" | "projects" | "settings";
   onNewChat?: () => void;
 };
 
+const GENERATED_PROJECT_STORAGE_KEY = "anvix.generatedProject";
+
+/**
+ * Slug for a stored project name — mirrors `createProjectSlug` in
+ * `app/generate/page.tsx`, which is what produced the workspace route
+ * at generation time.
+ */
+function createProjectSlug(projectName: string) {
+  const slug = projectName
+    .normalize("NFKD")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80)
+    .replace(/-+$/g, "");
+
+  return slug || "anvix-generated";
+}
+
 /**
  * Left icon rail (~80 px, §2.2 of the AGI spec) — icons only, no labels.
- * Hybrid rail (§4.1 of the AGI/dashboard spec): 7 icons — the live
+ * Hybrid rail (§4.1 of the AGI/dashboard spec): 8 icons — the live
  * sections plus two honest placeholders (Search, Files) for real
  * near-term features. Dead icons with no destination and no roadmap
  * date are hidden, not disabled; they return when the feature ships.
@@ -39,7 +60,10 @@ type IconRailProps = {
  * next to the native `title` tooltip.
  *
  * Destinations: Chat → /agi, Generate → /generate, Projects →
- * /dashboard, Settings → /settings, "+" → new chat. Search and Files
+ * /dashboard, Workspace → the last opened workspace
+ * (`/workspace/<slug>` from `anvix.generatedProject`, else
+ * `/dashboard`; disabled "coming soon" only when no project was ever
+ * generated), Settings → /settings, "+" → new chat. Search and Files
  * have no destination yet, so they render disabled/greyed with title
  * "coming soon" and never link anywhere (no dead `#` links).
  */
@@ -55,6 +79,45 @@ export default function IconRail({
     label: string;
     top: number;
   } | null>(null);
+
+  // Last opened workspace. Defaults to the Projects list until storage
+  // has been read; becomes null (disabled "coming soon") only when no
+  // project was ever generated.
+  const [workspaceHref, setWorkspaceHref] = useState<string | null>(
+    "/dashboard"
+  );
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(
+        GENERATED_PROJECT_STORAGE_KEY
+      );
+
+      // No stored project at all — the Workspace slot stays disabled.
+      if (!stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- browser storage is an external system that only exists after mount; lazy init would break hydration
+        setWorkspaceHref(null);
+        return;
+      }
+
+      const parsed: unknown = JSON.parse(stored);
+      const name =
+        parsed && typeof parsed === "object"
+          ? (parsed as { name?: unknown }).name
+          : undefined;
+
+      // Stored project without a usable name — fall back to Projects.
+      if (typeof name !== "string" || !name.trim()) {
+        setWorkspaceHref("/dashboard");
+        return;
+      }
+
+      setWorkspaceHref(`/workspace/${createProjectSlug(name)}`);
+    } catch {
+      // Storage unavailable or unreadable — fall back to Projects.
+      setWorkspaceHref("/dashboard");
+    }
+  }, []);
 
   const showTooltip =
     (label: string) =>
@@ -78,7 +141,16 @@ export default function IconRail({
 
   const middleIcons: RailIcon[] = [
     { key: "projects", label: "Projects", Icon: FolderGit2, href: "/dashboard" },
-    { key: "files", label: "Files — coming soon", Icon: Folder },
+    {
+      key: "workspace",
+      label:
+        workspaceHref === null
+          ? "Workspace — coming soon"
+          : "Workspace",
+      Icon: FolderOpen,
+      ...(workspaceHref ? { href: workspaceHref } : {}),
+    },
+    { key: "folder", label: "Files — coming soon", Icon: Folder },
     {
       key: "new",
       label: "New chat",

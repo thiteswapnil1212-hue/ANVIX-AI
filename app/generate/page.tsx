@@ -11,13 +11,14 @@ import { useRouter } from "next/navigation";
 import type { KeyboardEvent } from "react";
 import { AlertCircle, ArrowRight } from "lucide-react";
 
-import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/layout/PageHeader";
+import ProductShell from "@/components/layout/ProductShell";
+import IconRail from "@/components/agi/IconRail";
 import type {
   BuildApiResponse,
   BuildProjectResponse,
 } from "@/lib/project/project-schema";
 
-import GenerateHero from "@/components/generate/GenerateHero";
 import PromptBuilder from "@/components/generate/PromptBuilder";
 import ExamplePrompts from "@/components/generate/ExamplePrompts";
 import BuildOptions, {
@@ -160,6 +161,7 @@ export default function GeneratePage() {
   const [streamedFiles, setStreamedFiles] = useState<string[]>([]);
   const [streamNote, setStreamNote] = useState("");
   const [streamAutoFix, setStreamAutoFix] = useState<string | null>(null);
+  const [completedSlug, setCompletedSlug] = useState<string | null>(null);
 
   const [buildConfig, setBuildConfig] =
     useState<BuildConfiguration>(
@@ -167,6 +169,16 @@ export default function GeneratePage() {
     );
 
   const submissionLock = useRef(false);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear a pending auto-redirect if the page unmounts first.
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current) {
+        clearTimeout(redirectTimer.current);
+      }
+    };
+  }, []);
 
   // Landing blueprint "Continue to Build" hands the prompt over via storage.
   useEffect(() => {
@@ -229,6 +241,7 @@ export default function GeneratePage() {
       setStreamedFiles([]);
       setStreamNote("");
       setStreamAutoFix(null);
+      setCompletedSlug(null);
 
       let data: BuildApiResponse | null = null;
 
@@ -308,9 +321,15 @@ export default function GeneratePage() {
         });
       }
 
-      router.push(
-        `/workspace/${createProjectSlug(data.project.name)}`
-      );
+      const slug = createProjectSlug(data.project.name);
+
+      // Show the completed state briefly — with its "Open in Workspace"
+      // button — before the auto-redirect, so the handoff is visible,
+      // not magic. The button and the redirect go to the same place.
+      setCompletedSlug(slug);
+      redirectTimer.current = setTimeout(() => {
+        router.push(`/workspace/${slug}`);
+      }, 2000);
     } catch (error) {
       console.error("ANVIX build generation failed:", error);
 
@@ -326,6 +345,10 @@ export default function GeneratePage() {
     user,
   ]);
 
+  const handleNewChat = useCallback(() => {
+    router.push("/agi");
+  }, [router]);
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (
@@ -340,11 +363,16 @@ export default function GeneratePage() {
   );
 
   return (
-    <AppShell
-      title="Generate"
-      description="Turn your idea into an app."
-    >
-      <main className="w-full">
+    <ProductShell
+      rail={<IconRail active="generate" onNewChat={handleNewChat} />}
+      center={
+        <>
+          <PageHeader
+            title="Generate"
+            subtitle="Turn your idea into a working app."
+            backHref="/dashboard"
+          />
+          <main className="min-h-0 w-full flex-1 overflow-y-auto">
         <div
           className="
             mx-auto
@@ -360,13 +388,6 @@ export default function GeneratePage() {
           "
         >
           <div className="space-y-6 lg:space-y-7">
-            {/* Hero */}
-
-            <GenerateHero
-              promptLength={prompt.length}
-              maxChars={MAX_CHARS}
-            />
-
             {/* Prompt */}
 
             <section className="space-y-3">
@@ -415,12 +436,18 @@ export default function GeneratePage() {
                   overflow-hidden
                   rounded-2xl
                   border
-                  border-[#D4AF37]/15
-                  bg-[#0D0D0F]
+                  border-white/[0.07]
+                  bg-[#1F1F20]
                 "
               >
                 <GenerateProgress
                   currentStep={streamedFiles.length > 0 ? 3 : 1}
+                  completed={completedSlug !== null}
+                  workspaceHref={
+                    completedSlug
+                      ? `/workspace/${completedSlug}`
+                      : undefined
+                  }
                 />
 
                 {(streamNote || streamedFiles.length > 0 || streamAutoFix) && (
@@ -443,7 +470,7 @@ export default function GeneratePage() {
                     )}
 
                     {streamAutoFix && (
-                      <p className="mt-3 text-xs text-[#d4b35e]">
+                      <p className="mt-3 text-xs text-zinc-400">
                         {streamAutoFix}
                       </p>
                     )}
@@ -526,7 +553,9 @@ export default function GeneratePage() {
             )}
           </div>
         </div>
-      </main>
-    </AppShell>
+          </main>
+        </>
+      }
+    />
   );
 }
