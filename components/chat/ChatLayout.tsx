@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft, PanelRight } from "lucide-react";
 import { DEFAULT_CHAT_MODEL_ID } from "@/lib/chat-models";
 
@@ -852,15 +853,19 @@ export default function ChatLayout() {
         <>
           {/* HEADER — back arrow + pill title + panel toggle */}
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#181819] px-3 sm:px-4">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              aria-label="Back"
-              title="Back"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#262628] text-[#EDEDED] transition-colors hover:bg-[#313132] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
+            {/* ANVIX mark + back to home — keeps the AGI shell feeling
+                like part of ANVIX, not a different app. */}
+            <Link
+              href="/"
+              aria-label="Back to home"
+              title="Back to home"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#262628] pl-2.5 pr-3 text-[#EDEDED] transition-colors hover:bg-[#313132] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
             >
               <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            </button>
+              <span className="text-xs font-semibold tracking-[0.18em]">
+                ANVIX
+              </span>
+            </Link>
 
             <button
               type="button"
