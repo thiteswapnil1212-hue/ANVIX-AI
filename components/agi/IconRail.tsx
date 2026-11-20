@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useRef, useState } from "react";
 import {
   BarChart3,
@@ -122,18 +122,29 @@ export default function IconRail({
 
     const icon = <Icon className="h-5 w-5" strokeWidth={1.8} />;
 
+    // Hover handlers live on this wrapper, not on the link/button:
+    // disabled buttons never fire mouse events, so a tooltip attached
+    // to a disabled "coming soon" icon would never appear.
+    const wrap = (inner: ReactNode) => (
+      <span
+        key={key}
+        onMouseEnter={showTooltip(label)}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip(label)}
+        onBlur={hideTooltip}
+        className="block"
+      >
+        {inner}
+      </span>
+    );
+
     if (href) {
-      return (
+      return wrap(
         <Link
-          key={key}
           href={href}
           aria-label={label}
           aria-current={isActive ? "page" : undefined}
           title={label}
-          onMouseEnter={showTooltip(label)}
-          onMouseLeave={hideTooltip}
-          onFocus={showTooltip(label)}
-          onBlur={hideTooltip}
           className={className}
         >
           {icon}
@@ -141,18 +152,13 @@ export default function IconRail({
       );
     }
 
-    return (
+    return wrap(
       <button
-        key={key}
         type="button"
         onClick={onClick}
         disabled={disabled}
         aria-label={label}
         title={label}
-        onMouseEnter={showTooltip(label)}
-        onMouseLeave={hideTooltip}
-        onFocus={showTooltip(label)}
-        onBlur={hideTooltip}
         className={className}
       >
         {icon}
@@ -180,19 +186,23 @@ export default function IconRail({
       </div>
 
       <div className="flex flex-col items-center gap-4 pt-4">
-        <button
-          type="button"
-          disabled
-          aria-label="More — coming soon"
-          title="More — coming soon"
+        <span
           onMouseEnter={showTooltip("More — coming soon")}
           onMouseLeave={hideTooltip}
           onFocus={showTooltip("More — coming soon")}
           onBlur={hideTooltip}
-          className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#8A8A8A]/25 opacity-50"
+          className="block"
         >
-          <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
-        </button>
+          <button
+            type="button"
+            disabled
+            aria-label="More — coming soon"
+            title="More — coming soon"
+            className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#8A8A8A]/25 opacity-50"
+          >
+            <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
+          </button>
+        </span>
       </div>
 
       <div className="mt-auto flex flex-col items-center gap-4 pt-4">
