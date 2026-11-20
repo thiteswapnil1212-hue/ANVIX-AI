@@ -585,6 +585,36 @@ export default function ChatLayout() {
     setDrawerOpen(false);
   }, [handleStop]);
 
+  // Ctrl/Cmd+K = new chat, from anywhere in AGI — not only while the
+  // thread drawer is open. The drawer unmounts when closed, so a
+  // handler registered there is dead most of the time (B7). Typing
+  // targets are excluded, matching the old drawer behaviour.
+  useEffect(() => {
+    function handleKeyboard(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable;
+
+      if (typing || event.altKey) return;
+
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "k"
+      ) {
+        event.preventDefault();
+        handleNewConversation();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyboard);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyboard);
+    };
+  }, [handleNewConversation]);
+
   // Select a conversation.
   const handleSelectConversation = useCallback(
     (id: string) => {

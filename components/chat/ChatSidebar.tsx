@@ -190,15 +190,6 @@ function ChatSidebar({
 
       if (typing || event.altKey) return;
 
-      const shortcutKey = event.ctrlKey || event.metaKey;
-
-      if (shortcutKey && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        onNewThread();
-        closeMenu();
-        return;
-      }
-
       if (event.key === "/" && !collapsed) {
         event.preventDefault();
         searchRef.current?.focus();
@@ -214,7 +205,6 @@ function ChatSidebar({
     cancelRename,
     closeMenu,
     collapsed,
-    onNewThread,
     renamingId,
   ]);
 
