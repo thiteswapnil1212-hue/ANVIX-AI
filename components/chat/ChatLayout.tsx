@@ -382,6 +382,12 @@ export default function ChatLayout() {
   // The approval the task is currently waiting on, if any.
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
+  // Last approve-POST failure, if any — shown on the approval card
+  // with a retry instead of recording a decision that never landed.
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const lastApprovalDecisionRef = useRef<
+    "allowed" | "denied" | null
+  >(null);
 
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -1230,11 +1236,15 @@ export default function ChatLayout() {
       }
 
       setPendingApproval(null);
+      setApprovalError(null);
     }
   };
 
   // Answer an approval prompt: tell the server, then record the
-  // decision in the Approvals history panel.
+  // decision in the Approvals history panel — but ONLY when the
+  // approve POST succeeds (B2). On failure nothing is recorded; the
+  // card stays visible with a retry (B10) until the POST succeeds or
+  // the stream ends (whose finally clears the pending approval).
   const handleApprovalDecision = async (
     decision: "allowed" | "denied"
   ) => {
@@ -1243,10 +1253,11 @@ export default function ChatLayout() {
     }
 
     const approval = pendingApproval;
-    setPendingApproval(null);
+    lastApprovalDecisionRef.current = decision;
+    setApprovalError(null);
 
     try {
-      await fetch("/api/web-agent/approve", {
+      const response = await fetch("/api/web-agent/approve", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1257,9 +1268,22 @@ export default function ChatLayout() {
           decision,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error(
+          "Approval not found or already expired. The task has stopped."
+        );
+      }
     } catch {
-      // The run may already have timed out — it reports that itself.
+      // Expired, unreachable, or rejected: do not record the
+      // decision — it never landed. Keep the card visible so the
+      // user can retry; the run reports its own timeout.
+      setApprovalError("Approval expired — task stopped.");
+      return;
     }
+
+    setPendingApproval(null);
+    lastApprovalDecisionRef.current = null;
 
     const entry = recordApproval({
       title: approval.title,
@@ -1547,7 +1571,25 @@ export default function ChatLayout() {
                 <p className="mt-1 text-[13px] leading-6 text-zinc-400">
                   {pendingApproval.description}
                 </p>
+                {approvalError && (
+                  <p className="mt-2 text-[13px] font-medium text-red-300">
+                    {approvalError} Tap Retry to try again.
+                  </p>
+                )}
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  {approvalError && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleApprovalDecision(
+                          lastApprovalDecisionRef.current ?? "allowed"
+                        )
+                      }
+                      className="w-full rounded-full bg-action px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:w-auto"
+                    >
+                      Retry
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => void handleApprovalDecision("allowed")}
