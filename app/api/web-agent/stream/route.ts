@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
       void (async () => {
         try {
-          const result = await runWebTask({
+          await runWebTask({
             task: body.task as string,
             startUrl:
               typeof body.startUrl === "string"
@@ -105,22 +105,10 @@ export async function POST(request: Request) {
             interactive: true,
             onEvent: emit,
           });
-
-          if (streamClosed || request.signal.aborted) {
-            return;
-          }
-
-          if (!result.success) {
-            emit({
-              type: "error",
-              message: plainErrorMessage(
-                result.error || result.message || "Web task failed"
-              ),
-            });
-            return;
-          }
-
-          emit({ type: "task_complete", result });
+          // The runner emits the terminal event itself (task_complete on
+          // success, error on failure). Emitting one here too sent every
+          // terminal event twice — verified live: a missing-key run
+          // produced two error events, the second with the raw message.
         } catch (error) {
           if (streamClosed || request.signal.aborted) {
             return;
