@@ -9,8 +9,8 @@
 import { NextResponse } from "next/server";
 
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { isAllowedWebUrl } from "@/lib/web-agent/planner";
-import { runWebTask } from "@/lib/web-agent/runner";
+import { isWebAgentAvailable } from "@/lib/web-agent/availability";
+import { isAllowedWebUrl } from "@/lib/web-agent/urls";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +21,28 @@ function jsonError(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
 }
 
+export async function GET() {
+  return NextResponse.json(
+    { success: false, error: "Method not allowed. Use POST." },
+    { status: 405, headers: { Allow: "POST" } }
+  );
+}
+
 export async function POST(req: Request) {
+  // Availability FIRST — before rate-limit and body parsing. On the
+  // hosted deployment this always answers the honest 503, and the
+  // heavy runner (browser + planner + Gemini) is never loaded there.
+  const availability = isWebAgentAvailable();
+  if (!availability.available) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: availability.reason ?? "Web agent is not available here.",
+      },
+      { status: 503 }
+    );
+  }
+
   const limited = enforceRateLimit(req, "web-agent", 5, 60_000);
   if (limited) return limited;
 
@@ -52,6 +73,9 @@ export async function POST(req: Request) {
   }
 
   try {
+    // Dynamic import only after the guard passed — on Vercel this
+    // line is never reached, so the runner chain never loads there.
+    const { runWebTask } = await import("@/lib/web-agent/runner");
     const result = await runWebTask({
       task: body.task.trim(),
       startUrl:
@@ -61,18 +85,17 @@ export async function POST(req: Request) {
     });
 
     if (!result.success) {
-      // result.message is the plain client-facing message; result.error
-      // can still hold the raw detail (e.g. "GEMINI_API_KEY is not set").
-      // The old code surfaced the raw error and its /Gemini API key/
-      // check missed the underscored form, so a missing key came back
-      // as a 400 with the raw message — verified live.
-      const message = result.message || result.error || "Web task failed";
-      const detail = `${result.error ?? ""} ${message}`;
-      const status = /quota|busy right now/i.test(detail)
-        ? 503
-        : /not available on the hosted deployment/i.test(detail)
+      // result.message is the plain client-facing message the runner
+      // already mapped (quota → 503 message, missing key → 500
+      // message). Status follows those plain messages — no regex on
+      // raw internals, and the unavailable case never reaches here:
+      // the route answers 503 itself before runWebTask runs.
+      const message = result.message || "Web task failed";
+      const status =
+        message ===
+        "AI service is busy right now (quota limit). Please wait a bit and try again."
           ? 503
-          : /GEMINI_API_KEY|Gemini API key/i.test(detail)
+          : message === "Gemini API key is not configured on the server."
             ? 500
             : 400;
       return NextResponse.json(
@@ -87,6 +110,12 @@ export async function POST(req: Request) {
       steps: result.steps,
     });
   } catch (error) {
+    // Never leak raw internals to the client (e.g. Playwright launch
+    // paths). Log server-side, answer with a plain message.
+    console.error(
+      "[ANVIX WEB AGENT] Task failed",
+      error instanceof Error ? error.message : error
+    );
     const raw = error instanceof Error ? error.message : "Web task failed.";
     if (/GEMINI_API_KEY|Gemini API key/i.test(raw)) {
       return jsonError("Gemini API key is not configured on the server.", 500);
@@ -97,6 +126,6 @@ export async function POST(req: Request) {
         503
       );
     }
-    return jsonError(raw, 400);
+    return jsonError("Web task failed.", 400);
   }
 }

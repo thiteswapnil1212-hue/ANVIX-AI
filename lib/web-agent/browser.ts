@@ -11,46 +11,15 @@
 // headless runs reuse that session. Passwords are never stored in code
 // or in ANVIX — they live only in the browser profile on your machine.
 
-import os from "node:os";
-import path from "node:path";
+// Playwright is imported dynamically inside launch() only (see below):
+// a top-level value import made the whole route module fail to load on
+// Vercel — the deployed function cannot require playwright-core
+// (missing browsers.json) — and the availability guard in
+// ./availability could never fire. Type-only import is erased at
+// compile time, so it is safe here.
+import type { BrowserContext, Page } from "playwright";
 
-import { chromium, type BrowserContext, type Page } from "playwright";
-
-export interface WebAgentAvailability {
-  available: boolean;
-  /** Plain-words reason when unavailable — shown to the user. */
-  reason?: string;
-}
-
-export function isWebAgentAvailable(): WebAgentAvailability {
-  if (process.env.VERCEL === "1") {
-    return {
-      available: false,
-      reason:
-        "Web agent runs on your own computer — it is not available on the hosted deployment. Run ANVIX locally (npm run dev) to use browser tasks.",
-    };
-  }
-
-  if (process.env.ANVIX_WEB_AGENT_DISABLED === "1") {
-    return {
-      available: false,
-      reason: "Web agent is disabled on this server (ANVIX_WEB_AGENT_DISABLED=1).",
-    };
-  }
-
-  return { available: true };
-}
-
-/** Where the persistent browser profile (cookies, logins) lives. */
-export function getWebAgentProfileDir(): string {
-  const override = process.env.ANVIX_WEB_AGENT_PROFILE_DIR?.trim();
-
-  if (override) {
-    return override;
-  }
-
-  return path.join(os.homedir(), ".anvix", "web-agent-profile");
-}
+import { getWebAgentProfileDir } from "./availability";
 
 export class WebBrowser {
   private readonly context: BrowserContext;
@@ -103,6 +72,11 @@ export class WebBrowser {
 
     let context: BrowserContext;
     try {
+      // Dynamic import: playwright is loaded only when a browser is
+      // actually launched (local runs). The routes check availability
+      // first and never reach this on Vercel, where requiring
+      // playwright-core throws at module load.
+      const { chromium } = await import("playwright");
       context = await chromium.launchPersistentContext(
         getWebAgentProfileDir(),
         {

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
+import { isWebAgentAvailable } from "./availability.ts";
 import {
   approvalDescriptionFor,
   approvalTitleFor,
@@ -9,6 +11,7 @@ import {
   stepNeedsApproval,
 } from "./approvals.ts";
 import { isAllowedWebUrl, validateWebPlan } from "./planner.ts";
+import { isAllowedWebUrl as isAllowedWebUrlFromLeaf } from "./urls.ts";
 import type { WebStep } from "./types.ts";
 
 test("allowed URLs are public http(s) pages only", () => {
@@ -167,4 +170,50 @@ test("approval requests resolve, expire unknown ids, and time out", async () => 
   const timedOut = requestApproval({ ...request, id: "approval-2" }, 50);
   assert.equal(await timedOut, "timeout");
   assert.equal(resolveApproval("run-1", "approval-2", "allowed"), false);
+});
+
+test("availability leaf answers 503-honestly on Vercel without playwright", () => {
+  // availability.ts / urls.ts import only node builtins — this test
+  // must pass with playwright uninstalled (the regression the 500
+  // fix protects: the guard used to live behind the playwright import).
+  const previous = process.env.VERCEL;
+  process.env.VERCEL = "1";
+  try {
+    const result = isWebAgentAvailable();
+    assert.equal(result.available, false);
+    assert.match(
+      result.reason ?? "",
+      /runs on your own computer — it is not available on the hosted deployment/
+    );
+  } finally {
+    if (previous === undefined) {
+      delete process.env.VERCEL;
+    } else {
+      process.env.VERCEL = previous;
+    }
+  }
+
+  assert.equal(isWebAgentAvailable().available, true);
+  assert.equal(isAllowedWebUrlFromLeaf("https://example.com"), true);
+  assert.equal(isAllowedWebUrlFromLeaf("http://localhost:3000"), false);
+});
+
+test("task routes statically import leaves only — no runner/planner/browser", () => {
+  // A static import of the runner (or planner/browser) would drag the
+  // playwright chain back into the route module load path on Vercel.
+  // Dynamic `await import(...)` lines are fine — only static `import`
+  // lines are checked.
+  const staticImport =
+    /^\s*import\s+[^;]*from\s+["']@\/lib\/web-agent\/(runner|planner|browser)["']/m;
+  for (const route of [
+    "../../app/api/web-agent/route.ts",
+    "../../app/api/web-agent/stream/route.ts",
+  ]) {
+    const source = readFileSync(new URL(route, import.meta.url), "utf8");
+    assert.doesNotMatch(
+      source,
+      staticImport,
+      `${route} must not statically import runner/planner/browser`
+    );
+  }
 });

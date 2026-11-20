@@ -18,6 +18,15 @@ import {
 
 import type { WebPlan, WebStep, WebToolName } from "./types";
 
+// Re-exported from the zero-import leaf so existing importers
+// (incl. lib/web-agent/web-agent.test.ts) keep working. Explicit .ts
+// extension: this file is also imported by node --test, where the
+// extensionless alias does not resolve (same style as fallback.ts).
+// Imported (not `export ... from`) so validateStep can use the local
+// binding — a re-export alone does not bind the name locally.
+import { isAllowedWebUrl } from "./urls.ts";
+export { isAllowedWebUrl };
+
 export const WEB_AGENT_MODEL = "gemini-2.5-flash" as const;
 export const WEB_PLANNER_TIMEOUT_MS = 60_000;
 export const MAX_WEB_STEPS = 10;
@@ -54,53 +63,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
   return Promise.race([promise, timeoutPromise]).finally(() => {
     clearTimeout(timeoutId!);
   });
-}
-
-/** Only public http(s) pages. No localhost, private networks, or files. */
-export function isAllowedWebUrl(raw: unknown): boolean {
-  if (typeof raw !== "string" || !raw.trim()) {
-    return false;
-  }
-
-  let url: URL;
-  try {
-    url = new URL(raw.trim());
-  } catch {
-    return false;
-  }
-
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return false;
-  }
-
-  // No credentials embedded in the URL.
-  if (url.username || url.password) {
-    return false;
-  }
-
-  const host = url.hostname.toLowerCase();
-
-  if (
-    host === "localhost" ||
-    host === "0.0.0.0" ||
-    host === "::1" ||
-    host === "[::1]"
-  ) {
-    return false;
-  }
-
-  // Loopback + private ranges — the agent must never reach internal services.
-  if (
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    /^169\.254\./.test(host)
-  ) {
-    return false;
-  }
-
-  return true;
 }
 
 function containsForbiddenKey(value: unknown): boolean {

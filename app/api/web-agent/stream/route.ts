@@ -9,8 +9,8 @@
 // internals to the client.
 
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { isAllowedWebUrl } from "@/lib/web-agent/planner";
-import { runWebTask } from "@/lib/web-agent/runner";
+import { isWebAgentAvailable } from "@/lib/web-agent/availability";
+import { isAllowedWebUrl } from "@/lib/web-agent/urls";
 import type { WebTaskEvent } from "@/lib/web-agent/types";
 
 export const runtime = "nodejs";
@@ -20,6 +20,13 @@ const MAX_TASK_LENGTH = 2000;
 
 function jsonError(error: string, status: number) {
   return Response.json({ success: false, error }, { status });
+}
+
+export async function GET() {
+  return Response.json(
+    { success: false, error: "Method not allowed. Use POST." },
+    { status: 405, headers: { Allow: "POST" } }
+  );
 }
 
 function encodeEvent(event: WebTaskEvent): string {
@@ -41,6 +48,20 @@ function plainErrorMessage(raw: string): string {
 }
 
 export async function POST(request: Request) {
+  // Availability FIRST — before rate-limit, body parsing, and before
+  // the NDJSON stream is created. On the hosted deployment this
+  // answers JSON 503, not a 200 stream carrying an error event.
+  const availability = isWebAgentAvailable();
+  if (!availability.available) {
+    return Response.json(
+      {
+        success: false,
+        error: availability.reason ?? "Web agent is not available here.",
+      },
+      { status: 503 }
+    );
+  }
+
   const limited = enforceRateLimit(request, "web-agent-stream", 5, 60_000);
   if (limited) return limited;
 
@@ -95,6 +116,10 @@ export async function POST(request: Request) {
 
       void (async () => {
         try {
+          // Dynamic import only after the guard passed — on Vercel
+          // this line is never reached, so the runner chain never
+          // loads there.
+          const { runWebTask } = await import("@/lib/web-agent/runner");
           await runWebTask({
             task: body.task as string,
             startUrl:

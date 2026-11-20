@@ -15,7 +15,8 @@ import {
   requestApproval,
   stepNeedsApproval,
 } from "./approvals";
-import { isWebAgentAvailable, WebBrowser } from "./browser";
+import { isWebAgentAvailable } from "./availability";
+import { WebBrowser } from "./browser";
 import { planWebTask } from "./planner";
 import { runWebStep } from "./tools";
 import type {

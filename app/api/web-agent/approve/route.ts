@@ -17,6 +17,13 @@ function jsonError(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
 }
 
+export async function GET() {
+  return NextResponse.json(
+    { success: false, error: "Method not allowed. Use POST." },
+    { status: 405, headers: { Allow: "POST" } }
+  );
+}
+
 export async function POST(req: Request) {
   const limited = enforceRateLimit(req, "web-agent-approve", 30, 60_000);
   if (limited) return limited;
