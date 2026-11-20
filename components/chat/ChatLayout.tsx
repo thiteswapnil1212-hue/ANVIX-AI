@@ -1321,26 +1321,14 @@ export default function ChatLayout() {
         <>
           {/* HEADER — back arrow + pill title + panel toggle */}
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-app-bg px-3 sm:px-4">
-            {/* ANVIX mark + back to home — keeps the AGI shell feeling
-                like part of ANVIX, not a different app. */}
+            {/* Plain circular back button (Muse §2.3) — back to home. */}
             <Link
               href="/"
               aria-label="Back to home"
               title="Back to home"
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-surface-2 pl-2 pr-3 text-ink transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition-colors hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
             >
               <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-              <Image
-                src="/logo.png"
-                alt=""
-                width={20}
-                height={20}
-                className="h-5 w-5 rounded-full object-cover"
-                aria-hidden="true"
-              />
-              <span className="text-xs font-semibold tracking-[0.18em]">
-                ANVIX
-              </span>
             </Link>
 
             <button
