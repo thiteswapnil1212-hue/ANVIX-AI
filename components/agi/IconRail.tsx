@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ComponentType } from "react";
+import { useRef, useState } from "react";
 import {
   BarChart3,
   Briefcase,
@@ -38,7 +39,9 @@ type IconRailProps = {
 
 /**
  * Left icon rail (~80 px, §2.2 of the AGI spec) — icons only, no labels,
- * in the same top-to-bottom order as the reference screenshot.
+ * in the same top-to-bottom order as the reference screenshot. Hovering
+ * (or focusing) an icon shows a visible tooltip with its name, next to
+ * the native `title` tooltip.
  *
  * Destinations: Chat → /agi, Generate → /generate, Workspace → /dashboard,
  * Settings → /settings, "+" → new chat. Every other icon has no ANVIX
@@ -49,6 +52,29 @@ export default function IconRail({
   active = "chat",
   onNewChat,
 }: IconRailProps) {
+  // Visible hover tooltip: a single bubble rendered as a sibling of the
+  // rail (not inside it — the rail scrolls, which would clip a tooltip
+  // positioned inside it). Positioned at the hovered icon's centre.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [tooltip, setTooltip] = useState<{
+    label: string;
+    top: number;
+  } | null>(null);
+
+  const showTooltip =
+    (label: string) =>
+    (event: { currentTarget: Element }) => {
+      const wrap = wrapRef.current;
+      if (!wrap) return;
+      const wrapRect = wrap.getBoundingClientRect();
+      const iconRect = event.currentTarget.getBoundingClientRect();
+      setTooltip({
+        label,
+        top: iconRect.top - wrapRect.top + iconRect.height / 2,
+      });
+    };
+
+  const hideTooltip = () => setTooltip(null);
   const topIcons: RailIcon[] = [
     { key: "chat", label: "Chat", Icon: MessageSquare, href: "/agi" },
     { key: "search", label: "Search — coming soon", Icon: Search },
@@ -104,6 +130,10 @@ export default function IconRail({
           aria-label={label}
           aria-current={isActive ? "page" : undefined}
           title={label}
+          onMouseEnter={showTooltip(label)}
+          onMouseLeave={hideTooltip}
+          onFocus={showTooltip(label)}
+          onBlur={hideTooltip}
           className={className}
         >
           {icon}
@@ -119,6 +149,10 @@ export default function IconRail({
         disabled={disabled}
         aria-label={label}
         title={label}
+        onMouseEnter={showTooltip(label)}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip(label)}
+        onBlur={hideTooltip}
         className={className}
       >
         {icon}
@@ -127,10 +161,11 @@ export default function IconRail({
   };
 
   return (
-    <nav
-      aria-label="AGI sections"
-      className="flex h-full w-[80px] shrink-0 flex-col items-center overflow-y-auto bg-[#181819] py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-    >
+    <div ref={wrapRef} className="relative h-full">
+      <nav
+        aria-label="AGI sections"
+        className="flex h-full w-[80px] shrink-0 flex-col items-center overflow-y-auto bg-[#181819] py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
       <div className="flex flex-col items-center gap-4">
         {topIcons.map(renderIcon)}
       </div>
@@ -150,6 +185,10 @@ export default function IconRail({
           disabled
           aria-label="More — coming soon"
           title="More — coming soon"
+          onMouseEnter={showTooltip("More — coming soon")}
+          onMouseLeave={hideTooltip}
+          onFocus={showTooltip("More — coming soon")}
+          onBlur={hideTooltip}
           className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#8A8A8A]/40"
         >
           <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
@@ -159,6 +198,18 @@ export default function IconRail({
       <div className="mt-auto flex flex-col items-center gap-4 pt-4">
         {bottomIcons.map(renderIcon)}
       </div>
-    </nav>
+      </nav>
+
+      {/* Visible hover tooltip — sits to the right of the rail. */}
+      {tooltip && (
+        <div
+          aria-hidden="true"
+          style={{ top: tooltip.top }}
+          className="pointer-events-none absolute left-[calc(100%+10px)] z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-[#2A2A2C] px-2.5 py-1.5 text-xs text-[#EDEDED] shadow-lg"
+        >
+          {tooltip.label}
+        </div>
+      )}
+    </div>
   );
 }
