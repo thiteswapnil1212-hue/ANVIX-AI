@@ -82,7 +82,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#090909",
+  themeColor: "#181819",
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
@@ -105,7 +105,7 @@ export default function RootLayout({
           content="LcyAJt9BmZijUliyiotG_GuaVDetCm_KdFAMkJ9P2hA"
         />
       </head>
-      <body className="min-h-screen bg-[#090909] font-sans text-white antialiased">
+      <body className="min-h-screen bg-app-bg font-sans text-ink antialiased">
         <PwaRegister />
         <AuthProvider>{children}</AuthProvider>
       </body>
