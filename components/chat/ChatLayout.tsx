@@ -658,22 +658,20 @@ export default function ChatLayout() {
         handleStop();
       }
 
-      setConversations((prev) => {
-        const remaining = prev.filter(
-          (conversation) => conversation.id !== id
-        );
+      // Compute the survivors from the ref OUTSIDE any updater —
+      // calling setActiveConversationId inside the setConversations
+      // updater is impure and double-invokes under StrictMode (B5).
+      const remaining = conversationsRef.current.filter(
+        (conversation) => conversation.id !== id
+      );
 
-        if (remaining.length === 0) {
-          setActiveConversationId(null);
-          return remaining;
-        }
+      setConversations(remaining);
 
-        if (activeConversationId === id) {
-          setActiveConversationId(remaining[0].id);
-        }
-
-        return remaining;
-      });
+      if (remaining.length === 0) {
+        setActiveConversationId(null);
+      } else if (activeConversationId === id) {
+        setActiveConversationId(remaining[0].id);
+      }
     },
     [activeConversationId, handleStop]
   );
