@@ -71,12 +71,35 @@ export class WebBrowser {
     const noSandbox = process.env.ANVIX_WEB_AGENT_NO_SANDBOX === "1";
     // Chromium does not read proxy env vars on its own, but curl, npm,
     // and Node do — on a proxied network (office, VPN, sandbox) every
-    // navigation would fail without this. The URL is passed straight to
-    // Chromium and never logged.
-    const proxyServer =
+    // navigation would fail without this. Credentials in the proxy URL
+    // are split into username/password (Chromium/Playwright do not
+    // accept them embedded in the server URL) and are never logged.
+    const proxyRaw =
       process.env.HTTPS_PROXY ?? process.env.https_proxy ?? undefined;
     const proxyBypass =
       process.env.NO_PROXY ?? process.env.no_proxy ?? undefined;
+    let proxy: { server: string; username?: string; password?: string; bypass?: string } | undefined;
+    if (proxyRaw) {
+      try {
+        const proxyUrl = new URL(proxyRaw);
+        proxy = {
+          server: `${proxyUrl.protocol}//${proxyUrl.hostname}${
+            proxyUrl.port ? `:${proxyUrl.port}` : ""
+          }`,
+          ...(proxyUrl.username
+            ? { username: decodeURIComponent(proxyUrl.username) }
+            : {}),
+          ...(proxyUrl.password
+            ? { password: decodeURIComponent(proxyUrl.password) }
+            : {}),
+          ...(proxyBypass ? { bypass: proxyBypass } : {}),
+        };
+      } catch {
+        // Unparsable proxy URL — fall back to no proxy and let the
+        // navigation error say so honestly.
+        proxy = undefined;
+      }
+    }
 
     let context: BrowserContext;
     try {
@@ -86,14 +109,7 @@ export class WebBrowser {
           headless: !headed,
           viewport: { width: 1280, height: 800 },
           ...(noSandbox ? { args: ["--no-sandbox"] } : {}),
-          ...(proxyServer
-            ? {
-                proxy: {
-                  server: proxyServer,
-                  ...(proxyBypass ? { bypass: proxyBypass } : {}),
-                },
-              }
-            : {}),
+          ...(proxy ? { proxy } : {}),
         }
       );
     } catch (error) {
