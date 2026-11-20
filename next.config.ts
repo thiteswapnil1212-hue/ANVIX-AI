@@ -28,6 +28,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Playwright drives a real Chromium process and must not be bundled
+  // into the server output — the Next.js docs list playwright and
+  // playwright-core under serverExternalPackages for exactly this reason.
+  serverExternalPackages: ["playwright", "playwright-core"],
   async headers() {
     return [
       {
