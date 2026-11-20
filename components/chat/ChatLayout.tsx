@@ -291,14 +291,18 @@ export default function ChatLayout() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Right panel: closed by default on desktop, so the chat column is
-  // not squeezed and the panel is not mostly empty black space. The
-  // header toggle opens it. On phones it stays closed until the header
-  // toggle opens it as a slide-over, so the three panes are never
-  // squeezed onto a phone at once.
-  const [panelOpen, setPanelOpen] = useState(false);
+  // Right panel: OPEN by default on desktop (Muse screenshot, spec
+  // D3), so it is visible on first paint at lg and up. On phones it
+  // stays closed until the header toggle opens it as a slide-over, so
+  // the three panes are never squeezed onto a phone at once. The
+  // default is derived during render from `isDesktop`
+  // (useSyncExternalStore, whose server snapshot keeps hydration
+  // consistent) — never set in an effect, which the lint rules forbid
+  // — and a user toggle/close writes an explicit override on top.
+  const [panelOverride, setPanelOverride] = useState<boolean | null>(null);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const isDesktop = useIsDesktop();
+  const panelOpen = panelOverride ?? isDesktop;
 
   // Approvals history (localStorage, starts empty).
   const [approvals, setApprovals] = useState<ApprovalEntry[]>(() =>
@@ -345,14 +349,14 @@ export default function ChatLayout() {
     }
 
     if (isDesktop) {
-      setPanelOpen((open) => !open);
+      setPanelOverride(!panelOpen);
     } else {
       setMobilePanelOpen((open) => !open);
     }
   }, [isDesktop, panelOpen, mobilePanelOpen]);
 
   const closePanel = useCallback(() => {
-    setPanelOpen(false);
+    setPanelOverride(false);
     setMobilePanelOpen(false);
   }, []);
 
