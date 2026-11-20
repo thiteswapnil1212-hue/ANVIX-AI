@@ -379,6 +379,13 @@ export default function ChatLayout() {
   // Web-task mode: the next message goes to /api/web-agent/stream
   // (real browser) instead of /api/chat. Off by default.
   const [webTaskMode, setWebTaskMode] = useState(false);
+  // Prefill for the composer, set by the web-task empty-state chips:
+  // the chip text lands in the composer for the user to complete
+  // (with the URL / topic) instead of firing the bare label (B9).
+  const [composerPrefill, setComposerPrefill] = useState<{
+    text: string;
+    nonce: number;
+  } | null>(null);
   // The approval the task is currently waiting on, if any.
   const [pendingApproval, setPendingApproval] =
     useState<ApprovalRequest | null>(null);
@@ -1543,8 +1550,15 @@ export default function ChatLayout() {
                         type="button"
                         onClick={() => {
                           if (webTask) {
+                            // Pre-fill the composer with the chip
+                            // text so the user adds the URL / topic
+                            // first — never fire the bare label as
+                            // the task (B9).
                             setWebTaskMode(true);
-                            void handleWebTask(label);
+                            setComposerPrefill({
+                              text: `${label}: `,
+                              nonce: Date.now(),
+                            });
                           } else {
                             void handleSend(
                               label,
@@ -1649,6 +1663,7 @@ export default function ChatLayout() {
                   setWebTaskMode((mode) => !mode)
                 }
                 disabled={pendingApproval !== null}
+                prefill={composerPrefill}
               />
 
               <p

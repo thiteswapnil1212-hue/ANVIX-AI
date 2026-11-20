@@ -17,7 +17,6 @@ import {
   ChevronDown,
   Globe,
   Check,
-  Plus,
   Square,
   LoaderCircle,
   BookOpen,
@@ -43,6 +42,10 @@ type ChatInputProps = {
   onToggleWebTask?: () => void;
   /** Composer is paused while a web-task approval waits (§4.6). */
   disabled?: boolean;
+  /** Prefill from an empty-state chip: sets the text and focuses,
+   * never sends it — the user completes it first. A new nonce per
+   * click re-runs the effect even for the same text. */
+  prefill?: { text: string; nonce: number } | null;
 };
 
 export default function ChatInput({
@@ -52,6 +55,7 @@ export default function ChatInput({
   webTaskMode = false,
   onToggleWebTask,
   disabled = false,
+  prefill = null,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
@@ -81,6 +85,24 @@ export default function ChatInput({
     availableModels.find((model) => model.id === selectedModel) ??
     availableModels[0] ??
     CHAT_MODELS[0];
+
+  // Prefill from an empty-state chip (web-task): when a new prefill
+  // arrives, the composer text becomes the chip text so the user adds
+  // the URL / topic, then sends it themself. Adjusted during render
+  // (the documented "adjust state when props change" pattern) — not
+  // in an effect, which the lint rules forbid for setState. A separate
+  // focus-only effect moves the cursor into the composer.
+  const [prevPrefill, setPrevPrefill] = useState(prefill);
+
+  if (prefill !== prevPrefill) {
+    setPrevPrefill(prefill);
+    setValue(prefill?.text ?? "");
+  }
+
+  useEffect(() => {
+    if (!prefill) return;
+    textareaRef.current?.focus();
+  }, [prefill]);
 
   // Auto-resize textarea.
   useEffect(() => {
@@ -273,6 +295,180 @@ export default function ChatInput({
   return (
     <>
       <div className="relative mx-auto w-full">
+        {/* Model picker — above the input, small and muted (spec §2.5):
+            it no longer sits inside the pill or vanishes while typing.
+            The dropdown opens upward from this row. */}
+        <div
+          ref={modelRef}
+          className="relative mb-2 flex items-center"
+        >
+          <button
+            type="button"
+            disabled={isSubmitting || isGenerating}
+            onClick={() =>
+              setModelOpen((open) => !open)
+            }
+            className="
+              flex h-7 max-w-[180px] items-center
+              gap-1.5 rounded-full px-2.5
+              text-[11px] font-medium text-zinc-500
+              transition-colors
+              hover:bg-white/[0.06] hover:text-zinc-300
+              disabled:opacity-40
+            "
+            aria-haspopup="listbox"
+            aria-expanded={modelOpen}
+            aria-label={`Selected model: ${selectedModelConfig.name}`}
+          >
+            <span className="truncate whitespace-nowrap">
+              {selectedModelConfig.name}
+            </span>
+
+            <ChevronDown
+              className={`
+                h-3.5 w-3.5 shrink-0 text-zinc-600
+                transition-transform duration-150
+                ${modelOpen ? "rotate-180" : ""}
+              `}
+              aria-hidden="true"
+            />
+          </button>
+
+          {/* Model dropdown */}
+          {modelOpen && (
+            <div
+              className="
+                absolute bottom-[calc(100%+8px)] left-0 z-[9999]
+                max-h-[min(360px,60vh)]
+                w-[min(290px,calc(100vw-32px))]
+                overflow-y-auto overflow-x-hidden
+                rounded-xl border border-zinc-800
+                bg-[#18181B] p-1.5
+                shadow-[0_16px_45px_rgba(0,0,0,0.55)]
+              "
+              aria-label="Select AI model"
+            >
+              {/* Dropdown header + Notes */}
+              <div
+                className="
+                  flex items-center justify-between
+                  gap-2 px-2.5 pb-2 pt-2
+                "
+              >
+                <p
+                  className="
+                    text-[10px] font-medium uppercase
+                    tracking-[0.1em] text-zinc-600
+                  "
+                >
+                  Choose a model
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleOpenGuide}
+                  className="
+                    inline-flex shrink-0
+                    items-center gap-1.5
+                    rounded-full
+                    border border-[#FAFAFA]/40
+                    bg-[#FAFAFA]/10
+                    px-2.5 py-1.5
+                    text-[11px] font-medium
+                    text-[#FAFAFA]
+                    transition-colors
+                    hover:bg-[#FAFAFA]/20
+                    focus-visible:outline-none
+                    focus-visible:ring-2
+                    focus-visible:ring-[#FAFAFA]
+                  "
+                  aria-label="Open model guide"
+                >
+                  <BookOpen
+                    className="h-3.5 w-3.5"
+                    aria-hidden="true"
+                  />
+                  Notes
+                </button>
+              </div>
+
+              <div className="space-y-0.5">
+                {availableModels.map((model) => {
+                  const selected =
+                    selectedModel === model.id;
+
+                  const unavailable =
+                    isSubmitting || isGenerating;
+
+                  return (
+                    <button
+                      key={model.id}
+                      type="button"
+                      disabled={unavailable}
+                      onClick={() =>
+                        handleModelSelect(model)
+                      }
+                      aria-pressed={selected}
+                      className={`
+                        flex w-full items-center
+                        justify-between gap-3
+                        rounded-lg px-2.5 py-2.5
+                        text-left transition-colors
+                        ${
+                          unavailable
+                            ? "cursor-not-allowed opacity-45"
+                            : "hover:bg-zinc-800/70"
+                        }
+                      `}
+                    >
+                      <span className="min-w-0">
+                        <span
+                          className={`
+                            block truncate text-sm
+                            font-medium
+                            ${
+                              selected
+                                ? "text-zinc-100"
+                                : "text-zinc-300"
+                            }
+                          `}
+                        >
+                          {model.name}
+                        </span>
+
+                        <span
+                          className="
+                            mt-0.5 block truncate
+                            text-[11px] text-zinc-600
+                          "
+                        >
+                          {model.provider}
+                        </span>
+                      </span>
+
+                      {selected ? (
+                        <Check
+                          className="
+                            h-4 w-4 shrink-0
+                            text-[#FAFAFA]
+                          "
+                          strokeWidth={2}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="border-t border-zinc-800 px-2.5 pb-1.5 pt-2.5 text-[11px] leading-5 text-zinc-600">
+                More models are coming. Only Gemini 2.5 Flash is
+                connected today.
+              </p>
+            </div>
+          )}
+        </div>
+
         <form
           onSubmit={handleFormSubmit}
           aria-label="Chat message form"
@@ -287,33 +483,6 @@ export default function ChatInput({
               sm:gap-2.5 sm:p-3
             "
           >
-            {/* Add button — no attachments exist yet, so the button
-                is always disabled with an honest tooltip instead of
-                doing nothing on click. Hidden in web-task mode: web
-                tasks don't take attachments. */}
-            {!webTaskMode && (
-              <button
-                type="button"
-                disabled
-                className="
-                  mb-0.5 flex h-9 w-9 shrink-0
-                  items-center justify-center rounded-full
-                  text-white transition-colors
-                  active:scale-95
-                  disabled:cursor-not-allowed
-                  disabled:opacity-40
-                "
-                aria-label="Add attachment"
-                title="File attachments — coming soon"
-              >
-                <Plus
-                  className="h-5 w-5"
-                  strokeWidth={2}
-                  aria-hidden="true"
-                />
-              </button>
-            )}
-
             {/* Message textarea */}
             <textarea
               id="chat-message"
@@ -336,9 +505,9 @@ export default function ChatInput({
                   ? "Press Enter to stop..."
                   : webTaskMode
                     ? "Give AGI a web task…"
-                    : "Message AGI..."
+                    : "Ask AGI anything…"
               }
-              aria-label={webTaskMode ? "Give AGI a web task" : "Message AGI"}
+              aria-label={webTaskMode ? "Give AGI a web task" : "Ask AGI anything"}
               aria-describedby="chat-input-hint"
               className="
                 min-h-[36px] max-h-[120px] min-w-0 flex-1
@@ -350,206 +519,33 @@ export default function ChatInput({
               "
             />
 
-            {/* Model selector + Web task toggle */}
-            {!hasMessage && !isGenerating && (
-              <div
-                ref={modelRef}
-                className="relative mb-0.5 flex shrink-0 items-center gap-1"
-              >
-                {onToggleWebTask && (
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={onToggleWebTask}
-                    aria-pressed={webTaskMode}
-                    aria-label="Toggle web task mode"
-                    title="Web task: AGI opens a browser and does the task. Steps that send or submit ask you first."
-                    className={`
-                      flex h-8 shrink-0 items-center gap-1.5
-                      rounded-xl px-2 text-[11px] font-medium
-                      transition-colors sm:text-xs
-                      ${
-                        webTaskMode
-                          ? "bg-[#0074E8] text-white hover:bg-[#0A7FF0]"
-                          : "text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
-                      }
-                      disabled:opacity-40
-                    `}
-                  >
-                    <Globe
-                      className="h-3.5 w-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <span className="hidden whitespace-nowrap min-[420px]:inline">Web task</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() =>
-                    setModelOpen((open) => !open)
+            {/* Web task toggle (the model picker now lives above the pill) */}
+            {!hasMessage && !isGenerating && onToggleWebTask && (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={onToggleWebTask}
+                aria-pressed={webTaskMode}
+                aria-label="Toggle web task mode"
+                title="Web task: AGI opens a browser and does the task. Steps that send or submit ask you first."
+                className={`
+                  mb-0.5 flex h-8 shrink-0 items-center gap-1.5
+                  rounded-xl px-2 text-[11px] font-medium
+                  transition-colors sm:text-xs
+                  ${
+                    webTaskMode
+                      ? "bg-[#0074E8] text-white hover:bg-[#0A7FF0]"
+                      : "text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
                   }
-                  className="
-                    flex h-8 max-w-[104px] items-center
-                    gap-1.5 rounded-xl px-2
-                    text-[11px] font-medium text-zinc-400
-                    transition-colors
-                    hover:bg-zinc-800/70 hover:text-zinc-200
-                    disabled:opacity-40 sm:text-xs
-                    min-[420px]:max-w-[150px]
-                  "
-                  aria-haspopup="listbox"
-                  aria-expanded={modelOpen}
-                  aria-label={`Selected model: ${selectedModelConfig.name}`}
-                >
-                  <span className="truncate whitespace-nowrap">
-                    {selectedModelConfig.name}
-                  </span>
-
-                  <ChevronDown
-                    className={`
-                      h-3.5 w-3.5 shrink-0 text-zinc-600
-                      transition-transform duration-150
-                      ${modelOpen ? "rotate-180" : ""}
-                    `}
-                    aria-hidden="true"
-                  />
-                </button>
-
-                {/* Model dropdown */}
-                {modelOpen && (
-                  <div
-                    className="
-                      absolute bottom-[43px] right-0 z-[9999]
-                      max-h-[min(360px,60vh)]
-                      w-[min(290px,calc(100vw-32px))]
-                      overflow-y-auto overflow-x-hidden
-                      rounded-xl border border-zinc-800
-                      bg-[#18181B] p-1.5
-                      shadow-[0_16px_45px_rgba(0,0,0,0.55)]
-                    "
-                    aria-label="Select AI model"
-                  >
-                    {/* Dropdown header + Notes */}
-                    <div
-                      className="
-                        flex items-center justify-between
-                        gap-2 px-2.5 pb-2 pt-2
-                      "
-                    >
-                      <p
-                        className="
-                          text-[10px] font-medium uppercase
-                          tracking-[0.1em] text-zinc-600
-                        "
-                      >
-                        Choose a model
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={handleOpenGuide}
-                        className="
-                          inline-flex shrink-0
-                          items-center gap-1.5
-                          rounded-full
-                          border border-[#FAFAFA]/40
-                          bg-[#FAFAFA]/10
-                          px-2.5 py-1.5
-                          text-[11px] font-medium
-                          text-[#FAFAFA]
-                          transition-colors
-                          hover:bg-[#FAFAFA]/20
-                          focus-visible:outline-none
-                          focus-visible:ring-2
-                          focus-visible:ring-[#FAFAFA]
-                        "
-                        aria-label="Open model guide"
-                      >
-                        <BookOpen
-                          className="h-3.5 w-3.5"
-                          aria-hidden="true"
-                        />
-                        Notes
-                      </button>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      {availableModels.map((model) => {
-                        const selected =
-                          selectedModel === model.id;
-
-                        const unavailable =
-                          isSubmitting || isGenerating;
-
-                        return (
-                          <button
-                            key={model.id}
-                            type="button"
-                            disabled={unavailable}
-                            onClick={() =>
-                              handleModelSelect(model)
-                            }
-                            aria-pressed={selected}
-                            className={`
-                              flex w-full items-center
-                              justify-between gap-3
-                              rounded-lg px-2.5 py-2.5
-                              text-left transition-colors
-                              ${
-                                unavailable
-                                  ? "cursor-not-allowed opacity-45"
-                                  : "hover:bg-zinc-800/70"
-                              }
-                            `}
-                          >
-                            <span className="min-w-0">
-                              <span
-                                className={`
-                                  block truncate text-sm
-                                  font-medium
-                                  ${
-                                    selected
-                                      ? "text-zinc-100"
-                                      : "text-zinc-300"
-                                  }
-                                `}
-                              >
-                                {model.name}
-                              </span>
-
-                              <span
-                                className="
-                                  mt-0.5 block truncate
-                                  text-[11px] text-zinc-600
-                                "
-                              >
-                                {model.provider}
-                              </span>
-                            </span>
-
-                            {selected ? (
-                              <Check
-                                className="
-                                  h-4 w-4 shrink-0
-                                  text-[#FAFAFA]
-                                "
-                                strokeWidth={2}
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <p className="border-t border-zinc-800 px-2.5 pb-1.5 pt-2.5 text-[11px] leading-5 text-zinc-600">
-                      More models are coming. Only Gemini 2.5 Flash is
-                      connected today.
-                    </p>
-                  </div>
-                )}
-              </div>
+                  disabled:opacity-40
+                `}
+              >
+                <Globe
+                  className="h-3.5 w-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <span className="hidden whitespace-nowrap min-[420px]:inline">Web task</span>
+              </button>
             )}
 
             {/* Stop / Send */}
