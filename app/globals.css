@@ -12,10 +12,11 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* Safe font fallbacks; custom fonts can be mapped in layout.tsx */
-  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
-  --font-mono: var(--font-geist-mono, ui-monospace, monospace);
-  --font-heading: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+  /* Plus Jakarta Sans (headings + body) and JetBrains Mono (code),
+     loaded in layout.tsx under --font-jakarta / --font-jetbrains. */
+  --font-sans: var(--font-jakarta, ui-sans-serif, system-ui, sans-serif);
+  --font-mono: var(--font-jetbrains, ui-monospace, monospace);
+  --font-heading: var(--font-jakarta, ui-sans-serif, system-ui, sans-serif);
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
