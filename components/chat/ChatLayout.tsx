@@ -1171,6 +1171,9 @@ export default function ChatLayout() {
               typeof result.message === "string" &&
               result.message.trim()
             ) {
+              // A web task that completes with a real result is a
+              // successful AGI call too (B8).
+              setChatConnected(true);
               progressText = result.message;
               updateAssistantMessage(result.message);
             }
