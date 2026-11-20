@@ -6,7 +6,7 @@ import {
   ChevronDown,
   Fingerprint,
   GitBranch,
-  List,
+  Globe,
   Pencil,
   ShieldCheck,
   X,
@@ -16,7 +16,7 @@ import {
   type ApprovalEntry,
 } from "./ApprovalsHistory";
 
-type PanelTab = "activity" | "approvals" | "identity";
+type PanelTab = "approvals" | "identity";
 
 type ApprovalsPanelProps = {
   open: boolean;
@@ -24,17 +24,30 @@ type ApprovalsPanelProps = {
   approvals: ApprovalEntry[];
   /** "Connected" when the last /api/chat call succeeded; "Not connected" after a key error. */
   status: "connected" | "not-connected";
-  /** Shown on the Identity tab, from the existing auth provider. */
-  userLabel?: string;
+  /** Display name — email when signed in, "Guest" otherwise. */
+  userName?: string;
+  /** Email when signed in; absent for guests. */
+  userEmail?: string;
+  /** "Cloud sync on" when signed in, guest line otherwise. */
+  accountState?: string;
+  signedIn?: boolean;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
   onOpenSettings?: () => void;
 };
 
 function ApprovalIcon({ icon }: { icon: string }) {
-  // lucide has no brand icons — GitHub approvals get a branch mark.
-  const Icon = icon === "github" ? GitBranch : ShieldCheck;
+  // lucide has no brand icons — GitHub approvals get a branch mark,
+  // web-task approvals get a globe.
+  const Icon =
+    icon === "github"
+      ? GitBranch
+      : icon === "globe"
+        ? Globe
+        : ShieldCheck;
 
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#262628] text-[#EDEDED]">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-ink">
       <Icon className="h-4.5 w-4.5" strokeWidth={1.8} aria-hidden="true" />
     </span>
   );
@@ -48,7 +61,7 @@ function ApprovalCard({ entry }: { entry: ApprovalEntry }) {
       type="button"
       onClick={() => setExpanded((current) => !current)}
       aria-expanded={expanded}
-      className="w-full rounded-xl text-left transition-colors hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
+      className="w-full rounded-xl text-left transition-colors hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
     >
       <span className="flex items-start gap-3 px-1 py-2">
         <ApprovalIcon icon={entry.icon} />
@@ -60,7 +73,7 @@ function ApprovalCard({ entry }: { entry: ApprovalEntry }) {
             </span>
 
             <ChevronDown
-              className={`mt-0.5 h-4 w-4 shrink-0 text-[#A1A1AA] transition-transform ${
+              className={`mt-0.5 h-4 w-4 shrink-0 text-ink-muted transition-transform ${
                 expanded ? "rotate-180" : ""
               }`}
               aria-hidden="true"
@@ -68,14 +81,14 @@ function ApprovalCard({ entry }: { entry: ApprovalEntry }) {
           </span>
 
           <span
-            className={`mt-1 block text-[13px] leading-5 text-[#A1A1AA] ${
+            className={`mt-1 block text-[13px] leading-5 text-ink-muted ${
               expanded ? "" : "line-clamp-3"
             }`}
           >
             {entry.description}
           </span>
 
-          <span className="mt-1.5 block text-xs text-[#A1A1AA]">
+          <span className="mt-1.5 block text-xs text-ink-muted">
             {entry.status === "allowed" ? "Allowed" : "Denied"}
             {" · "}
             {formatRelativeTime(entry.createdAt)}
@@ -89,16 +102,22 @@ function ApprovalCard({ entry }: { entry: ApprovalEntry }) {
 /**
  * Right panel (~420 px, §2.6 of the AGI spec): AGI avatar (ANVIX's own
  * public/logo.png, circular crop — never Muse's character), name, Connected
- * status, segmented Activity / Approvals / Identity tabs, and the
- * Approvals history list. Data is localStorage only; the list starts empty
- * (no fake GitHub entries are seeded).
+ * status, segmented Approvals / Identity tabs, and the Approvals history
+ * list. Data is localStorage only; the list starts empty (no fake GitHub
+ * entries are seeded). The Activity tab was folded away — there is no
+ * activity data source, and an eternal "No activity yet" is a dead tab.
  */
 export default function ApprovalsPanel({
   open,
   onClose,
   approvals,
   status,
-  userLabel = "Guest",
+  userName = "Guest",
+  userEmail,
+  accountState = "Guest — chats stay in this browser",
+  signedIn = false,
+  onSignIn,
+  onSignOut,
   onOpenSettings,
 }: ApprovalsPanelProps) {
   const [tab, setTab] = useState<PanelTab>("approvals");
@@ -109,20 +128,19 @@ export default function ApprovalsPanel({
 
   const connected = status === "connected";
 
-  const tabs: { key: PanelTab; label: string; Icon: typeof List }[] = [
-    { key: "activity", label: "Activity", Icon: List },
+  const tabs: { key: PanelTab; label: string; Icon: typeof ShieldCheck }[] = [
     { key: "approvals", label: "Approvals", Icon: ShieldCheck },
     { key: "identity", label: "Identity", Icon: Fingerprint },
   ];
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#181819] text-[#EDEDED]">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-app-bg text-ink">
       <button
         type="button"
         onClick={onClose}
         aria-label="Close panel"
         title="Close panel"
-        className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full text-[#A1A1AA] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
+        className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
       >
         <X className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
       </button>
@@ -130,7 +148,7 @@ export default function ApprovalsPanel({
       {/* Avatar block */}
       <div className="flex shrink-0 flex-col items-center px-4 pt-16">
         <div className="relative">
-          <span className="block h-[110px] w-[110px] overflow-hidden rounded-full bg-[#262628]">
+          <span className="block h-[110px] w-[110px] overflow-hidden rounded-full bg-surface-2">
             <Image
               src="/logo.png"
               alt="AGI avatar"
@@ -145,7 +163,7 @@ export default function ApprovalsPanel({
             onClick={onOpenSettings}
             aria-label="Edit profile"
             title="Edit profile"
-            className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-[#262628] text-[#EDEDED] transition-colors hover:bg-[#313132] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
+            className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-surface-2 text-ink transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
           >
             <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden="true" />
           </button>
@@ -153,7 +171,7 @@ export default function ApprovalsPanel({
 
         <p className="mt-4 text-xl font-semibold text-white">AGI</p>
 
-        <p className="mt-1.5 flex items-center gap-2 text-sm text-[#A1A1AA]">
+        <p className="mt-1.5 flex items-center gap-2 text-sm text-ink-muted">
           <span
             className={`h-2 w-2 rounded-full ${
               connected ? "bg-[#07B123]" : "bg-zinc-600"
@@ -169,7 +187,7 @@ export default function ApprovalsPanel({
         <div
           role="tablist"
           aria-label="Panel sections"
-          className="flex h-10 w-full items-center rounded-full bg-[#28292B] p-1"
+          className="flex h-10 w-full items-center rounded-full bg-segmented p-1"
         >
           {tabs.map(({ key, label, Icon }) => {
             const isActive = tab === key;
@@ -183,10 +201,10 @@ export default function ApprovalsPanel({
                 aria-label={label}
                 title={label}
                 onClick={() => setTab(key)}
-                className={`flex h-full flex-1 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8] ${
+                className={`flex h-full flex-1 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action ${
                   isActive
-                    ? "bg-[#424344] text-white"
-                    : "text-[#A1A1AA] hover:text-[#EDEDED]"
+                    ? "bg-segmented-active text-white"
+                    : "text-ink-muted hover:text-ink"
                 }`}
               >
                 <Icon className="h-4.5 w-4.5" strokeWidth={1.8} aria-hidden="true" />
@@ -205,7 +223,7 @@ export default function ApprovalsPanel({
             </h2>
 
             {approvals.length === 0 ? (
-              <p className="mt-4 text-sm leading-6 text-[#A1A1AA]">
+              <p className="mt-4 text-sm leading-6 text-ink-muted">
                 No approvals yet — approvals you allow will appear here.
               </p>
             ) : (
@@ -218,16 +236,65 @@ export default function ApprovalsPanel({
           </div>
         )}
 
-        {tab === "activity" && (
-          <p className="text-sm leading-6 text-[#A1A1AA]">
-            No activity yet.
-          </p>
-        )}
-
         {tab === "identity" && (
-          <p className="text-sm leading-6 text-[#A1A1AA]">
-            Signed in as {userLabel}.
-          </p>
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="block h-12 w-12 shrink-0 overflow-hidden rounded-full bg-surface-2">
+                <Image
+                  src="/logo.png"
+                  alt=""
+                  width={48}
+                  height={48}
+                  className="h-full w-full object-cover"
+                  aria-hidden="true"
+                />
+              </span>
+
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">
+                  {userName}
+                </p>
+
+                {userEmail && (
+                  <p className="mt-0.5 truncate text-xs text-ink-muted">
+                    {userEmail}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm leading-6 text-ink-muted">
+              {accountState}
+            </p>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="w-full rounded-full bg-action px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                Settings
+              </button>
+
+              {signedIn ? (
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  className="w-full rounded-full bg-surface-2 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  Sign out
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  className="w-full rounded-full bg-surface-2 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  Sign in
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -4,20 +4,12 @@ import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 import { useRef, useState } from "react";
 import {
-  BarChart3,
-  Briefcase,
-  Download,
-  FileText,
   Folder,
   FolderGit2,
   LayoutGrid,
-  Lightbulb,
-  ListChecks,
-  Menu,
   MessageSquare,
-  MoreHorizontal,
-  Music,
   Search,
+  Settings,
   SquarePlus,
 } from "lucide-react";
 
@@ -32,21 +24,24 @@ type RailIcon = {
 };
 
 type IconRailProps = {
-  /** Currently active section. Only "chat" exists in the AGI shell. */
-  active?: "chat";
+  /** Currently active section. */
+  active?: "chat" | "generate" | "projects" | "settings";
   onNewChat?: () => void;
 };
 
 /**
- * Left icon rail (~80 px, §2.2 of the AGI spec) — icons only, no labels,
- * in the same top-to-bottom order as the reference screenshot. Hovering
- * (or focusing) an icon shows a visible tooltip with its name, next to
- * the native `title` tooltip.
+ * Left icon rail (~80 px, §2.2 of the AGI spec) — icons only, no labels.
+ * Hybrid rail (§4.1 of the AGI/dashboard spec): 7 icons — the live
+ * sections plus two honest placeholders (Search, Files) for real
+ * near-term features. Dead icons with no destination and no roadmap
+ * date are hidden, not disabled; they return when the feature ships.
+ * Hovering (or focusing) an icon shows a visible tooltip with its name,
+ * next to the native `title` tooltip.
  *
- * Destinations: Chat → /agi, Generate → /generate, Workspace → /dashboard,
- * Settings → /settings, "+" → new chat. Every other icon has no ANVIX
- * destination yet, so it renders disabled/greyed with title "coming soon"
- * and never links anywhere (no dead `#` links).
+ * Destinations: Chat → /agi, Generate → /generate, Projects →
+ * /dashboard, Settings → /settings, "+" → new chat. Search and Files
+ * have no destination yet, so they render disabled/greyed with title
+ * "coming soon" and never link anywhere (no dead `#` links).
  */
 export default function IconRail({
   active = "chat",
@@ -78,19 +73,12 @@ export default function IconRail({
   const topIcons: RailIcon[] = [
     { key: "chat", label: "Chat", Icon: MessageSquare, href: "/agi" },
     { key: "search", label: "Search — coming soon", Icon: Search },
-    { key: "notes", label: "Notes — coming soon", Icon: FileText },
-    { key: "ideas", label: "Ideas — coming soon", Icon: Lightbulb },
-    { key: "tasks", label: "Tasks — coming soon", Icon: ListChecks },
     { key: "generate", label: "Generate", Icon: LayoutGrid, href: "/generate" },
   ];
 
   const middleIcons: RailIcon[] = [
-    { key: "stats", label: "Stats — coming soon", Icon: BarChart3 },
-    { key: "music", label: "Music — coming soon", Icon: Music },
-    { key: "workspace", label: "Workspace", Icon: Folder, href: "/dashboard" },
-    { key: "folder", label: "Files — coming soon", Icon: Folder },
-    { key: "work", label: "Work — coming soon", Icon: Briefcase },
-    { key: "projects", label: "Projects — coming soon", Icon: FolderGit2 },
+    { key: "projects", label: "Projects", Icon: FolderGit2, href: "/dashboard" },
+    { key: "files", label: "Files — coming soon", Icon: Folder },
     {
       key: "new",
       label: "New chat",
@@ -100,8 +88,7 @@ export default function IconRail({
   ];
 
   const bottomIcons: RailIcon[] = [
-    { key: "download", label: "Downloads — coming soon", Icon: Download },
-    { key: "settings", label: "Settings", Icon: Menu, href: "/settings" },
+    { key: "settings", label: "Settings", Icon: Settings, href: "/settings" },
   ];
 
   const renderIcon = ({ key, label, Icon, href, onClick }: RailIcon) => {
@@ -113,10 +100,10 @@ export default function IconRail({
       transition-colors
       ${
         isActive
-          ? "bg-[#2A2A2C] text-[#EDEDED]"
+          ? "bg-surface-active text-ink"
           : disabled
-            ? "cursor-not-allowed text-[#8A8A8A]/25 opacity-50"
-            : "text-[#8A8A8A] hover:bg-white/[0.06] hover:text-[#EDEDED]"
+            ? "cursor-not-allowed text-icon/25 opacity-50"
+            : "text-icon hover:bg-white/[0.06] hover:text-ink"
       }
     `;
 
@@ -170,7 +157,7 @@ export default function IconRail({
     <div ref={wrapRef} className="relative h-full">
       <nav
         aria-label="AGI sections"
-        className="flex h-full w-[80px] shrink-0 flex-col items-center overflow-y-auto bg-[#181819] py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex h-full w-[80px] shrink-0 flex-col items-center overflow-y-auto bg-app-bg py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
       <div className="flex flex-col items-center gap-4">
         {topIcons.map(renderIcon)}
@@ -185,26 +172,6 @@ export default function IconRail({
         {middleIcons.map(renderIcon)}
       </div>
 
-      <div className="flex flex-col items-center gap-4 pt-4">
-        <span
-          onMouseEnter={showTooltip("More — coming soon")}
-          onMouseLeave={hideTooltip}
-          onFocus={showTooltip("More — coming soon")}
-          onBlur={hideTooltip}
-          className="block"
-        >
-          <button
-            type="button"
-            disabled
-            aria-label="More — coming soon"
-            title="More — coming soon"
-            className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#8A8A8A]/25 opacity-50"
-          >
-            <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
-          </button>
-        </span>
-      </div>
-
       <div className="mt-auto flex flex-col items-center gap-4 pt-4">
         {bottomIcons.map(renderIcon)}
       </div>
@@ -215,7 +182,7 @@ export default function IconRail({
         <div
           aria-hidden="true"
           style={{ top: tooltip.top }}
-          className="pointer-events-none absolute left-[calc(100%+10px)] z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-[#2A2A2C] px-2.5 py-1.5 text-xs text-[#EDEDED] shadow-lg"
+          className="pointer-events-none absolute left-[calc(100%+10px)] z-50 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-surface-active px-2.5 py-1.5 text-xs text-ink shadow-lg"
         >
           {tooltip.label}
         </div>

@@ -505,40 +505,59 @@ function ChatSidebar({
     >
       <div className="shrink-0 px-3 pt-3">
         <div className="flex items-center justify-between px-1 pb-4">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div
-              className="
-                relative flex h-9 w-9 shrink-0
-                items-center justify-center
-                overflow-hidden rounded-xl
-                border border-[#FAFAFA]/20
-                bg-[#101011]
-              "
-            >
+          {drawer ? (
+            <div className="flex min-w-0 items-center gap-2.5">
               <Image
                 src="/logo.png"
-                alt="AGI"
-                width={36}
-                height={36}
-                className="h-9 w-9 object-contain"
-                priority
+                alt=""
+                width={24}
+                height={24}
+                className="h-6 w-6 shrink-0 rounded-full object-cover"
+                aria-hidden="true"
               />
-            </div>
 
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#FAFAFA]">
-                  AGI
-                </p>
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <p className="text-[10px] text-zinc-600">
-                    Personal AI
-                  </p>
-                </div>
+              <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#FAFAFA]">
+                ANVIX
+              </p>
+
+              <p className="text-[10px] text-zinc-600">AGI</p>
+            </div>
+          ) : (
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div
+                className="
+                  relative flex h-9 w-9 shrink-0
+                  items-center justify-center
+                  overflow-hidden rounded-xl
+                  border border-[#FAFAFA]/20
+                  bg-[#101011]
+                "
+              >
+                <Image
+                  src="/logo.png"
+                  alt="AGI"
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 object-contain"
+                  priority
+                />
               </div>
-            )}
-          </div>
+
+              {!collapsed && (
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-bold tracking-[0.04em] text-[#FAFAFA]">
+                    AGI
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    <p className="text-[10px] text-zinc-600">
+                      Personal AI
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {!drawer && (
             <button
@@ -717,10 +736,7 @@ function ChatSidebar({
                 <Sparkles className="h-4 w-4 text-[#FAFAFA]/70" />
               </div>
               <p className="mt-3 text-xs font-medium text-zinc-400">
-                Your chats live here
-              </p>
-              <p className="mx-auto mt-1 max-w-[170px] text-[10px] leading-4 text-zinc-600">
-                Start a conversation and it will appear in this list.
+                No conversations yet — start one from the composer.
               </p>
               <button
                 type="button"

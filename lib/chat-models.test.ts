@@ -39,4 +39,8 @@ test("default and supported chat models use a real Gemini API id", () => {
     !CHAT_API_MODEL_IDS.has("gemini-3.5-flash-lite"),
     "the fake Gemini 3.5 Flash Lite model must not be treated as valid"
   );
+  assert.ok(
+    !getChatModel("gpt-6-astra"),
+    "GPT-6 (Astra) is not a real public model and must not be listed"
+  );
 });

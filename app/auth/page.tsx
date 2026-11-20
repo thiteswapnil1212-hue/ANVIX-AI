@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import logo from "../favicon.png";
 import {
   ArrowLeft,
   ArrowRight,
@@ -44,7 +43,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/chat");
+      router.replace("/agi");
     }
   }, [authLoading, user, router]);
 
@@ -101,7 +100,7 @@ export default function AuthPage() {
           return;
         }
 
-        router.push("/chat");
+        router.push("/agi");
         return;
       }
 
@@ -115,7 +114,7 @@ export default function AuthPage() {
         return;
       }
 
-      router.push("/chat");
+      router.push("/agi");
     } catch {
       setMessage("Something went wrong while contacting the auth service. Please try again.");
     } finally {
@@ -133,7 +132,7 @@ export default function AuthPage() {
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/chat` },
+      options: { redirectTo: `${window.location.origin}/agi` },
     });
 
     if (error) {
@@ -189,7 +188,7 @@ export default function AuthPage() {
         >
           <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#c9a44c]/30 bg-[#c9a44c]/10">
             <Image
-              src={logo}
+              src="/logo.png"
               alt="ANVIX AI logo"
               fill
               priority
@@ -297,7 +296,7 @@ export default function AuthPage() {
                         className="text-[#d4b35e]"
                       />
                       <span className="text-sm font-medium text-white">
-                        More AI models
+                        More models coming
                       </span>
                     </div>
 
@@ -308,8 +307,9 @@ export default function AuthPage() {
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-white/45">
-                    Sign up to access other models available in the
-                    ANVIX AI model selector.
+                    Only Gemini 2.5 Flash is connected today — it works
+                    in guest mode too. Other models will be listed here
+                    when they are connected.
                   </p>
                 </div>
 
@@ -357,7 +357,7 @@ export default function AuthPage() {
               <div className="mb-8 flex items-center gap-3 lg:hidden">
                 <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg">
                   <Image
-                    src={logo}
+                    src="/logo.png"
                     alt="ANVIX AI logo"
                     fill
                     priority

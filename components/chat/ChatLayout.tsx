@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, PanelRight } from "lucide-react";
 import { DEFAULT_CHAT_MODEL_ID } from "@/lib/chat-models";
 
@@ -240,11 +241,53 @@ const readGuestChats = (): StoredGuestChats => {
   }
 };
 
+/**
+ * Dashboard "Recent chats" deep-link: the dashboard stores the thread
+ * id in `anvix-open-thread` and routes here; open that thread. A
+ * module-level helper (same shape as readGuestChats) so the component's
+ * useMemo stays a single call — inline storage access in the memo
+ * breaks React Compiler memoization. The key is only READ here; the
+ * mount effect in ChatLayout removes it.
+ */
+const readGuestChatsWithDeepLink = (): StoredGuestChats => {
+  const state = readGuestChats();
+
+  if (typeof window === "undefined") {
+    return state;
+  }
+
+  try {
+    const openId = window.localStorage.getItem("anvix-open-thread");
+
+    if (
+      openId &&
+      state.conversations.some(
+        (conversation) => conversation.id === openId
+      )
+    ) {
+      return { ...state, activeConversationId: openId };
+    }
+  } catch {
+    // Storage failure — fall back to the saved active thread.
+  }
+
+  return state;
+};
+
 export default function ChatLayout() {
   const initialGuestState = useMemo<StoredGuestChats>(
-    () => readGuestChats(),
+    () => readGuestChatsWithDeepLink(),
     []
   );
+
+  // Consume the deep-link key once, after mount.
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem("anvix-open-thread");
+    } catch {
+      // Best-effort — a stale key just re-opens the same thread once.
+    }
+  }, []);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -262,15 +305,51 @@ export default function ChatLayout() {
     readApprovals()
   );
 
+  // Unread-approval badge (§4.2): a blue dot on the panel toggle while
+  // an approval arrived since the panel was last opened. Clears when
+  // the panel opens. The panel never auto-opens mid-task.
+  const LAST_SEEN_KEY = "anvix-approvals-last-seen";
+  const [lastSeenApprovalAt, setLastSeenApprovalAt] =
+    useState<string>(() => {
+      if (typeof window === "undefined") {
+        return "";
+      }
+
+      try {
+        return (
+          window.localStorage.getItem(LAST_SEEN_KEY) ?? ""
+        );
+      } catch {
+        return "";
+      }
+    });
+
+  const hasUnreadApproval = approvals.some(
+    (entry) => entry.createdAt > lastSeenApprovalAt
+  );
+
   const togglePanel = useCallback(() => {
     setApprovals(readApprovals());
+
+    const willOpen = isDesktop ? !panelOpen : !mobilePanelOpen;
+
+    if (willOpen) {
+      const now = createTimestamp();
+      setLastSeenApprovalAt(now);
+
+      try {
+        window.localStorage.setItem(LAST_SEEN_KEY, now);
+      } catch {
+        // Best-effort — the dot just stays until the next open.
+      }
+    }
 
     if (isDesktop) {
       setPanelOpen((open) => !open);
     } else {
       setMobilePanelOpen((open) => !open);
     }
-  }, [isDesktop]);
+  }, [isDesktop, panelOpen, mobilePanelOpen]);
 
   const closePanel = useCallback(() => {
     setPanelOpen(false);
@@ -1138,7 +1217,16 @@ export default function ChatLayout() {
           onClose={closePanel}
           approvals={approvals}
           status={chatConnected ? "connected" : "not-connected"}
-          userLabel={user?.email ?? "Guest"}
+          userName={user?.email ?? "Guest"}
+          userEmail={user?.email ?? undefined}
+          accountState={
+            user
+              ? "Cloud sync on"
+              : "Guest — chats stay in this browser"
+          }
+          signedIn={!!user}
+          onSignIn={() => router.push("/auth")}
+          onSignOut={() => void signOut()}
           onOpenSettings={() => router.push("/settings")}
         />
       }
@@ -1172,16 +1260,24 @@ export default function ChatLayout() {
       center={
         <>
           {/* HEADER — back arrow + pill title + panel toggle */}
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#181819] px-3 sm:px-4">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-app-bg px-3 sm:px-4">
             {/* ANVIX mark + back to home — keeps the AGI shell feeling
                 like part of ANVIX, not a different app. */}
             <Link
               href="/"
               aria-label="Back to home"
               title="Back to home"
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#262628] pl-2.5 pr-3 text-[#EDEDED] transition-colors hover:bg-[#313132] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-surface-2 pl-2 pr-3 text-ink transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
             >
               <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              <Image
+                src="/logo.png"
+                alt=""
+                width={20}
+                height={20}
+                className="h-5 w-5 rounded-full object-cover"
+                aria-hidden="true"
+              />
               <span className="text-xs font-semibold tracking-[0.18em]">
                 ANVIX
               </span>
@@ -1192,11 +1288,11 @@ export default function ChatLayout() {
               onClick={() => setDrawerOpen(true)}
               aria-label="Switch conversation"
               title="Switch conversation"
-              className="flex min-w-0 items-center gap-2.5 rounded-full bg-[#262628] px-4 py-2 text-sm text-white transition-colors hover:bg-[#2E2E30] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8]"
+              className="flex min-w-0 items-center gap-2.5 rounded-full bg-surface-2 px-4 py-2 text-sm text-white transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
             >
               <span
                 aria-hidden="true"
-                className="h-2 w-2 shrink-0 rounded-full bg-[#0074E8]"
+                className="h-2 w-2 shrink-0 rounded-full bg-action"
               />
               <span className="truncate">
                 {activeConversation?.title ?? "New chat"}
@@ -1211,18 +1307,24 @@ export default function ChatLayout() {
               aria-label="Toggle approvals panel"
               aria-expanded={panelOpen || mobilePanelOpen}
               title="Approvals panel"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0074E8] ${
+              className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action ${
                 panelOpen || mobilePanelOpen
-                  ? "bg-[#2A2A2C] text-white"
-                  : "bg-[#262628] text-[#A1A1AA] hover:bg-[#313132] hover:text-white"
+                  ? "bg-surface-active text-white"
+                  : "bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-white"
               }`}
             >
               <PanelRight className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+              {hasUnreadApproval && !(panelOpen || mobilePanelOpen) && (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-action"
+                />
+              )}
             </button>
           </header>
 
           {/* MESSAGES */}
-          <div className="min-h-0 flex-1 overflow-hidden bg-[#181819]">
+          <div className="min-h-0 flex-1 overflow-hidden bg-app-bg">
             {messages.length === 0 && !isTyping ? (
               <div
                 className="
@@ -1252,17 +1354,20 @@ export default function ChatLayout() {
                     w-14
                     items-center
                     justify-center
+                    overflow-hidden
                     rounded-2xl
                     border
                     border-white/10
-                    bg-[#1F1F20]
-                    text-sm
-                    font-semibold
-                    tracking-[0.2em]
-                    text-zinc-100
+                    bg-surface-1
                   "
                 >
-                  AGI
+                  <Image
+                    src="/logo.png"
+                    alt="AGI"
+                    width={56}
+                    height={56}
+                    className="h-full w-full object-cover"
+                  />
                 </div>
 
                 <div className="mt-8">
@@ -1302,31 +1407,55 @@ export default function ChatLayout() {
                       sm:text-base
                     "
                   >
-                    Ask a question, or give me a task to do.
+                    Chat with Gemini 2.5 Flash, or switch on Web task
+                    and let AGI use a real browser on this computer — it
+                    always asks before it sends, submits, or signs in.
                   </p>
 
                   <div className="mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-center gap-2">
                     {[
-                      "Explain a topic",
-                      "Help me write a message",
-                      "Plan my day",
-                      "Summarise an idea",
-                    ].map((suggestion) => (
+                      {
+                        label: "Explain a topic",
+                        webTask: false,
+                      },
+                      {
+                        label: "Draft a message",
+                        webTask: false,
+                      },
+                      {
+                        label: "Open a website and summarise it",
+                        webTask: true,
+                      },
+                      {
+                        label: "Find something on the web",
+                        webTask: true,
+                      },
+                    ].map(({ label, webTask }) => (
                       <button
-                        key={suggestion}
+                        key={label}
                         type="button"
                         onClick={() => {
-                          void handleSend(
-                            suggestion,
-                            DEFAULT_CHAT_MODEL_ID
-                          );
+                          if (webTask) {
+                            setWebTaskMode(true);
+                            void handleWebTask(label);
+                          } else {
+                            void handleSend(
+                              label,
+                              DEFAULT_CHAT_MODEL_ID
+                            );
+                          }
                         }}
-                        className="rounded-full border border-white/10 bg-[#262628] px-4 py-2 text-[13px] text-zinc-300 transition hover:border-white/25 hover:bg-[#313132] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                        className="rounded-full border border-white/10 bg-surface-2 px-4 py-2 text-[13px] text-zinc-300 transition hover:border-white/25 hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                       >
-                        {suggestion}
+                        {label}
                       </button>
                     ))}
                   </div>
+
+                  <p className="mx-auto mt-8 max-w-2xl text-xs leading-5 text-zinc-600">
+                    Powered by Gemini 2.5 Flash · Guest mode — chats stay
+                    in this browser unless you sign in.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -1345,7 +1474,7 @@ export default function ChatLayout() {
               shrink-0
               border-t
               border-white/[0.06]
-              bg-[#181819]
+              bg-app-bg
               px-3
               pt-4
               sm:px-6
@@ -1353,28 +1482,31 @@ export default function ChatLayout() {
             "
           >
             {pendingApproval && (
-              <div className="mx-auto mb-3 w-full max-w-3xl rounded-2xl border border-[#0074E8]/40 bg-[#1F1F20] p-4">
+              <div className="mx-auto mb-3 w-full max-w-3xl rounded-2xl border border-action bg-[#113254]/40 p-4">
                 <p className="text-sm font-semibold text-white">
                   Approval needed
                 </p>
-                <p className="mt-1 text-sm text-zinc-200">
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  Paused — waiting for you
+                </p>
+                <p className="mt-2 text-sm text-zinc-200">
                   {pendingApproval.title}
                 </p>
                 <p className="mt-1 text-[13px] leading-6 text-zinc-400">
                   {pendingApproval.description}
                 </p>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => void handleApprovalDecision("allowed")}
-                    className="rounded-full bg-[#0074E8] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0A7FF0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    className="w-full rounded-full bg-action px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:w-auto"
                   >
-                    Approve
+                    Allow
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleApprovalDecision("denied")}
-                    className="rounded-full border border-white/15 bg-transparent px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    className="w-full rounded-full bg-surface-2 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:w-auto"
                   >
                     Deny
                   </button>
@@ -1391,6 +1523,7 @@ export default function ChatLayout() {
                 onToggleWebTask={() =>
                   setWebTaskMode((mode) => !mode)
                 }
+                disabled={pendingApproval !== null}
               />
 
               <p

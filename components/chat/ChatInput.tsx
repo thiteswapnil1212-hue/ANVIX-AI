@@ -16,7 +16,6 @@ import {
   ArrowUp,
   ChevronDown,
   Globe,
-  Lock,
   Check,
   Plus,
   Square,
@@ -42,6 +41,8 @@ type ChatInputProps = {
   /** Web-task mode: send to /api/web-agent instead of /api/chat. */
   webTaskMode?: boolean;
   onToggleWebTask?: () => void;
+  /** Composer is paused while a web-task approval waits (§4.6). */
+  disabled?: boolean;
 };
 
 export default function ChatInput({
@@ -50,6 +51,7 @@ export default function ChatInput({
   onStop,
   webTaskMode = false,
   onToggleWebTask,
+  disabled = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
@@ -66,10 +68,18 @@ export default function ChatInput({
   const hasMessage = value.trim().length > 0;
 
   const canSend =
-    hasMessage && !isSubmitting && !isGenerating;
+    hasMessage && !isSubmitting && !isGenerating && !disabled;
+
+  // The picker shows only connected models — the locked entries in
+  // lib/chat-models.ts are a roadmap record, never a selectable list.
+  // Today that is Gemini 2.5 Flash alone.
+  const availableModels = CHAT_MODELS.filter(
+    (model) => !model.locked && model.apiModelId !== null
+  );
 
   const selectedModelConfig =
-    CHAT_MODELS.find((model) => model.id === selectedModel) ??
+    availableModels.find((model) => model.id === selectedModel) ??
+    availableModels[0] ??
     CHAT_MODELS[0];
 
   // Auto-resize textarea.
@@ -160,7 +170,8 @@ export default function ChatInput({
       !message ||
       submittingRef.current ||
       isSubmitting ||
-      isGenerating
+      isGenerating ||
+      disabled
     ) {
       return;
     }
@@ -193,6 +204,7 @@ export default function ChatInput({
     value,
     isSubmitting,
     isGenerating,
+    disabled,
     onSend,
     selectedModel,
   ]);
@@ -275,28 +287,32 @@ export default function ChatInput({
               sm:gap-2.5 sm:p-3
             "
           >
-            {/* Add button */}
-            <button
-              type="button"
-              disabled={isSubmitting || isGenerating}
-              className="
-                mb-0.5 flex h-9 w-9 shrink-0
-                items-center justify-center rounded-full
-                text-white transition-colors
-                hover:bg-white/10
-                active:scale-95
-                disabled:cursor-not-allowed
-                disabled:opacity-40
-              "
-              aria-label="Add attachment"
-              title="File attachments coming soon"
-            >
-              <Plus
-                className="h-5 w-5"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </button>
+            {/* Add button — no attachments exist yet, so the button
+                is always disabled with an honest tooltip instead of
+                doing nothing on click. Hidden in web-task mode: web
+                tasks don't take attachments. */}
+            {!webTaskMode && (
+              <button
+                type="button"
+                disabled
+                className="
+                  mb-0.5 flex h-9 w-9 shrink-0
+                  items-center justify-center rounded-full
+                  text-white transition-colors
+                  active:scale-95
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
+                "
+                aria-label="Add attachment"
+                title="File attachments — coming soon"
+              >
+                <Plus
+                  className="h-5 w-5"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
 
             {/* Message textarea */}
             <textarea
@@ -314,7 +330,7 @@ export default function ChatInput({
               }}
               onKeyDown={handleKeyDown}
               rows={1}
-              disabled={isSubmitting}
+              disabled={isSubmitting || disabled}
               placeholder={
                 isGenerating
                   ? "Press Enter to stop..."
@@ -364,7 +380,7 @@ export default function ChatInput({
                       className="h-3.5 w-3.5 shrink-0"
                       aria-hidden="true"
                     />
-                    <span className="whitespace-nowrap">Web task</span>
+                    <span className="hidden whitespace-nowrap min-[420px]:inline">Web task</span>
                   </button>
                 )}
                 <button
@@ -374,12 +390,13 @@ export default function ChatInput({
                     setModelOpen((open) => !open)
                   }
                   className="
-                    flex h-8 max-w-[150px] items-center
+                    flex h-8 max-w-[104px] items-center
                     gap-1.5 rounded-xl px-2
                     text-[11px] font-medium text-zinc-400
                     transition-colors
                     hover:bg-zinc-800/70 hover:text-zinc-200
                     disabled:opacity-40 sm:text-xs
+                    min-[420px]:max-w-[150px]
                   "
                   aria-haspopup="listbox"
                   aria-expanded={modelOpen}
@@ -458,15 +475,12 @@ export default function ChatInput({
                     </div>
 
                     <div className="space-y-0.5">
-                      {CHAT_MODELS.map((model) => {
+                      {availableModels.map((model) => {
                         const selected =
                           selectedModel === model.id;
 
                         const unavailable =
-                          model.locked ||
-                          model.apiModelId === null ||
-                          isSubmitting ||
-                          isGenerating;
+                          isSubmitting || isGenerating;
 
                         return (
                           <button
@@ -514,26 +528,7 @@ export default function ChatInput({
                               </span>
                             </span>
 
-                            {model.locked ||
-                            model.apiModelId === null ? (
-                              <span
-                                className="
-                                  flex shrink-0 items-center
-                                  gap-1 rounded-md
-                                  border border-zinc-800
-                                  px-1.5 py-1
-                                  text-[9px] font-semibold
-                                  uppercase tracking-wide
-                                  text-zinc-600
-                                "
-                              >
-                                <Lock
-                                  className="h-2.5 w-2.5"
-                                  aria-hidden="true"
-                                />
-                                PRO
-                              </span>
-                            ) : selected ? (
+                            {selected ? (
                               <Check
                                 className="
                                   h-4 w-4 shrink-0
@@ -547,6 +542,11 @@ export default function ChatInput({
                         );
                       })}
                     </div>
+
+                    <p className="border-t border-zinc-800 px-2.5 pb-1.5 pt-2.5 text-[11px] leading-5 text-zinc-600">
+                      More models are coming. Only Gemini 2.5 Flash is
+                      connected today.
+                    </p>
                   </div>
                 )}
               </div>
@@ -623,9 +623,11 @@ export default function ChatInput({
               sm:text-[11px]
             "
           >
-            {webTaskMode
-              ? "Web task mode — AGI opens a browser and does the task. Steps that send or submit ask you first."
-              : ""}
+            {disabled
+              ? "Waiting for your approval"
+              : webTaskMode
+                ? "Web task mode — AGI opens a browser and does the task. Steps that send or submit ask you first."
+                : "Enter to send · Shift+Enter for a new line"}
           </div>
         </form>
       </div>
