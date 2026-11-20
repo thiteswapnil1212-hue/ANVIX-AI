@@ -200,7 +200,7 @@ export default function IconRail({
         isActive
           ? "bg-surface-active text-ink"
           : disabled
-            ? "cursor-not-allowed text-icon/25 opacity-50"
+            ? "cursor-not-allowed text-icon"
             : "text-icon hover:bg-white/[0.06] hover:text-ink"
       }
     `;
