@@ -15,9 +15,7 @@ export const CHAT_MODELS: ChatModel[] = [
     locked: false,
     apiModelId: "gemini-2.5-flash",
   },
-  // Locked models — not connected to an API yet. This list is a roadmap
-  // record only: the chat UI shows only connected models, and no locked
-  // entry is ever presented as selectable or as a paid unlock.
+  // Locked models — not connected to an API yet.
   {
     id: "gpt-5.5",
     name: "GPT-5.5",
@@ -28,6 +26,13 @@ export const CHAT_MODELS: ChatModel[] = [
   {
     id: "gpt-4.1",
     name: "GPT-4.1",
+    provider: "OpenAI",
+    locked: true,
+    apiModelId: null,
+  },
+  {
+    id: "gpt-6-astra",
+    name: "GPT-6 (Astra)",
     provider: "OpenAI",
     locked: true,
     apiModelId: null,

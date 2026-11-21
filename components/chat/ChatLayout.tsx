@@ -7,13 +7,10 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, PanelRight } from "lucide-react";
-import { DEFAULT_CHAT_MODEL_ID } from "@/lib/chat-models";
+import { useRouter } from "next/navigation";
+import { Menu, X } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import {
@@ -26,15 +23,7 @@ import {
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
-import AgiShell from "@/components/agi/AgiShell";
-import IconRail from "@/components/agi/IconRail";
-import ApprovalsPanel from "@/components/agi/ApprovalsPanel";
-import {
-  readApprovals,
-  recordApproval,
-  type ApprovalEntry,
-} from "@/components/agi/ApprovalsHistory";
-import type { ApprovalRequest } from "@/lib/web-agent/types";
+import AppShell from "@/components/layout/AppShell";
 
 type Message = {
   id: string;
@@ -69,19 +58,6 @@ type ActiveRequest = {
 };
 
 const STORAGE_KEY = "anvix-guest-chats";
-
-/** Desktop viewport (lg breakpoint) via useSyncExternalStore — the
- * sanctioned way to read a media query without a setState-in-effect. */
-const useIsDesktop = () =>
-  useSyncExternalStore(
-    (onChange) => {
-      const query = window.matchMedia("(min-width: 1024px)");
-      query.addEventListener("change", onChange);
-      return () => query.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia("(min-width: 1024px)").matches,
-    () => true
-  );
 
 const createTimestamp = () => new Date().toISOString();
 
@@ -241,129 +217,13 @@ const readGuestChats = (): StoredGuestChats => {
   }
 };
 
-/**
- * Dashboard "Recent chats" deep-link: the dashboard stores the thread
- * id in `anvix-open-thread` and routes here; open that thread. A
- * module-level helper (same shape as readGuestChats) so the component's
- * useMemo stays a single call — inline storage access in the memo
- * breaks React Compiler memoization. The key is only READ here; the
- * mount effect in ChatLayout removes it.
- */
-const readGuestChatsWithDeepLink = (): StoredGuestChats => {
-  const state = readGuestChats();
-
-  if (typeof window === "undefined") {
-    return state;
-  }
-
-  try {
-    const openId = window.localStorage.getItem("anvix-open-thread");
-
-    if (
-      openId &&
-      state.conversations.some(
-        (conversation) => conversation.id === openId
-      )
-    ) {
-      return { ...state, activeConversationId: openId };
-    }
-  } catch {
-    // Storage failure — fall back to the saved active thread.
-  }
-
-  return state;
-};
-
 export default function ChatLayout() {
   const initialGuestState = useMemo<StoredGuestChats>(
-    () => readGuestChatsWithDeepLink(),
+    () => readGuestChats(),
     []
   );
 
-  // Consume the deep-link key once, after mount.
-  useEffect(() => {
-    try {
-      window.localStorage.removeItem("anvix-open-thread");
-    } catch {
-      // Best-effort — a stale key just re-opens the same thread once.
-    }
-  }, []);
-
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // Right panel: OPEN by default on desktop (Muse screenshot, spec
-  // D3), so it is visible on first paint at lg and up. On phones it
-  // stays closed until the header toggle opens it as a slide-over, so
-  // the three panes are never squeezed onto a phone at once. The
-  // default is derived during render from `isDesktop`
-  // (useSyncExternalStore, whose server snapshot keeps hydration
-  // consistent) — never set in an effect, which the lint rules forbid
-  // — and a user toggle/close writes an explicit override on top.
-  const [panelOverride, setPanelOverride] = useState<boolean | null>(null);
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
-  const isDesktop = useIsDesktop();
-  const panelOpen = panelOverride ?? isDesktop;
-
-  // Approvals history (localStorage, starts empty).
-  const [approvals, setApprovals] = useState<ApprovalEntry[]>(() =>
-    readApprovals()
-  );
-
-  // Unread-approval badge (§4.2): a blue dot on the panel toggle while
-  // an approval arrived since the panel was last opened. Clears when
-  // the panel opens. The panel never auto-opens mid-task.
-  const LAST_SEEN_KEY = "anvix-approvals-last-seen";
-  const [lastSeenApprovalAt, setLastSeenApprovalAt] =
-    useState<string>(() => {
-      if (typeof window === "undefined") {
-        return "";
-      }
-
-      try {
-        return (
-          window.localStorage.getItem(LAST_SEEN_KEY) ?? ""
-        );
-      } catch {
-        return "";
-      }
-    });
-
-  const hasUnreadApproval = approvals.some(
-    (entry) => entry.createdAt > lastSeenApprovalAt
-  );
-
-  const togglePanel = useCallback(() => {
-    setApprovals(readApprovals());
-
-    const willOpen = isDesktop ? !panelOpen : !mobilePanelOpen;
-
-    if (willOpen) {
-      const now = createTimestamp();
-      setLastSeenApprovalAt(now);
-
-      try {
-        window.localStorage.setItem(LAST_SEEN_KEY, now);
-      } catch {
-        // Best-effort — the dot just stays until the next open.
-      }
-    }
-
-    if (isDesktop) {
-      setPanelOverride(!panelOpen);
-    } else {
-      setMobilePanelOpen((open) => !open);
-    }
-  }, [isDesktop, panelOpen, mobilePanelOpen]);
-
-  const closePanel = useCallback(() => {
-    setPanelOverride(false);
-    setMobilePanelOpen(false);
-  }, []);
-
-  // "Connected" = a real /api/chat (or web-task) stream has yielded
-  // real text. Starts false — the panel must not claim Connected
-  // before any call has ever succeeded. No new API.
-  const [chatConnected, setChatConnected] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [conversations, setConversations] = useState<
     GuestChatConversation[]
@@ -375,26 +235,6 @@ export default function ChatLayout() {
     );
 
   const [isTyping, setIsTyping] = useState(false);
-
-  // Web-task mode: the next message goes to /api/web-agent/stream
-  // (real browser) instead of /api/chat. Off by default.
-  const [webTaskMode, setWebTaskMode] = useState(false);
-  // Prefill for the composer, set by the web-task empty-state chips:
-  // the chip text lands in the composer for the user to complete
-  // (with the URL / topic) instead of firing the bare label (B9).
-  const [composerPrefill, setComposerPrefill] = useState<{
-    text: string;
-    nonce: number;
-  } | null>(null);
-  // The approval the task is currently waiting on, if any.
-  const [pendingApproval, setPendingApproval] =
-    useState<ApprovalRequest | null>(null);
-  // Last approve-POST failure, if any — shown on the approval card
-  // with a retry instead of recording a decision that never landed.
-  const [approvalError, setApprovalError] = useState<string | null>(null);
-  const lastApprovalDecisionRef = useRef<
-    "allowed" | "denied" | null
-  >(null);
 
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -589,45 +429,15 @@ export default function ChatLayout() {
     );
 
     setActiveConversationId(id);
-    setDrawerOpen(false);
+    setSidebarOpen(false);
   }, [handleStop]);
-
-  // Ctrl/Cmd+K = new chat, from anywhere in AGI — not only while the
-  // thread drawer is open. The drawer unmounts when closed, so a
-  // handler registered there is dead most of the time (B7). Typing
-  // targets are excluded, matching the old drawer behaviour.
-  useEffect(() => {
-    function handleKeyboard(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      const typing =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target?.isContentEditable;
-
-      if (typing || event.altKey) return;
-
-      if (
-        (event.ctrlKey || event.metaKey) &&
-        event.key.toLowerCase() === "k"
-      ) {
-        event.preventDefault();
-        handleNewConversation();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyboard);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyboard);
-    };
-  }, [handleNewConversation]);
 
   // Select a conversation.
   const handleSelectConversation = useCallback(
     (id: string) => {
       handleStop();
       setActiveConversationId(id);
-      setDrawerOpen(false);
+      setSidebarOpen(false);
     },
     [handleStop]
   );
@@ -665,20 +475,22 @@ export default function ChatLayout() {
         handleStop();
       }
 
-      // Compute the survivors from the ref OUTSIDE any updater —
-      // calling setActiveConversationId inside the setConversations
-      // updater is impure and double-invokes under StrictMode (B5).
-      const remaining = conversationsRef.current.filter(
-        (conversation) => conversation.id !== id
-      );
+      setConversations((prev) => {
+        const remaining = prev.filter(
+          (conversation) => conversation.id !== id
+        );
 
-      setConversations(remaining);
+        if (remaining.length === 0) {
+          setActiveConversationId(null);
+          return remaining;
+        }
 
-      if (remaining.length === 0) {
-        setActiveConversationId(null);
-      } else if (activeConversationId === id) {
-        setActiveConversationId(remaining[0].id);
-      }
+        if (activeConversationId === id) {
+          setActiveConversationId(remaining[0].id);
+        }
+
+        return remaining;
+      });
     },
     [activeConversationId, handleStop]
   );
@@ -855,10 +667,6 @@ export default function ChatLayout() {
       const reader = response.body.getReader();
       request.reader = reader;
 
-      // Connected is set only below, when a chunk yields real text —
-      // never on a bare 200, and never on a stream error trailer.
-      let streamError = false;
-
       while (!request.stopped) {
         const { value, done } = await reader.read();
 
@@ -867,37 +675,9 @@ export default function ChatLayout() {
         }
 
         if (value) {
-          const chunk = decoder.decode(value, {
+          streamedText += decoder.decode(value, {
             stream: true,
           });
-
-          // Mid-stream Gemini failure: the route sends a distinct
-          // [STREAM_ERROR] marker (older builds sent the plain-text
-          // "[An error occurred while generating the response.]"
-          // trailer). Either marker means "not connected" — strip it
-          // and fail below instead of showing it as a reply.
-          const hasMarker =
-            chunk.includes("[STREAM_ERROR]") ||
-            chunk.includes(
-              "[An error occurred while generating the response.]"
-            );
-
-          if (hasMarker) {
-            streamError = true;
-          }
-
-          const cleanChunk = chunk
-            .replace("[STREAM_ERROR]", "")
-            .replace(
-              "[An error occurred while generating the response.]",
-              ""
-            );
-
-          streamedText += cleanChunk;
-
-          if (cleanChunk.trim()) {
-            setChatConnected(true);
-          }
 
           updateAssistantMessage(streamedText);
         }
@@ -905,46 +685,15 @@ export default function ChatLayout() {
 
       // Flush any remaining decoded text only if not stopped.
       if (!request.stopped) {
-        const tail = decoder.decode();
+        streamedText += decoder.decode();
 
-        if (tail) {
-          const hasMarker =
-            tail.includes("[STREAM_ERROR]") ||
-            tail.includes(
-              "[An error occurred while generating the response.]"
-            );
-
-          if (hasMarker) {
-            streamError = true;
-          }
-
-          const cleanTail = tail
-            .replace("[STREAM_ERROR]", "")
-            .replace(
-              "[An error occurred while generating the response.]",
-              ""
-            );
-
-          streamedText += cleanTail;
-
-          if (cleanTail.trim()) {
-            setChatConnected(true);
-          }
-
-          if (streamedText) {
-            updateAssistantMessage(streamedText);
-          }
+        if (streamedText) {
+          updateAssistantMessage(streamedText);
         }
       }
 
       if (request.stopped) {
         return true;
-      }
-
-      if (streamError) {
-        throw new Error(
-          "Gemini failed while generating the response."
-        );
       }
 
       if (!streamedText.trim()) {
@@ -973,10 +722,6 @@ export default function ChatLayout() {
           ? error.message
           : "Something went wrong while generating the response.";
 
-      if (/api key/i.test(errorMessage)) {
-        setChatConnected(false);
-      }
-
       updateAssistantMessage(
         streamedText.trim()
           ? `${streamedText}\n\n[Response interrupted. Please try again.]`
@@ -1000,687 +745,404 @@ export default function ChatLayout() {
     }
   };
 
-  // Send a web task: stream /api/web-agent/stream instead of /api/chat.
-  // The conversation setup mirrors handleSend on purpose — the two paths
-  // must never break each other, so they do not share the setup code.
-  // One parameter is enough: a web task ignores the chat model picker.
-  // (A two-parameter function would also type-check as onSend, but the
-  // unused second parameter trips the repo's no-unused-vars lint rule.)
-  const handleWebTask = async (prompt: string): Promise<boolean> => {
-    const trimmedPrompt = prompt.trim();
-
-    if (!trimmedPrompt || activeRequestRef.current) {
-      return false;
-    }
-
-    const controller = new AbortController();
-
-    const request: ActiveRequest = {
-      controller,
-      reader: null,
-      stopped: false,
-    };
-
-    activeRequestRef.current = request;
-
-    let workingConversationId = activeConversationId;
-    const timestamp = createTimestamp();
-
-    if (!workingConversationId) {
-      workingConversationId = crypto.randomUUID();
-
-      const newConversation: GuestChatConversation = {
-        id: workingConversationId,
-        title: generateChatTitle(trimmedPrompt),
-        preview: trimmedPrompt,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        pinned: false,
-        messages: [],
-      };
-
-      setConversations((prev) =>
-        sortConversations([newConversation, ...prev])
-      );
-
-      setActiveConversationId(workingConversationId);
-    }
-
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: trimmedPrompt,
-      createdAt: timestamp,
-    };
-
-    const assistantMessageId = crypto.randomUUID();
-
-    const assistantMessage: Message = {
-      id: assistantMessageId,
-      role: "assistant",
-      content: "",
-      createdAt: createTimestamp(),
-    };
-
-    setConversations((prev) =>
-      sortConversations(
-        prev.map((conversation) => {
-          if (conversation.id !== workingConversationId) {
-            return conversation;
-          }
-
-          const nextTitle =
-            conversation.title === "New chat" ||
-            conversation.messages.length === 0
-              ? generateChatTitle(trimmedPrompt)
-              : conversation.title;
-
-          return {
-            ...conversation,
-            title: nextTitle,
-            preview: trimmedPrompt,
-            updatedAt: timestamp,
-            messages: [
-              ...conversation.messages,
-              userMessage,
-              assistantMessage,
-            ],
-          };
-        })
-      )
-    );
-
-    setIsTyping(true);
-
-    let progressText = "";
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    const updateAssistantMessage = (content: string) => {
-      setConversations((prev) =>
-        sortConversations(
-          prev.map((conversation) => {
-            if (conversation.id !== workingConversationId) {
-              return conversation;
-            }
-
-            return {
-              ...conversation,
-              preview: content || trimmedPrompt,
-              updatedAt: createTimestamp(),
-              messages: conversation.messages.map((message) =>
-                message.id === assistantMessageId
-                  ? { ...message, content }
-                  : message
-              ),
-            };
-          })
-        )
-      );
-    };
-
-    const appendProgress = (line: string) => {
-      progressText = progressText ? `${progressText}\n${line}` : line;
-      updateAssistantMessage(progressText);
-    };
-
-    try {
-      const response = await fetch("/api/web-agent/stream", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ task: trimmedPrompt }),
-        signal: controller.signal,
-      });
-
-      if (request.stopped) {
-        return true;
-      }
-
-      if (!response.ok) {
-        let errorMessage = "Web task failed.";
-
-        try {
-          const data = (await response.json()) as ChatApiError;
-          errorMessage = data.error || errorMessage;
-        } catch {
-          // Keep the fallback error message.
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      if (!response.body) {
-        throw new Error(
-          "Streaming is not supported by this response."
-        );
-      }
-
-      const reader = response.body.getReader();
-      request.reader = reader;
-
-      while (!request.stopped) {
-        const { value, done } = await reader.read();
-
-        if (request.stopped || done) {
-          break;
-        }
-
-        if (!value) {
-          continue;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.trim()) {
-            continue;
-          }
-
-          let event: Record<string, unknown>;
-          try {
-            event = JSON.parse(line) as Record<string, unknown>;
-          } catch {
-            continue;
-          }
-
-          if (event.type === "planning") {
-            appendProgress("Planning the steps…");
-          } else if (event.type === "step_complete") {
-            appendProgress(`• ${String(event.detail ?? "")}`);
-          } else if (event.type === "approval_needed") {
-            const approval = event.approval as ApprovalRequest;
-            setPendingApproval(approval);
-            appendProgress(
-              `Waiting for your approval — ${approval.title}`
-            );
-          } else if (event.type === "task_complete") {
-            const result = event.result as
-              | { message?: unknown }
-              | undefined;
-            if (
-              result &&
-              typeof result.message === "string" &&
-              result.message.trim()
-            ) {
-              // A web task that completes with a real result is a
-              // successful AGI call too (B8).
-              setChatConnected(true);
-              progressText = result.message;
-              updateAssistantMessage(result.message);
-            }
-          } else if (event.type === "error") {
-            const message = String(event.message ?? "Web task failed.");
-            if (/api key/i.test(message)) {
-              setChatConnected(false);
-            }
-            throw new Error(message);
-          }
-        }
-      }
-
-      if (request.stopped) {
-        return true;
-      }
-
-      if (!progressText.trim()) {
-        throw new Error("Web task returned no result.");
-      }
-
-      return true;
-    } catch (error) {
-      if (
-        request.stopped ||
-        (error instanceof Error && error.name === "AbortError")
-      ) {
-        if (progressText.trim()) {
-          updateAssistantMessage(progressText);
-        } else {
-          updateAssistantMessage("Response stopped.");
-        }
-
-        return true;
-      }
-
-      console.error("Web task streaming error:", error);
-
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while running the web task.";
-
-      updateAssistantMessage(
-        progressText.trim()
-          ? `${progressText}\n\n[Web task interrupted. Please try again.]`
-          : errorMessage
-      );
-
-      return false;
-    } finally {
-      if (request.reader) {
-        try {
-          request.reader.releaseLock();
-        } catch {
-          // The reader may already be released.
-        }
-      }
-
-      if (activeRequestRef.current === request) {
-        activeRequestRef.current = null;
-        setIsTyping(false);
-      }
-
-      setPendingApproval(null);
-      setApprovalError(null);
-    }
-  };
-
-  // Answer an approval prompt: tell the server, then record the
-  // decision in the Approvals history panel — but ONLY when the
-  // approve POST succeeds (B2). On failure nothing is recorded; the
-  // card stays visible with a retry (B10) until the POST succeeds or
-  // the stream ends (whose finally clears the pending approval).
-  const handleApprovalDecision = async (
-    decision: "allowed" | "denied"
-  ) => {
-    if (!pendingApproval) {
-      return;
-    }
-
-    const approval = pendingApproval;
-    lastApprovalDecisionRef.current = decision;
-    setApprovalError(null);
-
-    try {
-      const response = await fetch("/api/web-agent/approve", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          runId: approval.runId,
-          approvalId: approval.id,
-          decision,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          "Approval not found or already expired. The task has stopped."
-        );
-      }
-    } catch {
-      // Expired, unreachable, or rejected: do not record the
-      // decision — it never landed. Keep the card visible so the
-      // user can retry; the run reports its own timeout.
-      setApprovalError("Approval expired — task stopped.");
-      return;
-    }
-
-    setPendingApproval(null);
-    lastApprovalDecisionRef.current = null;
-
-    const entry = recordApproval({
-      title: approval.title,
-      description: approval.description,
-      icon: "globe",
-      status: decision,
-    });
-    setApprovals((prev) => [entry, ...prev]);
-  };
-
   return (
-    <AgiShell
-      rail={
-        <IconRail active="chat" onNewChat={handleNewConversation} />
-      }
-      panel={
-        <ApprovalsPanel
-          open={panelOpen || mobilePanelOpen}
-          onClose={closePanel}
-          approvals={approvals}
-          status={chatConnected ? "connected" : "not-connected"}
-          userName={user?.email ?? "Guest"}
-          userEmail={user?.email ?? undefined}
-          accountState={
-            user
-              ? "Cloud sync on"
-              : "Guest — chats stay in this browser"
-          }
-          signedIn={!!user}
-          onSignIn={() => router.push("/auth")}
-          onSignOut={() => void signOut()}
-          onOpenSettings={() => router.push("/settings")}
-        />
-      }
-      drawer={
-        <ChatSidebar
-          drawer
-          threads={conversations}
-          activeThread={activeConversationId ?? ""}
-          onSelectThread={handleSelectConversation}
-          onNewThread={handleNewConversation}
-          onRenameThread={handleRenameConversation}
-          onDeleteThread={handleDeleteConversation}
-          onTogglePin={handleTogglePin}
-          onOpenSettings={() => router.push("/settings")}
-          onOpenAccount={() => {
-            if (user) {
-              void signOut();
-            } else {
-              router.push("/auth");
-            }
-          }}
-          userName={user?.email ?? "Guest"}
-          plan={user ? "Cloud sync on" : "Local workspace"}
-        />
-      }
-      panelOpen={panelOpen}
-      mobilePanelOpen={mobilePanelOpen}
-      drawerOpen={drawerOpen}
-      onClosePanel={closePanel}
-      onCloseDrawer={() => setDrawerOpen(false)}
-      center={
-        <>
-          {/* HEADER — back arrow + pill title + panel toggle */}
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-app-bg px-3 sm:px-4">
-            {/* Plain circular back button (Muse §2.3) — back to home. */}
-            <Link
-              href="/"
-              aria-label="Back to home"
-              title="Back to home"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition-colors hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
-            >
-              <ArrowLeft className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              aria-label="Switch conversation"
-              title="Switch conversation"
-              className="flex min-w-0 items-center gap-2.5 rounded-full bg-surface-2 px-4 py-2 text-sm text-white transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
-            >
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 shrink-0 rounded-full bg-action"
-              />
-              <span className="truncate">
-                {activeConversation?.title ?? "New chat"}
-              </span>
-            </button>
-
-            <div className="flex-1" />
-
-            <button
-              type="button"
-              onClick={togglePanel}
-              aria-label="Toggle approvals panel"
-              aria-expanded={panelOpen || mobilePanelOpen}
-              title="Approvals panel"
-              className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action ${
-                panelOpen || mobilePanelOpen
-                  ? "bg-surface-active text-white"
-                  : "bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-white"
-              }`}
-            >
-              <PanelRight className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
-              {hasUnreadApproval && !(panelOpen || mobilePanelOpen) && (
-                <span
-                  aria-hidden="true"
-                  className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-action"
-                />
-              )}
-            </button>
-          </header>
-
-          {/* MESSAGES */}
-          <div className="min-h-0 flex-1 overflow-hidden bg-app-bg">
-            {messages.length === 0 && !isTyping ? (
-              <div
-                className="
-                  mx-auto
-                  flex
-                  h-full
-                  w-full
-                  max-w-3xl
-                  flex-col
-                  items-center
-                  justify-center
-                  px-4
-                  pb-6
-                  pt-16
-                  text-center
-                  sm:px-6
-                  sm:pb-8
-                  sm:pt-20
-                  lg:px-8
-                  lg:pt-24
-                "
-              >
-                <div
-                  className="
-                    flex
-                    h-14
-                    w-14
-                    items-center
-                    justify-center
-                    overflow-hidden
-                    rounded-2xl
-                    border
-                    border-white/10
-                    bg-surface-1
-                  "
-                >
-                  <Image
-                    src="/logo.png"
-                    alt="AGI"
-                    width={56}
-                    height={56}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-
-                <div className="mt-8">
-                  <p
-                    className="
-                      text-sm
-                      font-semibold
-                      uppercase
-                      tracking-[0.4em]
-                      text-zinc-500
-                    "
-                  >
-                    AGI
-                  </p>
-
-                  <h1
-                    className="
-                      mt-5
-                      text-3xl
-                      font-semibold
-                      tracking-tight
-                      text-white
-                      sm:text-4xl
-                    "
-                  >
-                    How can I help?
-                  </h1>
-
-                  <p
-                    className="
-                      mx-auto
-                      mt-3
-                      max-w-2xl
-                      text-sm
-                      leading-7
-                      text-zinc-400
-                      sm:text-base
-                    "
-                  >
-                    Chat with Gemini 2.5 Flash, or switch on Web task
-                    and let AGI use a real browser on this computer — it
-                    always asks before it sends, submits, or signs in.
-                  </p>
-
-                  <div className="mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-center gap-2">
-                    {[
-                      {
-                        label: "Explain a topic",
-                        webTask: false,
-                      },
-                      {
-                        label: "Draft a message",
-                        webTask: false,
-                      },
-                      {
-                        label: "Open a website and summarise it",
-                        webTask: true,
-                      },
-                      {
-                        label: "Find something on the web",
-                        webTask: true,
-                      },
-                    ].map(({ label, webTask }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => {
-                          if (webTask) {
-                            // Pre-fill the composer with the chip
-                            // text so the user adds the URL / topic
-                            // first — never fire the bare label as
-                            // the task (B9).
-                            setWebTaskMode(true);
-                            setComposerPrefill({
-                              text: `${label}: `,
-                              nonce: Date.now(),
-                            });
-                          } else {
-                            void handleSend(
-                              label,
-                              DEFAULT_CHAT_MODEL_ID
-                            );
-                          }
-                        }}
-                        className="rounded-full border border-white/10 bg-surface-2 px-4 py-2 text-[13px] text-zinc-300 transition hover:border-white/25 hover:bg-surface-3 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <p className="mx-auto mt-8 max-w-2xl text-xs leading-5 text-zinc-600">
-                    Powered by Gemini 2.5 Flash · Guest mode — chats stay
-                    in this browser unless you sign in.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <MessageList
-                messages={messages}
-                isTyping={isTyping}
-              />
-            )}
-          </div>
-
-          {/* INPUT */}
+    <AppShell>
+      <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
+        {/* DESKTOP SIDEBAR */}
+        <aside
+          className="
+            hidden
+            h-full
+            w-64
+            min-h-0
+            shrink-0
+            overflow-hidden
+            border-r
+            border-[#3F3F46]
+            bg-[#18181B]
+            md:flex
+            md:flex-col
+          "
+        >
           <div
             className="
-              relative
-              z-50
-              shrink-0
-              border-t
-              border-white/[0.06]
-              bg-app-bg
-              px-3
-              pt-4
-              sm:px-6
-              sm:py-4
+              min-h-0
+              flex-1
+              overflow-y-auto
+              overscroll-contain
+              [scrollbar-color:#3f3f46_transparent]
+              [scrollbar-width:thin]
+              [&::-webkit-scrollbar]:w-1.5
+              [&::-webkit-scrollbar-track]:bg-transparent
+              [&::-webkit-scrollbar-thumb]:rounded-full
+              [&::-webkit-scrollbar-thumb]:bg-zinc-800
+              hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
             "
           >
-            {pendingApproval && (
-              <div className="mx-auto mb-3 w-full max-w-3xl rounded-2xl border border-action bg-[#113254]/40 p-4">
-                <p className="text-sm font-semibold text-white">
-                  Approval needed
-                </p>
-                <p className="mt-0.5 text-xs text-ink-muted">
-                  Paused — waiting for you
-                </p>
-                <p className="mt-2 text-sm text-zinc-200">
-                  {pendingApproval.title}
-                </p>
-                <p className="mt-1 text-[13px] leading-6 text-zinc-400">
-                  {pendingApproval.description}
-                </p>
-                {approvalError && (
-                  <p className="mt-2 text-[13px] font-medium text-red-300">
-                    {approvalError} Tap Retry to try again.
-                  </p>
-                )}
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  {approvalError && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleApprovalDecision(
-                          lastApprovalDecisionRef.current ?? "allowed"
-                        )
-                      }
-                      className="w-full rounded-full bg-action px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:w-auto"
-                    >
-                      Retry
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void handleApprovalDecision("allowed")}
-                    className="w-full rounded-full bg-action px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:w-auto"
-                  >
-                    Allow
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleApprovalDecision("denied")}
-                    className="w-full rounded-full bg-surface-2 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:w-auto"
-                  >
-                    Deny
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="mx-auto w-full max-w-3xl">
-              <ChatInput
-                onSend={webTaskMode ? handleWebTask : handleSend}
-                isGenerating={isTyping}
-                onStop={handleStop}
-                webTaskMode={webTaskMode}
-                onToggleWebTask={() =>
-                  setWebTaskMode((mode) => !mode)
+            <ChatSidebar
+              threads={conversations}
+              activeThread={activeConversationId ?? ""}
+              onSelectThread={handleSelectConversation}
+              onNewThread={handleNewConversation}
+              onRenameThread={handleRenameConversation}
+              onDeleteThread={handleDeleteConversation}
+              onTogglePin={handleTogglePin}
+              onOpenSettings={() => router.push("/settings")}
+              onOpenAccount={() => {
+                if (user) {
+                  void signOut();
+                } else {
+                  router.push("/auth");
                 }
-                disabled={pendingApproval !== null}
-                prefill={composerPrefill}
-              />
+              }}
+              userName={user?.email ?? "Guest"}
+              plan={user ? "Cloud sync on" : "Local workspace"}
+            />
+          </div>
+        </aside>
 
-              <p
+        {/* MOBILE SIDEBAR */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div
+              className="absolute inset-0 bg-black/25"
+              onClick={() => setSidebarOpen(false)}
+            />
+
+            <aside
+              className="
+                relative
+                z-10
+                flex
+                h-full
+                w-72
+                min-h-0
+                flex-col
+                overflow-hidden
+                border-r
+                border-[#3F3F46]
+                bg-[#18181B]
+              "
+            >
+              <div
                 className="
-                  mt-3
-                  text-center
-                  text-[11px]
-                  leading-5
-                  text-zinc-400/70
+                  flex
+                  shrink-0
+                  items-center
+                  justify-between
+                  border-b
+                  border-[#3F3F46]
+                  px-4
+                  py-4
                 "
               >
-                AGI can make mistakes. Verify important information.
-              </p>
+                <div className="flex items-center gap-3">
+                  <Image
+                    src="/logo.png"
+                    alt="ANVIX AI Logo"
+                    width={40}
+                    height={40}
+                    className="h-10 w-10 object-contain"
+                  />
+
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      ANVIX AI
+                    </p>
+
+                    <p className="text-xs text-zinc-500">
+                      Expert Partner
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="
+                    flex
+                    h-9
+                    w-9
+                    items-center
+                    justify-center
+                    rounded-lg
+                    border
+                    border-zinc-700
+                    text-zinc-400
+                    transition
+                    hover:text-white
+                  "
+                  aria-label="Close sidebar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div
+                className="
+                  min-h-0
+                  flex-1
+                  overflow-y-auto
+                  overscroll-contain
+                  [scrollbar-color:#3f3f46_transparent]
+                  [scrollbar-width:thin]
+                  [&::-webkit-scrollbar]:w-1.5
+                  [&::-webkit-scrollbar-track]:bg-transparent
+                  [&::-webkit-scrollbar-thumb]:rounded-full
+                  [&::-webkit-scrollbar-thumb]:bg-zinc-800
+                  hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
+                "
+              >
+                <ChatSidebar
+                  threads={conversations}
+                  activeThread={activeConversationId ?? ""}
+                  onSelectThread={handleSelectConversation}
+                  onNewThread={handleNewConversation}
+                  onRenameThread={handleRenameConversation}
+                  onDeleteThread={handleDeleteConversation}
+                  onTogglePin={handleTogglePin}
+                  onOpenSettings={() => router.push("/settings")}
+                  onOpenAccount={() => {
+                    if (user) {
+                      void signOut();
+                    } else {
+                      router.push("/auth");
+                    }
+                  }}
+                  userName={user?.email ?? "Guest"}
+                  plan={user ? "Cloud sync on" : "Local workspace"}
+                />
+              </div>
+            </aside>
+          </div>
+        )}
+
+        {/* MAIN CHAT */}
+        <main
+          className="
+            relative
+            flex
+            min-h-0
+            min-w-0
+            flex-1
+            flex-col
+            overflow-hidden
+            bg-transparent
+          "
+        >
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="
+              pointer-events-none
+              absolute
+              inset-0
+              h-full
+              w-full
+              object-cover
+              opacity-100
+            "
+          >
+            <source src="/anvix-bg.mp4" type="video/mp4" />
+          </video>
+
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* MOBILE HEADER */}
+            <header
+              className="
+                flex
+                h-16
+                shrink-0
+                items-center
+                justify-between
+                border-b
+                border-white/[0.08]
+                bg-transparent
+                px-4
+                md:hidden
+              "
+            >
+              <div className="flex items-center gap-3">
+                <Image
+                  src="/logo.png"
+                  alt="ANVIX AI Logo"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 object-contain"
+                />
+
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    ANVIX AI
+                  </p>
+
+                  <p className="text-xs text-zinc-500">
+                    Expert Partner
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="
+                  flex
+                  h-10
+                  w-10
+                  items-center
+                  justify-center
+                  rounded-xl
+                  border
+                  border-white/[0.12]
+                  bg-transparent
+                  text-zinc-400
+                  transition
+                  hover:border-white/[0.2]
+                  hover:text-white
+                "
+                aria-label="Open sidebar"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            </header>
+
+            {/* MESSAGES */}
+            <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
+              {messages.length === 0 && !isTyping ? (
+                <div
+                  className="
+                    mx-auto
+                    flex
+                    h-full
+                    w-full
+                    max-w-5xl
+                    flex-col
+                    items-center
+                    justify-center
+                    px-4
+                    pb-6
+                    pt-16
+                    text-center
+                    sm:px-6
+                    sm:pb-8
+                    sm:pt-20
+                    lg:px-8
+                    lg:pt-24
+                  "
+                >
+                  <div
+                    className="
+                      flex
+                      h-16
+                      w-16
+                      items-center
+                      justify-center
+                      rounded-2xl
+                      border
+                      border-white/10
+                      bg-transparent
+                    "
+                  >
+                    <Image
+                      src="/logo.png"
+                      alt="ANVIX AI"
+                      width={64}
+                      height={64}
+                      className="h-full w-full rounded-2xl object-contain"
+                      priority
+                    />
+                  </div>
+
+                  <div className="mt-8">
+                    <p
+                      className="
+                        text-sm
+                        font-semibold
+                        uppercase
+                        tracking-[0.4em]
+                        text-[#D4AF37]
+                      "
+                    >
+                      ANVIX AI
+                    </p>
+
+                    <h1
+                      className="
+                        mt-5
+                        text-3xl
+                        font-semibold
+                        tracking-tight
+                        text-white
+                        sm:text-4xl
+                      "
+                    >
+                      How can I help you today?
+                    </h1>
+
+                    <p
+                      className="
+                        mx-auto
+                        mt-3
+                        max-w-2xl
+                        text-sm
+                        leading-7
+                        text-zinc-400
+                        sm:text-base
+                      "
+                    >
+                      Built for thinking. Designed for building.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <MessageList
+                  messages={messages}
+                  isTyping={isTyping}
+                />
+              )}
+            </div>
+
+            {/* INPUT */}
+            <div
+              className="
+                relative
+                z-50
+                shrink-0
+                border-t
+                border-white/[0.06]
+                bg-transparent
+                px-3
+                pt-4
+                sm:px-6
+                sm:py-4
+              "
+            >
+              <div className="mx-auto w-full max-w-3xl">
+                <ChatInput
+                  onSend={handleSend}
+                  isGenerating={isTyping}
+                  onStop={handleStop}
+                />
+
+                <p
+                  className="
+                    mt-3
+                    text-center
+                    text-[11px]
+                    leading-5
+                    text-zinc-400/70
+                  "
+                >
+                  ANVIX AI can make mistakes. Verify important information.
+                </p>
+              </div>
             </div>
           </div>
-        </>
-      }
-    />
+        </main>
+      </div>
+    </AppShell>
   );
 }

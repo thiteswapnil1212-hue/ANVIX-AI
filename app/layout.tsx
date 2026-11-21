@@ -6,13 +6,13 @@ import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-jakarta",
+  variable: "--font-sans",
   display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains",
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -82,7 +82,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#181819",
+  themeColor: "#090909",
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
@@ -105,7 +105,7 @@ export default function RootLayout({
           content="LcyAJt9BmZijUliyiotG_GuaVDetCm_KdFAMkJ9P2hA"
         />
       </head>
-      <body className="min-h-screen bg-app-bg font-sans text-ink antialiased">
+      <body className="min-h-screen bg-[#090909] font-sans text-white antialiased">
         <PwaRegister />
         <AuthProvider>{children}</AuthProvider>
       </body>

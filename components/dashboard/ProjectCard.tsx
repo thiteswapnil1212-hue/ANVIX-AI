@@ -26,18 +26,45 @@ export default function ProjectCard({
       className="
         group relative isolate flex h-full min-w-0 flex-col
         overflow-hidden rounded-2xl
-        border border-border
-        bg-surface-1
+        border border-white/[0.08]
+        bg-[#101012]
         p-5 sm:p-6
         transition-[transform,border-color,background-color,box-shadow]
         duration-300 ease-out
         hover:-translate-y-1
-        hover:border-white/15
-        hover:shadow-[0_18px_50px_-24px_rgba(0,0,0,0.6)]
+        hover:border-[#D4AF37]/25
+        hover:bg-[#121214]
+        hover:shadow-[0_18px_50px_-24px_rgba(212,175,55,0.14)]
         motion-reduce:transform-none
         motion-reduce:transition-none
       "
     >
+      {/* Ambient glow */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none absolute -right-16 -top-20
+          -z-10 h-40 w-40 rounded-full
+          bg-[#D4AF37]/[0.07] blur-[70px]
+          opacity-0 transition-opacity duration-500
+          group-hover:opacity-100
+          motion-reduce:transition-none
+        "
+      />
+
+      {/* Top accent */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none absolute inset-x-8 top-0 h-px
+          bg-gradient-to-r from-transparent
+          via-[#D4AF37]/0 to-transparent
+          transition-colors duration-500
+          group-hover:via-[#D4AF37]/50
+          motion-reduce:transition-none
+        "
+      />
+
       {/* Header */}
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -45,12 +72,13 @@ export default function ProjectCard({
             aria-hidden="true"
             className="
               flex h-11 w-11 shrink-0 items-center justify-center
-              rounded-xl border border-border
-              bg-surface-2 text-ink-muted
-              transition-[border-color,background-color]
+              rounded-xl border border-[#D4AF37]/15
+              bg-[#D4AF37]/[0.07] text-[#D4AF37]
+              transition-[border-color,background-color,box-shadow]
               duration-300
-              group-hover:border-white/15
-              group-hover:bg-surface-3
+              group-hover:border-[#D4AF37]/30
+              group-hover:bg-[#D4AF37]/[0.12]
+              group-hover:shadow-[0_0_24px_rgba(212,175,55,0.08)]
               motion-reduce:transition-none
             "
           >
@@ -98,8 +126,8 @@ export default function ProjectCard({
             text-[10px] font-medium tracking-wide
             text-zinc-400
             transition-colors duration-300
-            group-hover:border-white/15
-            group-hover:text-ink
+            group-hover:border-[#D4AF37]/20
+            group-hover:text-[#D4AF37]
             sm:text-[11px]
             motion-reduce:transition-none
           "
@@ -145,14 +173,14 @@ export default function ProjectCard({
             text-sm font-medium text-zinc-300
             transition-[border-color,background-color,color]
             duration-200
-            hover:border-white/15
-            hover:bg-white/[0.04]
-            hover:text-white
+            hover:border-[#D4AF37]/25
+            hover:bg-[#D4AF37]/[0.06]
+            hover:text-[#D4AF37]
             focus-visible:outline-none
             focus-visible:ring-2
-            focus-visible:ring-action
+            focus-visible:ring-[#D4AF37]/70
             focus-visible:ring-offset-2
-            focus-visible:ring-offset-surface-1
+            focus-visible:ring-offset-[#101012]
             motion-reduce:transition-none
           "
         >
@@ -167,8 +195,8 @@ export default function ProjectCard({
               transition-[transform,border-color,background-color]
               duration-200
               group-hover:translate-x-0.5
-              group-hover:border-white/15
-              group-hover:bg-white/[0.04]
+              group-hover:border-[#D4AF37]/20
+              group-hover:bg-[#D4AF37]/[0.08]
               motion-reduce:transition-none
             "
           >
@@ -176,6 +204,18 @@ export default function ProjectCard({
           </span>
         </Link>
       </div>
+
+      {/* Bottom accent */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none absolute bottom-0 left-6
+          h-px w-0 bg-[#D4AF37]/60
+          transition-[width] duration-500
+          group-hover:w-20
+          motion-reduce:transition-none
+        "
+      />
     </article>
   );
 }

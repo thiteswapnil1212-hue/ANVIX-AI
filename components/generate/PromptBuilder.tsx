@@ -53,14 +53,30 @@ export default function PromptBuilder({
       className="
         relative
         overflow-hidden
-        rounded-2xl
+        rounded-3xl
         border
-        border-white/[0.07]
-        bg-[#1F1F20]
+        border-zinc-800/80
+        bg-[#111113]
         shadow-2xl
         shadow-black/20
       "
     >
+      {/* Ambient glow */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          -right-40
+          -top-40
+          h-80
+          w-80
+          rounded-full
+          bg-[#D4AF37]/[0.045]
+          blur-[100px]
+        "
+      />
+
       {/* Header */}
       <div
         className="
@@ -69,7 +85,7 @@ export default function PromptBuilder({
           flex-col
           gap-4
           border-b
-          border-white/[0.07]
+          border-zinc-800/70
           px-5
           py-5
           sm:flex-row
@@ -88,11 +104,11 @@ export default function PromptBuilder({
                 items-center
                 justify-center
                 rounded-lg
-                bg-[#0074E8]/[0.08]
+                bg-[#D4AF37]/[0.08]
               "
             >
               <Sparkles
-                className="h-3.5 w-3.5 text-[#0074E8]"
+                className="h-3.5 w-3.5 text-[#D4AF37]"
                 strokeWidth={1.8}
                 aria-hidden="true"
               />
@@ -120,7 +136,7 @@ export default function PromptBuilder({
             gap-2
             rounded-full
             border
-            border-white/[0.07]
+            border-zinc-800
             bg-[#0D0D0F]
             px-3
             py-1.5
@@ -152,10 +168,10 @@ export default function PromptBuilder({
             ${
               hasPrompt
                 ? `
-                  border-[rgba(0,116,232,0.4)]
-                  shadow-[0_0_35px_rgba(0,116,232,0.08)]
+                  border-[#D4AF37]/35
+                  shadow-[0_0_35px_rgba(212,175,55,0.045)]
                 `
-                : "border-white/[0.07]"
+                : "border-zinc-800"
             }
           `}
         >
@@ -206,7 +222,7 @@ export default function PromptBuilder({
               flex-col
               gap-2
               border-t
-              border-white/[0.07]
+              border-zinc-800/70
               px-4
               py-3
               sm:flex-row
@@ -222,7 +238,7 @@ export default function PromptBuilder({
                   rounded-full
                   ${
                     hasPrompt
-                      ? "bg-[#0074E8]"
+                      ? "bg-[#D4AF37]"
                       : "bg-zinc-700"
                   }
                 `}
@@ -241,7 +257,7 @@ export default function PromptBuilder({
                 text-[10px]
                 ${
                   remainingChars < 200
-                    ? "text-amber-300"
+                    ? "text-[#D4AF37]"
                     : "text-zinc-700"
                 }
               `}
@@ -288,18 +304,18 @@ export default function PromptBuilder({
               justify-center
               gap-2
               rounded-xl
-              bg-[#0074E8]
+              bg-[#D4AF37]
               px-5
               py-3
               text-sm
               font-semibold
-              text-white
+              text-black
               shadow-lg
-              shadow-[#0074E8]/10
+              shadow-[#D4AF37]/10
               transition-all
               duration-200
-              hover:bg-[#1A8CFF]
-              hover:shadow-[0_10px_30px_rgba(0,116,232,0.16)]
+              hover:bg-[#E2C259]
+              hover:shadow-[0_10px_30px_rgba(212,175,55,0.16)]
               active:scale-[0.98]
               disabled:cursor-not-allowed
               disabled:opacity-35
@@ -316,8 +332,8 @@ export default function PromptBuilder({
                     animate-spin
                     rounded-full
                     border-2
-                    border-white/30
-                    border-t-white
+                    border-black/30
+                    border-t-black
                   "
                   aria-hidden="true"
                 />

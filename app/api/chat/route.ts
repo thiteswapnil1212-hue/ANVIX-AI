@@ -129,15 +129,10 @@ export async function POST(request: Request) {
 
         console.error("Gemini stream error:", error);
 
-        // Mid-stream failure: the HTTP status is already 200 and
-        // cannot change, so send a distinct [STREAM_ERROR] marker
-        // the client detects (and never treats as a reply or as a
-        // successful call). Never enqueue the old plain-text
-        // "[An error occurred while generating the response.]"
-        // trailer — the client used to display it as a real reply
-        // and mark the call connected.
         try {
-          controller.enqueue(encoder.encode("\n\n[STREAM_ERROR]"));
+          controller.enqueue(
+            encoder.encode("\n\n[An error occurred while generating the response.]")
+          );
           controller.close();
         } catch {
           // Client may have disconnected.

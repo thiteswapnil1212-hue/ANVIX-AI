@@ -3,9 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import ProductShell from "@/components/layout/ProductShell";
-import PageHeader from "@/components/layout/PageHeader";
-import IconRail from "@/components/agi/IconRail";
+import AppShell from "@/components/layout/AppShell";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchProfile, upsertProfile } from "@/lib/supabase/cloud";
 import {
@@ -20,6 +18,7 @@ import {
   ChevronRight,
   Check,
   Cpu,
+  SlidersHorizontal,
   Zap,
   Monitor,
   Command,
@@ -62,9 +61,9 @@ const settingsSections = [
   },
   {
     title: "API Keys",
-    description: "Use your own Gemini key with AGI.",
+    description: "Manage provider credentials and integrations.",
     icon: KeyRound,
-    status: "Quick settings",
+    status: "Coming soon",
   },
 ];
 
@@ -76,12 +75,14 @@ const shortcuts = [
 ];
 
 interface Preferences {
+  darkMode: boolean;
   notifications: boolean;
   responseStyle: string;
   streaming: boolean;
 }
 
 const defaultPreferences: Preferences = {
+  darkMode: true,
   notifications: true,
   responseStyle: "Balanced",
   streaming: true,
@@ -184,7 +185,7 @@ export default function SettingsPage() {
     {
       icon: Cpu,
       label: "Active model",
-      value: "Gemini 2.5 Flash",
+      value: "Gemini 2.5",
     },
     {
       icon: Zap,
@@ -194,7 +195,7 @@ export default function SettingsPage() {
     {
       icon: Monitor,
       label: "Appearance",
-      value: "Dark",
+      value: preferences.darkMode ? "Dark" : "Light preference",
     },
     {
       icon: Bell,
@@ -204,67 +205,78 @@ export default function SettingsPage() {
   ];
 
   return (
-    <ProductShell
-      rail={<IconRail active="settings" />}
-      center={
-        <>
-          <PageHeader
-            title="Settings"
-            actions={
-              <Link
-                href="/agi"
-                className="inline-flex items-center gap-2 rounded-full bg-action px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
-              >
-                Open AGI
-              </Link>
-            }
+    <AppShell
+      title="Settings"
+      description="Customize your ANVIX workspace and AI experience."
+    >
+      <div className="mx-auto w-full max-w-6xl space-y-8 pb-10">
+        {/* HERO */}
+        <section className="relative isolate overflow-hidden rounded-3xl border border-white/[0.08] bg-[#111113]">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-24 -top-28 -z-10 h-72 w-72 rounded-full bg-[#D4AF37]/[0.08] blur-[100px]"
           />
 
-          <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-            <div className="space-y-8 pb-10">
-              {/* HEADER — plain product header; the gold hero is gone. */}
-              <section>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
-                  ANVIX / Control Center
-                </p>
+          <div className="relative p-5 sm:p-8 lg:p-9">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/[0.07]">
+                    <SlidersHorizontal className="h-4 w-4 text-[#D4AF37]" />
+                  </div>
 
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                  Settings
-                </h1>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+                    ANVIX / Control center
+                  </span>
+                </div>
+
+                <h2 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
+                  Make it yours.
+                </h2>
 
                 <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-400">
-                  Personalize your workspace and tune how ANVIX responds
-                  to your ideas.
+                  Personalize your workspace and tune how ANVIX
+                  responds to your ideas.
                 </p>
+              </div>
 
-                {/* QUICK OVERVIEW */}
-                <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {quickStats.map((item) => {
-                    const Icon = item.icon;
+              <div className="flex w-fit items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#D4AF37]" />
+                <span className="text-xs text-zinc-400">
+                  Workspace preferences
+                </span>
+              </div>
+            </div>
 
-                    return (
-                      <div
-                        key={item.label}
-                        className="min-w-0 rounded-xl border border-white/[0.07] bg-black/20 p-3.5 transition-colors hover:border-white/[0.12]"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Icon
-                            className="h-3.5 w-3.5 shrink-0 text-ink-muted"
-                            aria-hidden="true"
-                          />
-                          <span className="truncate text-[10px] uppercase tracking-wider text-zinc-500">
-                            {item.label}
-                          </span>
-                        </div>
+            {/* QUICK OVERVIEW */}
+            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {quickStats.map((item) => {
+                const Icon = item.icon;
 
-                        <p className="mt-2 truncate text-xs font-medium text-zinc-200">
-                          {item.value}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+                return (
+                  <div
+                    key={item.label}
+                    className="min-w-0 rounded-xl border border-white/[0.07] bg-black/20 p-3.5 transition-colors hover:border-white/[0.12]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate text-[10px] uppercase tracking-wider text-zinc-500">
+                        {item.label}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 truncate text-xs font-medium text-zinc-200">
+                      {item.value}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
 
         {/* SETTINGS CATEGORIES */}
         <section>
@@ -309,25 +321,21 @@ export default function SettingsPage() {
                       document
                         .getElementById("notification-settings")
                         ?.scrollIntoView({ behavior: "smooth" });
-                    } else if (section.title === "API Keys") {
-                      document
-                        .getElementById("byok-settings")
-                        ?.scrollIntoView({ behavior: "smooth" });
                     }
                   }}
                   className="
                     group flex w-full items-start gap-4 rounded-2xl
                     border border-white/[0.07] bg-[#111113] p-4
                     text-left transition-all duration-200
-                    hover:border-white/15 hover:bg-[#141416]
+                    hover:border-[#D4AF37]/20 hover:bg-[#141416]
                     focus-visible:outline-none focus-visible:ring-2
-                    focus-visible:ring-action
+                    focus-visible:ring-[#D4AF37]/50
                     disabled:cursor-default disabled:opacity-75
                     sm:p-5
                   "
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-2 transition-colors group-hover:bg-surface-3">
-                    <Icon className="h-4 w-4 text-ink-muted" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#D4AF37]/15 bg-[#D4AF37]/[0.06] transition-colors group-hover:bg-[#D4AF37]/[0.1]">
+                    <Icon className="h-4 w-4 text-[#D4AF37]" />
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -383,7 +391,7 @@ export default function SettingsPage() {
 
                 <Link
                   href="/auth"
-                  className="inline-flex items-center gap-2 rounded-lg bg-action px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-action-hover"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-3.5 py-2 text-xs font-semibold text-black transition hover:bg-[#E2C259]"
                 >
                   Sign in
                 </Link>
@@ -411,13 +419,13 @@ export default function SettingsPage() {
                       value={displayName}
                       onChange={(event) => setDisplayName(event.target.value)}
                       placeholder="Your name"
-                      className="h-10 min-w-56 flex-1 rounded-lg border border-white/[0.08] bg-[#0D0D0D] px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-action/40"
+                      className="h-10 min-w-56 flex-1 rounded-lg border border-white/[0.08] bg-[#0D0D0D] px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-[#D4AF37]/40"
                     />
 
                     <button
                       type="button"
                       onClick={() => void saveProfile()}
-                      className="inline-flex h-10 items-center rounded-lg bg-action px-4 text-xs font-semibold text-white transition hover:bg-action-hover"
+                      className="inline-flex h-10 items-center rounded-lg bg-[#D4AF37] px-4 text-xs font-semibold text-black transition hover:bg-[#E2C259]"
                     >
                       Save profile
                     </button>
@@ -437,58 +445,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* YOUR GEMINI KEY (BYOK) — UI-first: the input stays
-              disabled with honest copy until /api/chat accepts a
-              client key. Nothing is saved, nothing is faked. */}
-          <div
-            id="byok-settings"
-            className="mt-4 scroll-mt-24 rounded-2xl border border-white/[0.07] bg-[#111113] p-5"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-black/20">
-                <KeyRound className="h-4 w-4 text-ink-muted" />
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold text-white">
-                  Your Gemini key
-                </h3>
-                <p className="mt-0.5 text-xs text-zinc-500">
-                  Bring your own key — optional.
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-zinc-400">
-              No key saved — AGI runs on the shared key.
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-3">
-              <input
-                type="password"
-                disabled
-                placeholder="Paste your Gemini API key"
-                aria-label="Your Gemini API key — not connected yet"
-                className="h-10 min-w-56 flex-1 rounded-lg border border-white/[0.08] bg-[#0D0D0D] px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 disabled:cursor-not-allowed disabled:opacity-50"
-              />
-
-              <button
-                type="button"
-                disabled
-                className="inline-flex h-10 cursor-not-allowed items-center rounded-lg bg-action px-4 text-xs font-semibold text-white opacity-50"
-              >
-                Save key
-              </button>
-            </div>
-
-            <p className="mt-3 text-xs leading-5 text-zinc-500">
-              Your own key is not connected yet — this field is disabled
-              until AGI can use it. Saved only in this browser. Never
-              shown in full, never sent anywhere except ANVIX&apos;s own
-              chat requests.
-            </p>
           </div>
         </section>
 
@@ -511,7 +467,7 @@ export default function SettingsPage() {
               className="scroll-mt-24 rounded-2xl border border-white/[0.07] bg-[#111113] p-5"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-black/20">
-                <MoonStar className="h-4 w-4 text-ink-muted" />
+                <MoonStar className="h-4 w-4 text-[#D4AF37]" />
               </div>
 
               <h3 className="mt-5 text-sm font-semibold text-white">
@@ -519,14 +475,37 @@ export default function SettingsPage() {
               </h3>
 
               <p className="mt-1.5 text-xs leading-5 text-zinc-500">
-                How ANVIX looks on your screen.
+                Save your preferred interface appearance.
               </p>
 
-              {/* Dark-only: there is no light theme, so there is no
-                  switch to flip. The switch returns if one is built. */}
-              <p className="mt-5 rounded-xl border border-white/[0.07] bg-black/20 px-3.5 py-3 text-xs leading-5 text-zinc-300">
-                Appearance — Dark only. ANVIX is designed for dark mode.
-              </p>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={preferences.darkMode}
+                onClick={() =>
+                  updatePreference("darkMode", !preferences.darkMode)
+                }
+                className="mt-5 flex w-full items-center justify-between rounded-xl border border-white/[0.07] bg-black/20 px-3.5 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/50"
+              >
+                <span className="text-xs text-zinc-300">
+                  Dark appearance preference
+                </span>
+
+                <span
+                  aria-hidden="true"
+                  className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                    preferences.darkMode
+                      ? "bg-[#D4AF37]"
+                      : "bg-zinc-700"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 h-3 w-3 rounded-full bg-white transition-all ${
+                      preferences.darkMode ? "left-5" : "left-1"
+                    }`}
+                  />
+                </span>
+              </button>
             </div>
 
             {/* AI PREFERENCES */}
@@ -534,8 +513,8 @@ export default function SettingsPage() {
               id="ai-settings"
               className="scroll-mt-24 rounded-2xl border border-white/[0.07] bg-[#111113] p-5"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface-2">
-                <Sparkles className="h-4 w-4 text-ink-muted" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#D4AF37]/15 bg-[#D4AF37]/[0.06]">
+                <Sparkles className="h-4 w-4 text-[#D4AF37]" />
               </div>
 
               <h3 className="mt-5 text-sm font-semibold text-white">
@@ -551,7 +530,7 @@ export default function SettingsPage() {
                 onChange={(event) =>
                   updatePreference("responseStyle", event.target.value)
                 }
-                className="mt-5 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3.5 py-3 text-xs text-zinc-300 outline-none transition focus:border-action/40 focus:ring-2 focus:ring-action/10"
+                className="mt-5 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3.5 py-3 text-xs text-zinc-300 outline-none transition focus:border-[#D4AF37]/40 focus:ring-2 focus:ring-[#D4AF37]/10"
               >
                 <option value="Balanced">Balanced</option>
                 <option value="Concise">Concise</option>
@@ -566,7 +545,7 @@ export default function SettingsPage() {
               className="scroll-mt-24 rounded-2xl border border-white/[0.07] bg-[#111113] p-5"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-black/20">
-                <Bell className="h-4 w-4 text-ink-muted" />
+                <Bell className="h-4 w-4 text-[#D4AF37]" />
               </div>
 
               <h3 className="mt-5 text-sm font-semibold text-white">
@@ -587,7 +566,7 @@ export default function SettingsPage() {
                     !preferences.notifications,
                   )
                 }
-                className="mt-5 flex w-full items-center justify-between rounded-xl border border-white/[0.07] bg-black/20 px-3.5 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+                className="mt-5 flex w-full items-center justify-between rounded-xl border border-white/[0.07] bg-black/20 px-3.5 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/50"
               >
                 <span className="text-xs text-zinc-300">
                   Workspace notifications
@@ -597,7 +576,7 @@ export default function SettingsPage() {
                   aria-hidden="true"
                   className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
                     preferences.notifications
-                      ? "bg-action"
+                      ? "bg-[#D4AF37]"
                       : "bg-zinc-700"
                   }`}
                 >
@@ -615,8 +594,8 @@ export default function SettingsPage() {
         {/* AI PERFORMANCE */}
         <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#111113]">
           <div className="flex items-center gap-3 border-b border-white/[0.07] p-5 sm:px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface-2">
-              <Zap className="h-4 w-4 text-ink-muted" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#D4AF37]/15 bg-[#D4AF37]/[0.06]">
+              <Zap className="h-4 w-4 text-[#D4AF37]" />
             </div>
 
             <div>
@@ -646,10 +625,10 @@ export default function SettingsPage() {
               onClick={() =>
                 updatePreference("streaming", !preferences.streaming)
               }
-              className="relative h-5 w-9 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+              className="relative h-5 w-9 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/50"
               style={{
                 backgroundColor: preferences.streaming
-                  ? "#0074E8"
+                  ? "#D4AF37"
                   : "#3F3F46",
               }}
             >
@@ -668,7 +647,7 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-black/20">
-                <Keyboard className="h-4 w-4 text-ink-muted" />
+                <Keyboard className="h-4 w-4 text-[#D4AF37]" />
               </div>
 
               <div>
@@ -715,7 +694,7 @@ export default function SettingsPage() {
             ) : saveError ? (
               <Info className="h-4 w-4 shrink-0 text-red-400" />
             ) : (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-action" />
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#D4AF37]" />
             )}
 
             <span
@@ -738,7 +717,7 @@ export default function SettingsPage() {
             type="button"
             onClick={handleSave}
             disabled={!hydrated || saving}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-action px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-action-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#D4AF37] px-5 py-2.5 text-xs font-semibold text-black transition hover:bg-[#E5C158] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? (
               <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -756,10 +735,7 @@ export default function SettingsPage() {
           <Info className="h-3 w-3" />
           <span>ANVIX AI · Preferences stored locally</span>
         </div>
-            </div>
-          </main>
-        </>
-      }
-    />
+      </div>
+    </AppShell>
   );
 }

@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import {
-  ArrowRight,
   Check,
   Loader2,
   Sparkles,
@@ -11,8 +9,6 @@ import {
 interface GenerateProgressProps {
   currentStep?: number;
   completed?: boolean;
-  /** Workspace route for the completion button. Shown only when completed. */
-  workspaceHref?: string;
 }
 
 const steps = [
@@ -50,7 +46,6 @@ function clampStep(value: number): number {
 export default function GenerateProgress({
   currentStep = 1,
   completed = false,
-  workspaceHref,
 }: GenerateProgressProps) {
   const safeStep = clampStep(currentStep);
 
@@ -80,13 +75,46 @@ export default function GenerateProgress({
         relative
         isolate
         overflow-hidden
-        rounded-2xl
+        rounded-3xl
         border
-        border-white/[0.07]
-        bg-[#1F1F20]
+        border-[#D4AF37]/15
+        bg-[#111113]/95
         shadow-[0_24px_80px_-40px_rgba(0,0,0,0.8)]
       "
     >
+      {/* Ambient glow */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          -right-32
+          -top-32
+          -z-10
+          h-64
+          w-64
+          rounded-full
+          bg-[#D4AF37]/[0.06]
+          blur-[90px]
+        "
+      />
+
+      {/* Top highlight */}
+      <div
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-x-0
+          top-0
+          h-px
+          bg-gradient-to-r
+          from-transparent
+          via-[#D4AF37]/35
+          to-transparent
+        "
+      />
+
       <div className="relative p-5 sm:p-6 lg:p-7">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -102,10 +130,11 @@ export default function GenerateProgress({
                 justify-center
                 rounded-xl
                 border
+                shadow-[0_0_24px_rgba(212,175,55,0.06)]
                 ${
                   completed
                     ? "border-emerald-500/20 bg-emerald-500/[0.07]"
-                    : "border-[#0074E8]/20 bg-[#0074E8]/[0.08]"
+                    : "border-[#D4AF37]/20 bg-[#D4AF37]/[0.08]"
                 }
               `}
             >
@@ -116,7 +145,7 @@ export default function GenerateProgress({
                 />
               ) : (
                 <Sparkles
-                  className="h-5 w-5 text-[#0074E8]"
+                  className="h-5 w-5 text-[#D4AF37]"
                   strokeWidth={1.8}
                 />
               )}
@@ -156,7 +185,7 @@ export default function GenerateProgress({
               ${
                 completed
                   ? "border-emerald-500/20 bg-emerald-500/[0.06]"
-                  : "border-[#0074E8]/20 bg-[#0074E8]/[0.06]"
+                  : "border-[#D4AF37]/20 bg-[#D4AF37]/[0.04]"
               }
             `}
           >
@@ -172,7 +201,7 @@ export default function GenerateProgress({
                   h-1.5
                   w-1.5
                   rounded-full
-                  bg-[#0074E8]
+                  bg-[#D4AF37]
                   motion-safe:animate-pulse
                 "
               />
@@ -186,7 +215,7 @@ export default function GenerateProgress({
                 ${
                   completed
                     ? "text-emerald-400"
-                    : "text-[#0074E8]"
+                    : "text-[#D4AF37]"
                 }
               `}
             >
@@ -215,7 +244,10 @@ export default function GenerateProgress({
               className="
                 h-full
                 rounded-full
-                bg-[#0074E8]
+                bg-gradient-to-r
+                from-[#B89425]
+                via-[#D4AF37]
+                to-[#F0D675]
                 transition-[width]
                 duration-500
                 ease-out
@@ -277,7 +309,7 @@ export default function GenerateProgress({
                     isComplete
                       ? "border-emerald-500/15 bg-emerald-500/[0.035]"
                       : isCurrent
-                        ? "border-[#0074E8]/25 bg-[#0074E8]/[0.05]"
+                        ? "border-[#D4AF37]/25 bg-[#D4AF37]/[0.055]"
                         : "border-white/[0.05] bg-[#0D0D0F]/70"
                   }
                 `}
@@ -298,7 +330,7 @@ export default function GenerateProgress({
                       isComplete
                         ? "border-emerald-500/20 bg-emerald-500/[0.08]"
                         : isCurrent
-                          ? "border-[#0074E8]/25 bg-[#0074E8]/[0.08]"
+                          ? "border-[#D4AF37]/25 bg-[#D4AF37]/[0.08]"
                           : "border-zinc-800 bg-zinc-900/70"
                     }
                   `}
@@ -313,7 +345,7 @@ export default function GenerateProgress({
                       className="
                         h-4
                         w-4
-                        text-[#0074E8]
+                        text-[#D4AF37]
                         motion-safe:animate-spin
                       "
                       strokeWidth={2}
@@ -354,7 +386,7 @@ export default function GenerateProgress({
                           isComplete
                             ? "text-emerald-400/80"
                             : isCurrent
-                              ? "text-[#0074E8]"
+                              ? "text-[#D4AF37]"
                               : "text-zinc-700"
                         }
                       `}
@@ -411,7 +443,7 @@ export default function GenerateProgress({
           ) : (
             <Sparkles
               aria-hidden="true"
-              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0074E8]/70"
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D4AF37]/70"
             />
           )}
 
@@ -423,39 +455,6 @@ export default function GenerateProgress({
                 : "Progress reflects the current stage reported by the generation flow."}
           </p>
         </div>
-
-        {/* Completion handoff — visible step into the workspace, in
-            addition to the auto-redirect. */}
-        {completed && workspaceHref && (
-          <div className="mt-5">
-            <Link
-              href={workspaceHref}
-              className="
-                inline-flex
-                w-full
-                items-center
-                justify-center
-                gap-2
-                rounded-xl
-                bg-[#0074E8]
-                px-5
-                py-3
-                text-sm
-                font-semibold
-                text-white
-                transition-colors
-                hover:bg-[#1A8CFF]
-                focus-visible:outline-none
-                focus-visible:ring-2
-                focus-visible:ring-[#0074E8]/60
-                sm:w-auto
-              "
-            >
-              Open in Workspace
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
-        )}
 
         {/* Screen-reader announcement */}
         <p

@@ -35,7 +35,7 @@ const examples: ExamplePrompt[] = [
       "Build a production-style AI recruiting platform for modern hiring teams. Include recruiter authentication, candidate profiles, candidate search and filtering, job management, an applicant pipeline, AI-powered candidate scoring, recruiter dashboards, hiring analytics, and an AI assistant that helps recruiters evaluate candidates. Use a clean premium interface with responsive layouts, clear navigation, useful empty states, loading states, and realistic sample data.",
     icon: WandSparkles,
     tag: "AI + SaaS",
-    accent: "from-[#0074E8]/10",
+    accent: "from-amber-400/10",
   },
   {
     id: "developer-workspace",
@@ -46,7 +46,7 @@ const examples: ExamplePrompt[] = [
       "Create a premium developer workspace for shipping and managing internal applications. Include authentication, a dashboard, project management, team members, activity history, deployment status, analytics, billing, notifications, and project settings. Add realistic sample data and useful states for empty projects, active deployments, failed deployments, and completed deployments. Use a professional dark interface with a fixed sidebar and responsive layouts.",
     icon: Layers3,
     tag: "SaaS",
-    accent: "from-[#0074E8]/10",
+    accent: "from-yellow-400/10",
   },
   {
     id: "research-hub",
@@ -57,7 +57,7 @@ const examples: ExamplePrompt[] = [
       "Design an AI-powered research workspace for researchers and knowledge teams. Include projects, research documents, notes, searchable knowledge, document summaries, AI-generated insights, saved sources, tags, and collaboration features. Create a dashboard showing recent research activity and project progress. Use a premium dark interface with clear information hierarchy, realistic sample content, responsive layouts, and polished loading and empty states.",
     icon: BrainCircuit,
     tag: "AI + Research",
-    accent: "from-[#0074E8]/10",
+    accent: "from-orange-400/10",
   },
 ];
 
@@ -82,15 +82,15 @@ function ExamplePrompts({
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-[#0074E8]/20 bg-[#0074E8]/[0.07]">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-[#D4AF37]/20 bg-[#D4AF37]/[0.07]">
               <Sparkles
-                className="h-3.5 w-3.5 text-[#0074E8]"
+                className="h-3.5 w-3.5 text-[#D4AF37]"
                 strokeWidth={1.8}
                 aria-hidden="true"
               />
             </span>
 
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0074E8]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#D4AF37]">
               Quick start
             </p>
           </div>
@@ -133,17 +133,18 @@ function ExamplePrompts({
               className="
                 group/card relative flex min-w-0 flex-col
                 overflow-hidden rounded-2xl border
-                border-white/[0.07] bg-[#1F1F20]
+                border-white/[0.08] bg-[#111113]
                 p-4 text-left
                 transition-all duration-200
-                hover:border-[#0074E8]/30
+                hover:-translate-y-0.5
+                hover:border-[#D4AF37]/30
                 hover:bg-[#151517]
                 hover:shadow-[0_16px_40px_rgba(0,0,0,0.25)]
                 focus-visible:outline-none
                 focus-visible:ring-2
-                focus-visible:ring-[#0074E8]/60
+                focus-visible:ring-[#D4AF37]/60
                 focus-visible:ring-offset-2
-                focus-visible:ring-offset-[#181819]
+                focus-visible:ring-offset-[#0D0D0F]
                 active:translate-y-0
                 disabled:pointer-events-none
                 disabled:opacity-50
@@ -152,7 +153,7 @@ function ExamplePrompts({
                 sm:p-5
               "
             >
-              {/* Blue glow */}
+              {/* Gold glow */}
               <div
                 aria-hidden="true"
                 className={`
@@ -169,14 +170,14 @@ function ExamplePrompts({
               <div className="relative flex w-full items-center justify-between">
                 <div className="
                   flex h-11 w-11 items-center justify-center
-                  rounded-xl border border-[#0074E8]/15
-                  bg-[#0074E8]/[0.08]
+                  rounded-xl border border-[#D4AF37]/15
+                  bg-[#D4AF37]/[0.06]
                   transition-all duration-200
-                  group-hover/card:border-[#0074E8]/30
-                  group-hover/card:bg-[#0074E8]/[0.10]
+                  group-hover/card:border-[#D4AF37]/30
+                  group-hover/card:bg-[#D4AF37]/[0.10]
                 ">
                   <Icon
-                    className="h-5 w-5 text-[#0074E8] transition-transform duration-200 group-hover/card:scale-110"
+                    className="h-5 w-5 text-[#D4AF37] transition-transform duration-200 group-hover/card:scale-110"
                     strokeWidth={1.7}
                     aria-hidden="true"
                   />
@@ -187,8 +188,8 @@ function ExamplePrompts({
                   rounded-full border border-white/[0.07]
                   bg-[#0D0D0F] text-zinc-600
                   transition-all duration-200
-                  group-hover/card:border-[#0074E8]/25
-                  group-hover/card:text-[#0074E8]
+                  group-hover/card:border-[#D4AF37]/25
+                  group-hover/card:text-[#D4AF37]
                 ">
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/card:translate-x-0.5" />
                 </span>
@@ -203,8 +204,8 @@ function ExamplePrompts({
                   text-[9px] font-semibold uppercase
                   tracking-[0.10em] text-zinc-500
                   transition-colors
-                  group-hover/card:border-[#0074E8]/20
-                  group-hover/card:text-[#0074E8]
+                  group-hover/card:border-[#D4AF37]/20
+                  group-hover/card:text-[#D4AF37]
                 ">
                   {example.tag}
                 </span>
@@ -227,7 +228,7 @@ function ExamplePrompts({
                 justify-between border-t border-white/[0.06]
                 pt-3
               ">
-                <span className="text-[10px] font-medium text-zinc-500 transition-colors group-hover/card:text-[#0074E8]">
+                <span className="text-[10px] font-medium text-zinc-500 transition-colors group-hover/card:text-[#D4AF37]">
                   Use blueprint
                 </span>
 

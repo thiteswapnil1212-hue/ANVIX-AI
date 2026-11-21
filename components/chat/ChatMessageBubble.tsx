@@ -13,6 +13,8 @@ import remarkGfm from "remark-gfm";
 import {
   Check,
   Copy,
+  Sparkles,
+  UserRound,
 } from "lucide-react";
 
 interface ChatMessageBubbleProps {
@@ -86,10 +88,10 @@ function CopyButton({
         inline-flex min-h-8 items-center justify-center gap-1.5
         rounded-lg border border-white/10 bg-white/[0.04]
         px-2.5 text-xs font-medium text-zinc-400
-        transition-colors hover:border-[#FAFAFA]/30
-        hover:bg-[#FAFAFA]/[0.08] hover:text-[#EDEDED]
+        transition-colors hover:border-[#D4AF37]/30
+        hover:bg-[#D4AF37]/[0.08] hover:text-[#E9C96B]
         focus-visible:outline-none focus-visible:ring-2
-        focus-visible:ring-[#FAFAFA]/60
+        focus-visible:ring-[#D4AF37]/60
         ${className}
       `}
     >
@@ -129,9 +131,9 @@ const markdownComponents: Components = {
         target={safeHref?.startsWith("http") ? "_blank" : undefined}
         rel={safeHref?.startsWith("http") ? "noopener noreferrer" : undefined}
         className="
-          break-words text-[#FAFAFA] underline
+          break-words text-[#D4AF37] underline
           underline-offset-4 transition-colors
-          hover:text-zinc-100
+          hover:text-yellow-300
         "
       >
         {children}
@@ -215,7 +217,7 @@ const markdownComponents: Components = {
             : `
               rounded-md border border-white/[0.06]
               bg-white/[0.07] px-1.5 py-0.5
-              font-mono text-[0.9em] text-[#EDEDED]
+              font-mono text-[0.9em] text-[#E9C96B]
               ${className || ""}
             `
         }
@@ -282,29 +284,70 @@ function ChatMessageBubble({
         ${isAssistant ? "justify-start" : "justify-end"}
       `}
     >
+      {isAssistant && (
+        <div
+          className="
+            mt-1 flex h-8 w-8 shrink-0 items-center
+            justify-center rounded-xl border
+            border-[#D4AF37]/25
+            bg-gradient-to-br from-[#D4AF37]/[0.13]
+            to-[#D4AF37]/[0.03]
+            shadow-[0_0_18px_rgba(212,175,55,0.06)]
+          "
+          title="ANVIX AI"
+        >
+          <Sparkles
+            className="h-4 w-4 text-[#D4AF37]"
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+        </div>
+      )}
+
       <div
         className={`
           relative min-w-0
           ${
             isAssistant
-              ? "w-full"
-              : "max-w-[calc(100%-1rem)] sm:max-w-[76%]"
+              ? "max-w-[calc(100%-2.75rem)] sm:max-w-[82%]"
+              : "max-w-[calc(100%-2.75rem)] sm:max-w-[76%]"
           }
         `}
       >
+        {isAssistant && (
+          <div className="mb-2 flex min-h-4 items-center gap-2 px-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.17em] text-[#D4AF37]">
+              ANVIX AI
+            </span>
+            <span
+              className="h-1 w-1 rounded-full bg-zinc-700"
+              aria-hidden="true"
+            />
+            <span className="text-[10px] font-medium text-zinc-500">
+              Assistant
+            </span>
+          </div>
+        )}
+
         <div
           className={`
-            relative min-w-0 rounded-[20px]
+            relative min-w-0 rounded-2xl border
             px-4 py-3 transition-colors duration-200
             sm:px-5 sm:py-4
             ${
               isAssistant
                 ? `
-                  rounded-2xl
-                  bg-[#1F1F20] text-[#EDEDED]
+                  rounded-tl-md border-white/[0.07]
+                  bg-[#151518]/95 text-zinc-200
+                  shadow-[0_8px_30px_rgba(0,0,0,0.12)]
+                  hover:border-white/[0.12]
                 `
                 : `
-                  bg-[#113254] text-white
+                  rounded-tr-md border-[#D4AF37]/20
+                  bg-gradient-to-br from-[#302E25]
+                  to-[#24231F] text-zinc-100
+                  shadow-[0_8px_30px_rgba(0,0,0,0.10)]
+                  hover:border-[#D4AF37]/35
                 `
             }
           `}
@@ -315,7 +358,7 @@ function ChatMessageBubble({
               text-[14px] leading-[1.8] sm:text-[15px]
               ${
                 isAssistant
-                  ? "selection:bg-[#FAFAFA]/25"
+                  ? "selection:bg-[#D4AF37]/25"
                   : "whitespace-pre-wrap selection:bg-zinc-500/30"
               }
             `}
@@ -341,15 +384,15 @@ function ChatMessageBubble({
                   [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6
                   [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6
                   [&_li]:my-1 [&_li]:pl-1
-                  [&_li::marker]:text-[#FAFAFA]
+                  [&_li::marker]:text-[#D4AF37]
                   [&_blockquote]:my-3
                   [&_blockquote]:border-l-2
-                  [&_blockquote]:border-[#FAFAFA]/50
+                  [&_blockquote]:border-[#D4AF37]/50
                   [&_blockquote]:pl-4
                   [&_blockquote]:text-zinc-400
                   [&_hr]:my-5 [&_hr]:border-white/10
                   [&_input[type=checkbox]]:mr-2
-                  [&_input[type=checkbox]]:accent-[#FAFAFA]
+                  [&_input[type=checkbox]]:accent-[#D4AF37]
                 "
               >
                 <ReactMarkdown
@@ -383,6 +426,23 @@ function ChatMessageBubble({
           </div>
         </div>
       </div>
+
+      {!isAssistant && (
+        <div
+          className="
+            mt-1 flex h-8 w-8 shrink-0 items-center
+            justify-center rounded-xl border
+            border-white/[0.10] bg-[#202023] text-zinc-400
+          "
+          title="You"
+        >
+          <UserRound
+            className="h-4 w-4"
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+        </div>
+      )}
     </article>
   );
 }
