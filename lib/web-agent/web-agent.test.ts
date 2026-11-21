@@ -13,6 +13,8 @@ import {
 import { isAllowedWebUrl, validateWebPlan } from "./planner.ts";
 import { isAllowedWebUrl as isAllowedWebUrlFromLeaf } from "./urls.ts";
 import { isPrivateOrReservedIp } from "./urls.ts";
+import { checkWebUrlDns, isAllowedWebUrlAsync } from "./dns.ts";
+import type { DnsResolver } from "./dns.ts";
 import type { WebStep } from "./types.ts";
 
 test("allowed URLs are public http(s) pages only", () => {
@@ -133,6 +135,65 @@ test("SSRF: isPrivateOrReservedIp judges raw literals, fail-closed", () => {
   assert.equal(isPrivateOrReservedIp("example.com"), false);
   assert.equal(isPrivateOrReservedIp("not-an-ip:::"), true);
   assert.equal(isPrivateOrReservedIp(""), true);
+});
+
+test("SSRF: async DNS check blocks any private answer (rebinding defence)", async () => {
+  // No live DNS here: the sandbox answers public names with 198.18.x
+  // (benchmarking range), so every resolver below is injected.
+  const publicOnly: DnsResolver = async () => ["93.184.216.34"];
+  const mixed: DnsResolver = async () => ["93.184.216.34", "127.0.0.1"];
+  const privateOnly: DnsResolver = async () => ["10.0.0.5"];
+  const mapped: DnsResolver = async () => ["::ffff:7f00:1"];
+  const v6Private: DnsResolver = async () => ["2606:4700:4700::1111", "fd00::1"];
+  const benchmark: DnsResolver = async () => ["198.18.0.23"];
+  const failing: DnsResolver = async () => {
+    throw new Error("ENOTFOUND");
+  };
+  const empty: DnsResolver = async () => [];
+
+  assert.equal(await isAllowedWebUrlAsync("https://example.com", publicOnly), true);
+
+  const mixedResult = await checkWebUrlDns("https://example.com", mixed);
+  assert.equal(mixedResult.allowed, false);
+  assert.equal(mixedResult.blockedIp, "127.0.0.1");
+  assert.match(mixedResult.reason ?? "", /resolves to 127\.0\.0\.1/);
+
+  assert.equal(await isAllowedWebUrlAsync("https://example.com", privateOnly), false);
+  assert.equal(await isAllowedWebUrlAsync("https://example.com", mapped), false);
+  assert.equal(await isAllowedWebUrlAsync("https://example.com", v6Private), false);
+  // Sandbox-shaped answer: a public name resolving into the
+  // benchmarking range is blocked, not trusted.
+  assert.equal(await isAllowedWebUrlAsync("https://example.com", benchmark), false);
+
+  // Fail closed: lookup errors and empty answers block the URL.
+  assert.equal(await isAllowedWebUrlAsync("https://example.com", failing), false);
+  assert.equal(await isAllowedWebUrlAsync("https://example.com", empty), false);
+  assert.match(
+    (await checkWebUrlDns("https://example.com", failing)).reason ?? "",
+    /Could not resolve/
+  );
+});
+
+test("SSRF: async DNS check skips resolution for IP literals and sync-blocked URLs", async () => {
+  let calls = 0;
+  const counting: DnsResolver = async (host) => {
+    calls += 1;
+    return [`${host}`];
+  };
+  const neverCall: DnsResolver = async () => {
+    throw new Error("resolver must not be called");
+  };
+
+  // Public IP literal: allowed, no DNS lookup needed.
+  assert.equal(await isAllowedWebUrlAsync("http://8.8.8.8/", neverCall), true);
+  assert.equal(await isAllowedWebUrlAsync("http://[2606:4700:4700::1111]/", neverCall), true);
+  // Private IP literal: blocked by the sync check, still no DNS.
+  assert.equal(await isAllowedWebUrlAsync("http://127.0.0.1/", neverCall), false);
+  assert.equal(await isAllowedWebUrlAsync("http://[::ffff:127.0.0.1]/", neverCall), false);
+  // Sync-blocked name: blocked before any resolution happens.
+  assert.equal(await isAllowedWebUrlAsync("http://localhost:3000/", counting), false);
+  assert.equal(await isAllowedWebUrlAsync("http://intranet/", counting), false);
+  assert.equal(calls, 0);
 });
 
 test("a valid plan passes validation", () => {
