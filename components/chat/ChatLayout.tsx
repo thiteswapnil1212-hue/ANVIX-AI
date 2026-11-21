@@ -238,7 +238,7 @@ export default function ChatLayout() {
   const [isTyping, setIsTyping] = useState(false);
 
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
 
   // Cloud sync bookkeeping: which conversation snapshots are already in
   // Supabase, and which ids existed there (so deletions propagate).
@@ -797,8 +797,8 @@ export default function ChatLayout() {
                   router.push("/auth");
                 }
               }}
-              userName={user?.email ?? "Guest"}
-              plan={user ? "Cloud sync on" : "Local workspace"}
+              userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
+              plan={authLoading ? "Checking your account…" : user ? "Cloud sync on" : "Local workspace"}
             />
           </div>
         </aside>
@@ -911,8 +911,8 @@ export default function ChatLayout() {
                       router.push("/auth");
                     }
                   }}
-                  userName={user?.email ?? "Guest"}
-                  plan={user ? "Cloud sync on" : "Local workspace"}
+                  userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
+                  plan={authLoading ? "Checking your account…" : user ? "Cloud sync on" : "Local workspace"}
                 />
               </div>
             </aside>
