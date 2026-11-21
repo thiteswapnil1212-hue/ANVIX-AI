@@ -37,7 +37,7 @@ type AvailabilityFilter = "all" | "available" | "locked";
 type SortOption = "default" | "name" | "provider";
 
 const MODEL_INFO: Record<string, ModelInfo> = {
-  "gemini-2.5-flash": {
+  "gemini-3.5-flash-lite": {
     description:
       "A general-purpose option for everyday questions, coding help, writing, and explanations.",
     bestFor: ["Everyday questions", "Learning", "Coding", "Brainstorming"],

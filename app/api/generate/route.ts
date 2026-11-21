@@ -3,6 +3,10 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
+  CHAT_THINKING_LEVEL,
+  thinkingConfig,
+} from "@/lib/gemini/model-config";
+import {
   CHAT_API_MODEL_IDS,
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
@@ -121,6 +125,9 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({
       model: selectedModel.apiModelId ?? DEFAULT_CHAT_MODEL_ID,
+      generationConfig: {
+        ...thinkingConfig(CHAT_THINKING_LEVEL),
+      },
     });
 
     // Start the provider stream before returning the response.

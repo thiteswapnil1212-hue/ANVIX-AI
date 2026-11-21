@@ -1,5 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+import {
+  FIX_MODEL_ID,
+  FIX_THINKING_LEVEL,
+  thinkingConfig,
+} from "./model-config.ts";
+
 import type { GeneratedProject, ProjectFile } from "@/lib/project/project-schema";
 import { parseGeminiJson } from "./fallback";
 import type { ValidationIssue } from "@/lib/project/validate";
@@ -19,7 +25,7 @@ import type { ValidationIssue } from "@/lib/project/validate";
  * agent) should look at it.
  */
 
-const FIX_MODEL = "gemini-2.5-flash";
+const FIX_MODEL = FIX_MODEL_ID;
 const FIX_TIMEOUT_MS = 60000;
 const MAX_FILE_CHARS = 6000;
 const MAX_TOTAL_CHARS = 30000;
@@ -105,6 +111,7 @@ ${renderedFiles.join("\n\n")}`;
         responseMimeType: "application/json",
         temperature: 0.2,
         maxOutputTokens: 12000,
+        ...thinkingConfig(FIX_THINKING_LEVEL),
       },
     });
 

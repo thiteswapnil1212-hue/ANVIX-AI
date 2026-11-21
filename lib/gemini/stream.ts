@@ -1,6 +1,7 @@
 import type { GeneratedProject, ProjectFile } from "@/lib/project/project-schema";
 import { validateGeneratedProject } from "@/lib/project/project-schema";
 import { parseGeminiJson, type GeminiModelFactory } from "./fallback";
+import { STREAM_MODEL_CHAIN } from "./model-config.ts";
 
 /**
  * Streaming project generation.
@@ -13,11 +14,13 @@ import { parseGeminiJson, type GeminiModelFactory } from "./fallback";
  * arriving one by one instead of a blank progress screen.
  *
  * Safety rules:
- * - The model chain is the same as the classic path (flash only — the
- *   lite/2.0/3.8 fallbacks are dead or hang on this API, verified live
- *   2026-10-24). A model that fails BEFORE any file is emitted falls
- *   through to the next model; after files are emitted, restarting
- *   would duplicate output, so the error is surfaced instead.
+ * - The model chain is the same as the classic path (primary 3.5
+ *   Flash-Lite, fallback 3.8 Flash). The Oct-2026 note that the
+ *   lite/2.0/3.8 fallbacks were dead or hang is stale — it predates the
+ *   Gemini 3 launch and the 2.5 shutdown. A model that fails BEFORE any
+ *   file is emitted falls through to the next model; after files are
+ *   emitted, restarting would duplicate output, so the error is surfaced
+ *   instead.
  * - The final text is still validated with the same
  *   validateGeneratedProject as the classic path. If the full parse
  *   fails, the stream fails — partial files are shown but never
@@ -31,7 +34,7 @@ export interface StreamCallbacks {
   onFile?: (file: ProjectFile) => void;
 }
 
-const STREAM_MODELS = ["gemini-2.5-flash"];
+const STREAM_MODELS = STREAM_MODEL_CHAIN;
 
 const STREAM_TIMEOUT_MS = 180000;
 

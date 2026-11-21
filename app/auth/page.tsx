@@ -274,7 +274,7 @@ export default function AuthPage() {
                     <div className="flex items-center gap-2">
                       <Zap size={16} className="text-[#dfc477]" />
                       <span className="text-sm font-medium text-white">
-                        Gemini 2.5 Flash
+                        Gemini 3.5 Flash-Lite
                       </span>
                     </div>
 

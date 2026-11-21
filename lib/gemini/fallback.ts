@@ -1,6 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import { validateGeneratedProject, type GeneratedProject } from "../project/project-schema.ts";
+import {
+  BUILD_MODEL_CHAIN,
+  BUILD_THINKING_LEVEL,
+  thinkingConfig,
+} from "./model-config.ts";
 
 export const MODEL_RETRY_DELAYS_MS = [250, 700] as const;
 export const MODEL_FALLBACK_DELAY_MS = 400;
@@ -194,15 +199,14 @@ export async function generateProjectTextWithFallback(
         responseMimeType: "application/json",
         temperature: 0.2,
         maxOutputTokens: 12000,
+        ...thinkingConfig(BUILD_THINKING_LEVEL),
       },
     });
   }
 ): Promise<GeneratedProject> {
   const failures: Array<{ model: string; attempt: number; failureCategory: string; httpStatus?: number; retryable: boolean; reason: string }> = [];
 
-  // Single-model chain: the lite/2.0/3.8 fallbacks are dead or hang on
-  // this API (verified live 2026-10-24) — see GENERATION_MODELS.
-  for (const modelName of ["gemini-2.5-flash"]) {
+  for (const modelName of BUILD_MODEL_CHAIN) {
     const model = modelFactory(apiKey, modelName);
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -286,11 +290,10 @@ export async function generateProjectTextWithFallback(
       }
     }
 
-    throw new Error(
-      failures.length > 0
-        ? `Gemini project generation failed on all configured models: ${failures.map((entry) => `${entry.model} (${entry.failureCategory})`).join("; ")}`
-        : "Gemini request failed"
-    );
+    // NOTE: no throw here on purpose. The aggregate error is thrown only
+    // after the loop, so a failed model actually falls through to the
+    // next model in the chain. (Before the Wave 1 migration this throw
+    // sat inside the loop, so a second model could never run.)
   }
 
   throw new Error(

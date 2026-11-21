@@ -8,6 +8,10 @@ import {
   autoFixProject,
 } from "@/lib/gemini/autofix";
 import {
+  BUILD_THINKING_LEVEL,
+  thinkingConfig,
+} from "@/lib/gemini/model-config";
+import {
   GENERATION_MODELS,
   MAX_PROMPT_LENGTH,
   PROJECT_RESPONSE_SCHEMA,
@@ -142,6 +146,7 @@ export async function POST(req: Request) {
                   responseSchema: PROJECT_RESPONSE_SCHEMA as never,
                   temperature: 0.2,
                   maxOutputTokens: 12000,
+                  ...thinkingConfig(BUILD_THINKING_LEVEL),
                 },
               });
             },

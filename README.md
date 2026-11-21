@@ -1,6 +1,6 @@
 # ANVIX AI
 
-**Turn ideas into working software.** Describe what you want in plain language, and ANVIX plans the architecture and generates the code — powered by Google's Gemini 2.5 Flash.
+**Turn ideas into working software.** Describe what you want in plain language, and ANVIX plans the architecture and generates the code — powered by Google's Gemini 3.5 Flash-Lite (Gemini 3.8 Flash as fallback).
 
 **Live demo:** https://anvix-ai.vercel.app/
 
@@ -16,13 +16,13 @@ The core idea is **prompt engineering as the product**: natural-language intent 
 
 ### 💬 Chat — one live model
 
-Chat runs on a single verified-live model, **Gemini 2.5 Flash**, via the Google Generative AI API. The model registry (`lib/chat-models.ts`) keeps other providers visible but locked until their API keys and route wiring exist:
+Chat runs on a single verified-live model, **Gemini 3.5 Flash-Lite**, via the Google Generative AI API. The model registry (`lib/chat-models.ts`) keeps other providers visible but locked until their API keys and route wiring exist:
 
 **Scaffolded in the UI** (visible but locked until their API keys are added):
 - OpenAI: GPT-5.5, GPT-4.1, GPT-6 (Astra), GPT-4o
 - DeepSeek Reasoner · xAI Grok / Grok Fast
 
-Retired models are not offered: Gemini 2.5 Flash-Lite and Gemini 2.0 Flash return 404 ("no longer available") and Gemini 3.8 Flash hangs via this SDK — all verified live in October 2026 and removed from the picker and every model chain. A second live model will be added only after it is verified answering on this API.
+Retired models are not offered: Gemini 2.5 Flash shut down 1 Dec 2026 (Google auto-routes it to 3.5 Flash-Lite), and Gemini 2.5 Flash-Lite and Gemini 2.0 Flash return 404 ("no longer available"). The build/agent chains fall back from 3.5 Flash-Lite to Gemini 3.8 Flash — both on the Gemini free tier.
 
 Chat supports Markdown + GFM rendering and streaming responses (`/api/chat`).
 
@@ -48,14 +48,14 @@ flowchart LR
     User([You<br/>plain language]) --> UI["Chat · Generate · Workspace<br/>Next.js App Router"]
     UI --> API["API routes<br/>/api/chat · /api/build · /api/agent"]
     API --> FB["lib/gemini/fallback.ts<br/>retries on failure"]
-    FB --> Gem["Gemini 2.5 Flash<br/>only verified-live model"]
+    FB --> Gem["Gemini 3.5 Flash-Lite<br/>primary · 3.8 Flash fallback"]
     Gem --> Stream["Streamed response (SSE)<br/>/api/build/stream · /api/agent/stream"]
     Stream --> WS["Workspace<br/>validate · auto-fix · undo/redo · ZIP"]
     WS --> Store["Supabase · signed in<br/>chats + projects"]
     WS --> Guest["Browser localStorage · guest"]
 ```
 
-`lib/gemini/fallback.ts` retries the model on retryable failures. There is no second model in the chain today — the other candidates were retired or hang on this API (see the chat section above).
+`lib/gemini/fallback.ts` retries the model on retryable failures, falling back from 3.5 Flash-Lite to 3.8 Flash after both attempts on the primary fail.
 
 ## Tech stack
 
@@ -63,7 +63,7 @@ flowchart LR
 |---|---|
 | Framework | Next.js 16 (App Router) · React 19 · TypeScript |
 | Styling | Tailwind CSS v4 · shadcn/ui · Framer Motion · lucide-react |
-| AI | `@google/generative-ai` (Gemini 2.5 Flash — the only verified-live model) |
+| AI | `@google/generative-ai` (Gemini 3.5 Flash-Lite primary, 3.8 Flash fallback) |
 | Data | Supabase (accounts + cloud sync) · browser localStorage (guest mode) |
 | Tests | Node test runner (`node --test`) · `chat-models.test.ts` · `route.fallback.test.ts` |
 

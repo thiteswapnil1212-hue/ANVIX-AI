@@ -1,5 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+import {
+  AGENT_MODEL_CHAIN,
+  AGENT_THINKING_LEVEL,
+  thinkingConfig,
+} from "@/lib/gemini/model-config";
+
 import type {
   AgentToolCall,
   AgentToolName,
@@ -30,13 +36,13 @@ export interface AgentResponse {
   error?: string;
 }
 
-// Single-model chain, deliberately: every other candidate is dead on
-// this API today (verified live 2026-10-24) — gemini-2.5-flash-lite and
-// gemini-2.0-flash return 404 "no longer available", and gemini-3.8-flash
-// hangs until the request timeout. A chain of dead models only turns a
-// fast, honest error into a 60s+ hang. Add a second model here only
-// after verifying it answers on this API.
-const AGENT_MODELS = ["gemini-2.5-flash"] as const;
+// Model chain — primary 3.5 Flash-Lite, fallback 3.8 Flash (both free
+// tier). The Oct-2026 "single model only" rule died with gemini-2.5-flash:
+// 3.8-flash hanging then predates the Gemini 3 launch. A chain of dead
+// models would turn a fast error into a 60s+ hang — but these two are the
+// live successors, so the chain is tried in order; a missing key still
+// throws immediately instead of burning attempts.
+const AGENT_MODELS = AGENT_MODEL_CHAIN;
 const GEMINI_TIMEOUT_MS = 60000;
 const MAX_ACTIONS_PER_REQUEST = 10;
 const ALLOWED_TOOLS: AgentToolName[] = [
@@ -402,6 +408,9 @@ async function generateStructuredActions(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: modelName,
+    generationConfig: {
+      ...thinkingConfig(AGENT_THINKING_LEVEL),
+    },
   });
 
   const result = await withTimeout(

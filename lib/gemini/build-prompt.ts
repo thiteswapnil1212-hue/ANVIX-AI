@@ -33,12 +33,15 @@ export const PROJECT_RESPONSE_SCHEMA = {
   required: ["project"],
 } as const;
 
-// Single-model chain, deliberately: gemini-2.5-flash-lite and
-// gemini-2.0-flash return 404 "no longer available" and gemini-3.8-flash
-// hangs until the request timeout on this API (all verified live
-// 2026-10-24). A chain of dead models only turns a fast, honest error
-// into a 60s+ hang. Add a second model only after verifying it answers.
-export const GENERATION_MODELS = ["gemini-2.5-flash"] as const;
+import { BUILD_MODEL_CHAIN } from "./model-config.ts";
+
+// Model chain for project generation — primary first, fallback second.
+// The Oct-2026 "single model only" rule is retired with gemini-2.5-flash:
+// gemini-2.5-flash-lite and gemini-2.0-flash returned 404 then, and
+// gemini-3.8-flash hung — all verified live 2026-10-24, before the Gemini 3
+// launch. The chain is now real (see lib/gemini/fallback.ts): a second
+// model is tried only after the first fails both attempts.
+export const GENERATION_MODELS = BUILD_MODEL_CHAIN;
 
 export const MAX_PROMPT_LENGTH = 20000;
 

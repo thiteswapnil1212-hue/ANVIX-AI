@@ -5,6 +5,10 @@ import { NextResponse } from "next/server";
 
 import { generateProjectTextWithFallback } from "@/lib/gemini/fallback";
 import { applyFixFiles, autoFixProject } from "@/lib/gemini/autofix";
+import {
+  BUILD_THINKING_LEVEL,
+  thinkingConfig,
+} from "@/lib/gemini/model-config";
 import { validateGeneratedProjectFiles } from "@/lib/project/validate";
 import {
   GENERATION_MODELS,
@@ -84,6 +88,7 @@ export async function POST(req: Request) {
           responseSchema: PROJECT_RESPONSE_SCHEMA as never,
           temperature: 0.2,
           maxOutputTokens: 12000,
+          ...thinkingConfig(BUILD_THINKING_LEVEL),
         },
       });
     });

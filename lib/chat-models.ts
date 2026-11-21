@@ -1,4 +1,6 @@
 
+import { CHAT_MODEL_ID } from "./gemini/model-config.ts";
+
 export type ChatModel = {
   id: string;
   name: string;
@@ -9,11 +11,11 @@ export type ChatModel = {
 
 export const CHAT_MODELS: ChatModel[] = [
   {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
+    id: CHAT_MODEL_ID,
+    name: "Gemini 3.5 Flash-Lite",
     provider: "Google Gemini",
     locked: false,
-    apiModelId: "gemini-2.5-flash",
+    apiModelId: CHAT_MODEL_ID,
   },
   // Locked models — not connected to an API yet.
   {
@@ -88,7 +90,7 @@ export const CHAT_MODELS: ChatModel[] = [
   },
 ];
 
-export const DEFAULT_CHAT_MODEL_ID = "gemini-2.5-flash";
+export const DEFAULT_CHAT_MODEL_ID = CHAT_MODEL_ID;
 
 export const CHAT_API_MODEL_IDS = new Set(
   CHAT_MODELS.filter(

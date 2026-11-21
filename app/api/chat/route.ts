@@ -3,6 +3,10 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
+  CHAT_THINKING_LEVEL,
+  thinkingConfig,
+} from "@/lib/gemini/model-config";
+import {
   CHAT_API_MODEL_IDS,
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
@@ -78,6 +82,9 @@ export async function POST(request: Request) {
   const client = new GoogleGenerativeAI(apiKey);
   const model = client.getGenerativeModel({
     model: selectedModel.apiModelId,
+    generationConfig: {
+      ...thinkingConfig(CHAT_THINKING_LEVEL),
+    },
   });
 
   let cancelled = false;
