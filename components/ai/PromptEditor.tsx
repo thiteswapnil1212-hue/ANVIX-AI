@@ -213,7 +213,7 @@ export default function PromptEditor() {
             "
           >
             <Sparkles className="h-3.5 w-3.5 text-[#D4AF37]" />
-            GPT-5
+            Gemini 2.5 Flash
           </div>
         </div>
 
