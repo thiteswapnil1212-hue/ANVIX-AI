@@ -38,6 +38,7 @@ export default function AuthPage() {
   const { user, loading: authLoading, isPasswordRecovery } = useAuth();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -173,6 +174,9 @@ export default function AuthPage() {
   }
 
   async function handleGoogleSignIn() {
+    // Guard against double-clicks: the OAuth call redirects away on
+    // success, so the busy flag only clears on failure.
+    if (googleBusy) return;
     setMessage("");
 
     if (!supabase) {
@@ -180,13 +184,23 @@ export default function AuthPage() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/chat` },
-    });
+    setGoogleBusy(true);
 
-    if (error) {
-      setMessage(friendlyAuthError(error));
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/chat` },
+      });
+
+      if (error) {
+        setMessage(friendlyAuthError(error));
+        setGoogleBusy(false);
+      }
+    } catch {
+      setMessage(
+        "Something went wrong while contacting the auth service. Please try again."
+      );
+      setGoogleBusy(false);
     }
   }
 
@@ -584,7 +598,8 @@ export default function AuthPage() {
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/[0.1] bg-white/[0.03] text-sm font-medium text-white transition hover:border-white/[0.2] hover:bg-white/[0.06] active:scale-[0.99]"
+                disabled={googleBusy}
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/[0.1] bg-white/[0.03] text-sm font-medium text-white transition hover:border-white/[0.2] hover:bg-white/[0.06] active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
               >
                 <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.58v2.97h3.87c2.26-2.09 3.57-5.16 3.57-8.74z" />
@@ -592,7 +607,7 @@ export default function AuthPage() {
                   <path fill="#FBBC05" d="M5.27 14.31A7.2 7.2 0 0 1 4.89 12c0-.8.14-1.58.38-2.31V6.63H1.29a12 12 0 0 0 0 10.74l3.98-3.06z" />
                   <path fill="#EA4335" d="M12 4.74c1.76 0 3.34.61 4.58 1.8l3.44-3.44A11.98 11.98 0 0 0 12 0 12 12 0 0 0 1.29 6.63l3.98 3.06C6.22 6.85 8.87 4.74 12 4.74z" />
                 </svg>
-                Continue with Google
+                {googleBusy ? "Connecting to Google…" : "Continue with Google"}
               </button>
 
               <div className="my-6 flex items-center gap-3">
