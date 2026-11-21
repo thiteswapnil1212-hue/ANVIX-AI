@@ -11,9 +11,7 @@ import {
   Eye,
   Folder,
   GitBranch,
-  Loader2,
   MoreHorizontal,
-  Play,
   Redo2,
   Rocket,
   Sparkles,
@@ -127,7 +125,6 @@ export default function Workspace({
   const [activeView, setActiveView] = useState<"code" | "preview">("code");
 
   const [aiPrompt, setAiPrompt] = useState("");
-  const [isRunning, setIsRunning] = useState(false);
   const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([]);
   const [isAgentStreaming, setIsAgentStreaming] = useState(false);
   const [initialAgentPrompt, setInitialAgentPrompt] = useState("");
@@ -413,16 +410,6 @@ export default function Workspace({
     downloadProjectZip(project);
   }
 
-  function handleRun() {
-    if (isRunning) return;
-
-    setIsRunning(true);
-
-    window.setTimeout(() => {
-      setIsRunning(false);
-    }, 1200);
-  }
-
   function handleAiSubmit() {
     const prompt = aiPrompt.trim();
 
@@ -579,21 +566,10 @@ export default function Workspace({
           <div className="hidden h-5 w-px bg-zinc-800 sm:block" />
 
           <div className="hidden items-center gap-2 rounded-full border border-zinc-800 bg-[#0B0B0D] px-2.5 py-1 sm:flex">
-            {isRunning ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-[#D4AF37]" />
-                <span className="text-[9px] font-medium text-zinc-500">
-                  Building
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-[9px] font-medium text-zinc-500">
-                  {isDirty ? "Unsaved" : "Ready"}
-                </span>
-              </>
-            )}
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span className="text-[9px] font-medium text-zinc-500">
+              {isDirty ? "Unsaved" : "Ready"}
+            </span>
           </div>
         </div>
 
@@ -604,23 +580,6 @@ export default function Workspace({
           >
             <GitBranch className="h-3 w-3" />
             main
-          </button>
-
-          <button
-            type="button"
-            onClick={handleRun}
-            disabled={isRunning}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isRunning ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Play className="h-3 w-3" />
-            )}
-
-            <span className="hidden sm:inline">
-              {isRunning ? "Running" : "Run"}
-            </span>
           </button>
 
           <button
