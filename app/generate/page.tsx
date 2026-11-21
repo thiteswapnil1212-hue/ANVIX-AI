@@ -20,10 +20,6 @@ import type {
 import GenerateHero from "@/components/generate/GenerateHero";
 import PromptBuilder from "@/components/generate/PromptBuilder";
 import ExamplePrompts from "@/components/generate/ExamplePrompts";
-import BuildOptions, {
-  type BuildConfiguration,
-  defaultBuildConfiguration,
-} from "@/components/generate/BuildOptions";
 import GenerateProgress from "@/components/generate/GenerationProgress";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { insertProject } from "@/lib/supabase/cloud";
@@ -161,11 +157,6 @@ export default function GeneratePage() {
   const [streamNote, setStreamNote] = useState("");
   const [streamAutoFix, setStreamAutoFix] = useState<string | null>(null);
 
-  const [buildConfig, setBuildConfig] =
-    useState<BuildConfiguration>(
-      defaultBuildConfiguration
-    );
-
   const submissionLock = useRef(false);
 
   // Landing blueprint "Continue to Build" hands the prompt over via storage.
@@ -195,19 +186,6 @@ export default function GeneratePage() {
     (nextPrompt: string) => {
       setPrompt(nextPrompt);
       setErrorMessage("");
-    },
-    []
-  );
-
-  const handleBuildConfigChange = useCallback(
-    (
-      category: keyof BuildConfiguration,
-      option: string
-    ) => {
-      setBuildConfig((current) => ({
-        ...current,
-        [category]: option,
-      }));
     },
     []
   );
@@ -394,14 +372,6 @@ export default function GeneratePage() {
 
             <ExamplePrompts
               onSelect={handlePromptChange}
-              disabled={isSubmitting}
-            />
-
-            {/* Build configuration */}
-
-            <BuildOptions
-              value={buildConfig}
-              onChange={handleBuildConfigChange}
               disabled={isSubmitting}
             />
 
