@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase/client";
+import { friendlyAuthError } from "@/lib/supabase/auth-errors";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 type AuthMode = "signin" | "signup";
@@ -89,14 +90,15 @@ export default function AuthPage() {
         });
 
         if (error) {
-          setMessage(error.message);
+          setMessage(friendlyAuthError(error));
           return;
         }
 
         if (!data.session) {
           setMessage(
-            "Account created — check your email to confirm it, then sign in."
+            "Account created — check your email to confirm it. Once confirmed, you'll be signed in automatically."
           );
+          setPassword("");
           setMode("signin");
           return;
         }
@@ -111,7 +113,7 @@ export default function AuthPage() {
       });
 
       if (error) {
-        setMessage(error.message);
+        setMessage(friendlyAuthError(error));
         return;
       }
 
@@ -137,7 +139,7 @@ export default function AuthPage() {
     });
 
     if (error) {
-      setMessage(error.message);
+      setMessage(friendlyAuthError(error));
     }
   }
 
@@ -159,7 +161,7 @@ export default function AuthPage() {
     });
 
     if (error) {
-      setMessage(error.message);
+      setMessage(friendlyAuthError(error));
       return;
     }
 
