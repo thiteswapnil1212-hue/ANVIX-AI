@@ -275,13 +275,11 @@ export default function ChatInput({
             {/* Attachment button */}
             <button
               type="button"
-              disabled={isSubmitting || isGenerating}
+              disabled
               className="
                 mb-0.5 flex h-8 w-8 shrink-0
                 items-center justify-center rounded-xl
-                text-zinc-500 transition-colors
-                hover:bg-zinc-800/70 hover:text-zinc-200
-                active:scale-95
+                text-zinc-600
                 disabled:cursor-not-allowed
                 disabled:opacity-40
               "
