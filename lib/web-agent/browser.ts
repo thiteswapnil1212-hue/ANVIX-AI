@@ -17,9 +17,78 @@
 // (missing browsers.json) — and the availability guard in
 // ./availability could never fire. Type-only import is erased at
 // compile time, so it is safe here.
-import type { BrowserContext, Page } from "playwright";
+import type { BrowserContext, Page, Route } from "playwright";
 
-import { getWebAgentProfileDir } from "./availability";
+import { getWebAgentProfileDir } from "./availability.ts";
+import { checkWebUrlDns } from "./dns.ts";
+import type { DnsResolver } from "./dns.ts";
+import { isAllowedWebUrl } from "./urls.ts";
+
+/**
+ * Request guard (SSRF, Phase P0 C3): every request the browser
+ * context makes is re-validated before it leaves the machine — the
+ * sync URL check plus the async DNS check from dns.ts, with the DNS
+ * verdict cached per hostname for the life of the context (one task
+ * run). A blocked request is aborted, so a redirect, a clicked link,
+ * or a page subresource can never reach a private address even when
+ * the plan-time and navigate-time checks never saw that URL.
+ *
+ * Fail-closed: any unexpected error inside the guard aborts the
+ * request instead of letting it through.
+ */
+export function createWebAgentRequestGuard(
+  dnsResolver?: DnsResolver
+): (route: Route) => Promise<void> {
+  const dnsVerdicts = new Map<string, Promise<boolean>>();
+
+  return async (route: Route): Promise<void> => {
+    try {
+      const url = route.request().url();
+
+      if (!isAllowedWebUrl(url)) {
+        await route.abort();
+        return;
+      }
+
+      let host: string;
+      try {
+        host = new URL(url).hostname.toLowerCase();
+      } catch {
+        await route.abort();
+        return;
+      }
+
+      // IP literals need no DNS — the sync check already judged the
+      // address itself.
+      if (host.includes(":") || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+        await route.continue();
+        return;
+      }
+
+      let verdict = dnsVerdicts.get(host);
+      if (!verdict) {
+        verdict = checkWebUrlDns(url, dnsResolver)
+          .then((result) => result.allowed)
+          .catch(() => false);
+        dnsVerdicts.set(host, verdict);
+      }
+
+      if (await verdict) {
+        await route.continue();
+      } else {
+        await route.abort();
+      }
+    } catch {
+      // Fail closed — including when the page closed mid-request and
+      // abort/continue itself throws.
+      try {
+        await route.abort();
+      } catch {
+        // Already gone — nothing to do.
+      }
+    }
+  };
+}
 
 export class WebBrowser {
   private readonly context: BrowserContext;
@@ -32,8 +101,13 @@ export class WebBrowser {
   /**
    * Launch Chromium with the persistent profile. Headless unless
    * ANVIX_WEB_AGENT_HEADED=1 (use headed once to sign in somewhere).
+   *
+   * `options.dnsResolver` overrides the resolver used by the request
+   * guard (live dns.lookup by default); tests inject a canned one.
    */
-  static async launch(): Promise<WebBrowser> {
+  static async launch(options?: {
+    dnsResolver?: DnsResolver;
+  }): Promise<WebBrowser> {
     const headed = process.env.ANVIX_WEB_AGENT_HEADED === "1";
     // Only for Linux running as root (containers): Chromium refuses to
     // start as root without this. Never set it on a shared machine.
@@ -97,6 +171,13 @@ export class WebBrowser {
 
     context.setDefaultTimeout(30_000);
     context.setDefaultNavigationTimeout(30_000);
+
+    // SSRF request guard: re-validates every request (navigations,
+    // redirects, clicks, subresources) before it leaves the machine.
+    await context.route(
+      "**/*",
+      createWebAgentRequestGuard(options?.dnsResolver)
+    );
 
     return new WebBrowser(context);
   }

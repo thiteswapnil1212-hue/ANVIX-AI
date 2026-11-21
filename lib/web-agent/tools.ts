@@ -7,6 +7,8 @@
 
 import type { Page } from "playwright";
 
+import { checkWebUrlDns } from "./dns.ts";
+import type { DnsResolver } from "./dns.ts";
 import type { WebStep, WebToolName } from "./types";
 
 export interface WebStepOutcome {
@@ -26,13 +28,53 @@ function truncate(text: string, max: number): string {
 
 async function runNavigate(
   page: Page,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  dnsResolver?: DnsResolver
 ): Promise<WebStepOutcome> {
   const url = input.url as string;
+
+  // Pre-navigation: the plan-time sync check cannot see DNS, so
+  // re-validate (sync + DNS) right before the browser connects.
+  const pre = await checkWebUrlDns(url, dnsResolver);
+  if (!pre.allowed) {
+    return { success: false, detail: pre.reason ?? "Blocked URL." };
+  }
+
   await page.goto(url, {
     waitUntil: "domcontentloaded",
     timeout: STEP_TIMEOUT_MS,
   });
+
+  // Post-navigation: a redirect may have landed on a different host
+  // the pre-check never saw — re-validate the final URL the same way.
+  // (The request guard in browser.ts is the backstop for later
+  // client-side navigations; this catches the redirect itself.)
+  // Same-host redirects (trailing slash, path change) need no second
+  // lookup: the host was already DNS-checked above.
+  let finalHost: string | null = null;
+  let requestedHost: string | null = null;
+  try {
+    finalHost = new URL(page.url()).hostname.toLowerCase();
+    requestedHost = new URL(url).hostname.toLowerCase();
+  } catch {
+    finalHost = null;
+  }
+  if (finalHost === null || requestedHost === null) {
+    return { success: false, detail: "Navigation ended on an invalid URL." };
+  }
+  if (finalHost !== requestedHost) {
+    const finalUrl = page.url();
+    const post = await checkWebUrlDns(finalUrl, dnsResolver);
+    if (!post.allowed) {
+      return {
+        success: false,
+        detail:
+          `Navigation redirected to a blocked URL: ` +
+          (post.reason ?? finalUrl),
+      };
+    }
+  }
+
   const title = await page.title().catch(() => "");
   return {
     success: true,
@@ -140,15 +182,24 @@ function runReport(input: Record<string, unknown>): WebStepOutcome {
   return { success: true, detail: truncate(note, 500) };
 }
 
+export interface RunWebStepOptions {
+  /**
+   * Override the DNS resolver used by the navigate pre/post checks.
+   * Defaults to live dns.lookup. Tests inject a canned resolver.
+   */
+  dnsResolver?: DnsResolver;
+}
+
 /** Execute one validated step. Never throws — failures come back as data. */
 export async function runWebStep(
   page: Page,
-  step: WebStep
+  step: WebStep,
+  options?: RunWebStepOptions
 ): Promise<WebStepOutcome> {
   try {
     switch (step.tool as WebToolName) {
       case "navigate":
-        return await runNavigate(page, step.input);
+        return await runNavigate(page, step.input, options?.dnsResolver);
       case "read_page":
         return await runReadPage(page);
       case "click":

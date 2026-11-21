@@ -15,6 +15,13 @@ import { isAllowedWebUrl as isAllowedWebUrlFromLeaf } from "./urls.ts";
 import { isPrivateOrReservedIp } from "./urls.ts";
 import { checkWebUrlDns, isAllowedWebUrlAsync } from "./dns.ts";
 import type { DnsResolver } from "./dns.ts";
+import { createWebAgentRequestGuard, WebBrowser } from "./browser.ts";
+import { runWebStep } from "./tools.ts";
+import type { Page } from "playwright";
+import type { Route } from "playwright";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { WebStep } from "./types.ts";
 
 test("allowed URLs are public http(s) pages only", () => {
@@ -194,6 +201,201 @@ test("SSRF: async DNS check skips resolution for IP literals and sync-blocked UR
   assert.equal(await isAllowedWebUrlAsync("http://localhost:3000/", counting), false);
   assert.equal(await isAllowedWebUrlAsync("http://intranet/", counting), false);
   assert.equal(calls, 0);
+});
+
+test("SSRF: navigate pre/post checks block before goto and on redirect", async () => {
+  const publicResolver: DnsResolver = async () => ["93.184.216.34"];
+  const privateResolver: DnsResolver = async () => ["127.0.0.1"];
+  const redirectResolver: DnsResolver = async (host) =>
+    host === "evil.example" ? ["10.1.2.3"] : ["93.184.216.34"];
+  const failingResolver: DnsResolver = async () => {
+    throw new Error("ENOTFOUND");
+  };
+
+  const makeFakePage = (finalUrl: string) => {
+    let current = "about:blank";
+    let gotoCalls = 0;
+    return {
+      gotoCalls: () => gotoCalls,
+      page: {
+        goto: async () => {
+          gotoCalls += 1;
+          current = finalUrl;
+        },
+        url: () => current,
+        title: async () => "Example Title",
+      } as unknown as Page,
+    };
+  };
+
+  // Public URL, stays put: succeeds, goto called once.
+  const stayed = makeFakePage("https://example.com/");
+  const ok = await runWebStep(
+    stayed.page,
+    { tool: "navigate", input: { url: "https://example.com" } },
+    { dnsResolver: publicResolver }
+  );
+  assert.equal(ok.success, true);
+  assert.match(ok.detail, /Opened https:\/\/example\.com/);
+  assert.equal(stayed.gotoCalls(), 1);
+
+  // Private DNS answer: blocked BEFORE goto is ever called.
+  const blocked = makeFakePage("https://example.com/");
+  const denied = await runWebStep(
+    blocked.page,
+    { tool: "navigate", input: { url: "https://example.com" } },
+    { dnsResolver: privateResolver }
+  );
+  assert.equal(denied.success, false);
+  assert.match(denied.detail, /resolves to 127\.0\.0\.1/);
+  assert.equal(blocked.gotoCalls(), 0);
+
+  // Redirect to a private-resolving host: goto ran, step still fails.
+  const redirected = makeFakePage("https://evil.example/");
+  const redirectedResult = await runWebStep(
+    redirected.page,
+    { tool: "navigate", input: { url: "https://example.com" } },
+    { dnsResolver: redirectResolver }
+  );
+  assert.equal(redirectedResult.success, false);
+  assert.match(redirectedResult.detail, /redirected to a blocked URL/);
+  assert.equal(redirected.gotoCalls(), 1);
+
+  // Same-host redirect (trailing slash / path): no second failure.
+  const sameHost = makeFakePage("https://example.com/other");
+  const sameHostResult = await runWebStep(
+    sameHost.page,
+    { tool: "navigate", input: { url: "https://example.com" } },
+    { dnsResolver: publicResolver }
+  );
+  assert.equal(sameHostResult.success, true);
+
+  // Sync-blocked URL and DNS failure: blocked before goto.
+  const syncBlocked = makeFakePage("https://example.com/");
+  assert.equal(
+    (
+      await runWebStep(
+        syncBlocked.page,
+        { tool: "navigate", input: { url: "http://127.0.0.1:8080/" } },
+        { dnsResolver: publicResolver }
+      )
+    ).success,
+    false
+  );
+  assert.equal(syncBlocked.gotoCalls(), 0);
+
+  const dnsFailed = makeFakePage("https://example.com/");
+  assert.equal(
+    (
+      await runWebStep(
+        dnsFailed.page,
+        { tool: "navigate", input: { url: "https://example.com" } },
+        { dnsResolver: failingResolver }
+      )
+    ).success,
+    false
+  );
+  assert.equal(dnsFailed.gotoCalls(), 0);
+});
+
+test("SSRF: request guard aborts blocked requests, continues public ones", async () => {
+  const makeFakeRoute = (url: string) => {
+    let aborted = false;
+    let continued = false;
+    return {
+      state: () => ({ aborted, continued }),
+      route: {
+        request: () => ({ url: () => url }),
+        abort: async () => {
+          aborted = true;
+        },
+        continue: async () => {
+          continued = true;
+        },
+      } as unknown as Route,
+    };
+  };
+
+  // Public host, public DNS: continued.
+  const publicGuard = createWebAgentRequestGuard(async () => ["93.184.216.34"]);
+  const pub = makeFakeRoute("https://example.com/page");
+  await publicGuard(pub.route);
+  assert.deepEqual(pub.state(), { aborted: false, continued: true });
+
+  // Same guard, private DNS answer: aborted.
+  const privateGuard = createWebAgentRequestGuard(async () => ["10.0.0.5"]);
+  const priv = makeFakeRoute("https://example.com/page");
+  await privateGuard(priv.route);
+  assert.deepEqual(priv.state(), { aborted: true, continued: false });
+
+  // Sync-blocked literal: aborted without any DNS lookup.
+  let dnsCalls = 0;
+  const countingGuard = createWebAgentRequestGuard(async () => {
+    dnsCalls += 1;
+    return ["93.184.216.34"];
+  });
+  const literal = makeFakeRoute("http://127.0.0.1:8080/admin");
+  await countingGuard(literal.route);
+  assert.deepEqual(literal.state(), { aborted: true, continued: false });
+  assert.equal(dnsCalls, 0);
+
+  // Public IP literal: continued without DNS.
+  const ipLiteral = makeFakeRoute("http://8.8.8.8/");
+  await countingGuard(ipLiteral.route);
+  assert.deepEqual(ipLiteral.state(), { aborted: false, continued: true });
+  assert.equal(dnsCalls, 0);
+
+  // DNS verdict cached per hostname: two paths, one lookup.
+  const first = makeFakeRoute("https://example.com/a");
+  const second = makeFakeRoute("https://example.com/b");
+  await countingGuard(first.route);
+  await countingGuard(second.route);
+  assert.equal(dnsCalls, 1);
+  assert.deepEqual(first.state(), { aborted: false, continued: true });
+  assert.deepEqual(second.state(), { aborted: false, continued: true });
+});
+
+test("SSRF: live browser guard aborts a loopback navigation (real Chromium)", async () => {
+  // End-to-end proof that WebBrowser.launch() actually installs the
+  // guard: a real Chromium, a throwaway profile dir (never the user's
+  // real ~/.anvix profile), and a loopback URL. The guard aborts the
+  // request, so goto fails with ERR_FAILED — if the guard were not
+  // installed, the same goto would fail with ERR_CONNECTION_REFUSED
+  // (nothing listens on port 9) instead.
+  const profileDir = mkdtempSync(join(tmpdir(), "anvix-guard-test-"));
+  const prevProfile = process.env.ANVIX_WEB_AGENT_PROFILE_DIR;
+  const prevNoSandbox = process.env.ANVIX_WEB_AGENT_NO_SANDBOX;
+  process.env.ANVIX_WEB_AGENT_PROFILE_DIR = profileDir;
+  process.env.ANVIX_WEB_AGENT_NO_SANDBOX = "1";
+  let browser: WebBrowser | null = null;
+  try {
+    browser = await WebBrowser.launch();
+    const page = await browser.newPage();
+    await assert.rejects(
+      page.goto("http://127.0.0.1:9/", { timeout: 15_000 }),
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : "";
+        assert.match(message, /ERR_FAILED|ERR_ABORTED/);
+        assert.doesNotMatch(message, /ERR_CONNECTION_REFUSED/);
+        return true;
+      }
+    );
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+    if (prevProfile === undefined) {
+      delete process.env.ANVIX_WEB_AGENT_PROFILE_DIR;
+    } else {
+      process.env.ANVIX_WEB_AGENT_PROFILE_DIR = prevProfile;
+    }
+    if (prevNoSandbox === undefined) {
+      delete process.env.ANVIX_WEB_AGENT_NO_SANDBOX;
+    } else {
+      process.env.ANVIX_WEB_AGENT_NO_SANDBOX = prevNoSandbox;
+    }
+    rmSync(profileDir, { recursive: true, force: true });
+  }
 });
 
 test("a valid plan passes validation", () => {
