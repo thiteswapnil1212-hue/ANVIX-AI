@@ -42,7 +42,7 @@ const shortcuts = [
 ];
 
 export default function SettingsPage() {
-  const { configured, user, signOut } = useAuth();
+  const { configured, user, loading, signOut } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [profileStatus, setProfileStatus] = useState("");
 
@@ -204,7 +204,11 @@ export default function SettingsPage() {
           </div>
 
           <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
-            {!configured ? (
+            {loading ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Checking your account…
+              </p>
+            ) : !configured ? (
               <p className="text-sm leading-6 text-zinc-400">
                 Accounts are not connected on this deployment yet — the
                 Supabase environment variables are missing. You are browsing
