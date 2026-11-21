@@ -7,7 +7,6 @@ import PromptEditor from "@/components/ai/PromptEditor";
 import PromptToolbar from "@/components/ai/PromptToolbar";
 import ThinkingPanel from "@/components/ai/ThinkingPanel";
 import BackgroundGlow from "@/components/background/BackgroundGlow";
-import AIStatus from "@/features/landing/AIStatus";
 
 const capabilities = [
   {
@@ -102,11 +101,6 @@ export default function Home() {
             <div className="mt-4">
               <ThinkingPanel />
             </div>
-          </div>
-
-          {/* AI status */}
-          <div className="mt-12 sm:mt-16">
-            <AIStatus />
           </div>
         </section>
 
