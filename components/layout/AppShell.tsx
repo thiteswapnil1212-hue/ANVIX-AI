@@ -49,7 +49,6 @@ export default function AppShell({
             muted
             playsInline
             preload="metadata"
-            poster="/anvix-bg-poster.jpg"
             className="absolute inset-0 h-full w-full object-cover"
           >
             <source src="/anvix-bg.mp4" type="video/mp4" />
