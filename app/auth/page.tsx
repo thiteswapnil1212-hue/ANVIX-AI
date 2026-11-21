@@ -22,6 +22,10 @@ import {
 
 import { supabase } from "@/lib/supabase/client";
 import { friendlyAuthError } from "@/lib/supabase/auth-errors";
+import {
+  updatePassword,
+  validateNewPassword,
+} from "@/lib/supabase/password-reset";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 type AuthMode = "signin" | "signup";
@@ -31,7 +35,7 @@ const NOT_CONFIGURED_MESSAGE =
 
 export default function AuthPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isPasswordRecovery } = useAuth();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -40,14 +44,25 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [message, setMessage] = useState("");
+  // Password-reset completion state (F1).
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
 
   const isSignup = mode === "signup";
+  // True when this session came from a password-reset link: show the
+  // set-a-new-password form instead of the sign-in form.
+  const isRecovery = isPasswordRecovery && !!user;
 
   useEffect(() => {
-    if (!authLoading && user) {
+    // A recovery session must stay on this page until the new password
+    // is set — otherwise the reset link silently bounces to chat.
+    if (!authLoading && user && !isPasswordRecovery) {
       router.replace("/chat");
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user, isPasswordRecovery, router]);
 
   function switchMode(nextMode: AuthMode) {
     setMode(nextMode);
@@ -123,6 +138,38 @@ export default function AuthPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleRecoverySubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+    setRecoveryMessage("");
+
+    const validationError = validateNewPassword(newPassword, confirmPassword);
+    if (validationError) {
+      setRecoveryMessage(validationError);
+      return;
+    }
+
+    if (!supabase) {
+      setRecoveryMessage(NOT_CONFIGURED_MESSAGE);
+      return;
+    }
+
+    setRecoverySubmitting(true);
+
+    const errorMessage = await updatePassword(supabase, newPassword);
+
+    setRecoverySubmitting(false);
+
+    if (errorMessage) {
+      setRecoveryMessage(errorMessage);
+      return;
+    }
+
+    setRecoveryMessage("Your password has been updated. Signing you in…");
+    router.push("/chat");
   }
 
   async function handleGoogleSignIn() {
@@ -375,19 +422,137 @@ export default function AuthPage() {
 
               <div className="mb-8">
                 <p className="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-[#d4b35e]">
-                  {isSignup ? "Get started" : "Welcome back"}
+                  {isRecovery
+                    ? "Reset password"
+                    : isSignup
+                      ? "Get started"
+                      : "Welcome back"}
                 </p>
 
                 <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                  {isSignup ? "Create your account" : "Sign in to ANVIX"}
+                  {isRecovery
+                    ? "Set a new password"
+                    : isSignup
+                      ? "Create your account"
+                      : "Sign in to ANVIX"}
                 </h2>
 
                 <p className="mt-3 text-sm leading-6 text-white/45">
-                  {isSignup
-                    ? "Create an account to explore your AI workspace."
-                    : "Enter your details to continue to your workspace."}
+                  {isRecovery
+                    ? "You opened a password-reset link — choose a new password for your account."
+                    : isSignup
+                      ? "Create an account to explore your AI workspace."
+                      : "Enter your details to continue to your workspace."}
                 </p>
               </div>
+
+              {isRecovery ? (
+                <form onSubmit={handleRecoverySubmit} className="space-y-5">
+                  <div>
+                    <label
+                      htmlFor="newPassword"
+                      className="mb-2 block text-sm font-medium text-white/75"
+                    >
+                      New password
+                    </label>
+
+                    <div className="relative">
+                      <LockKeyhole
+                        size={18}
+                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+                      />
+
+                      <input
+                        id="newPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        placeholder="At least 8 characters"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#d4b35e]/60 focus:bg-white/[0.05] focus:ring-2 focus:ring-[#d4b35e]/10"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowNewPassword((current) => !current)
+                        }
+                        aria-label={
+                          showNewPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                        className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-white/35 transition hover:bg-white/5 hover:text-white"
+                      >
+                        {showNewPassword ? (
+                          <EyeOff size={17} />
+                        ) : (
+                          <Eye size={17} />
+                        )}
+                      </button>
+                    </div>
+
+                    <p className="mt-2 text-xs text-white/35">
+                      Use at least 8 characters.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="confirmPassword"
+                      className="mb-2 block text-sm font-medium text-white/75"
+                    >
+                      Confirm new password
+                    </label>
+
+                    <div className="relative">
+                      <LockKeyhole
+                        size={18}
+                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+                      />
+
+                      <input
+                        id="confirmPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        placeholder="Type the new password again"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        minLength={8}
+                        className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#d4b35e]/60 focus:bg-white/[0.05] focus:ring-2 focus:ring-[#d4b35e]/10"
+                      />
+                    </div>
+                  </div>
+
+                  {recoveryMessage && (
+                    <div
+                      role="status"
+                      className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-sm leading-5 text-amber-200/90"
+                    >
+                      {recoveryMessage}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={recoverySubmitting}
+                    className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4b35e] to-[#c6a34a] text-sm font-semibold text-black shadow-lg shadow-[#c9a44c]/10 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+                  >
+                    {recoverySubmitting
+                      ? "Please wait…"
+                      : "Update password"}
+
+                    <ArrowRight
+                      size={17}
+                      className="transition-transform group-hover:translate-x-1"
+                    />
+                  </button>
+                </form>
+              ) : (
+                <>
 
               {/* Mode selector */}
               <div className="mb-7 grid grid-cols-2 rounded-xl border border-white/[0.07] bg-black/30 p-1">
@@ -640,6 +805,8 @@ export default function AuthPage() {
                   {isSignup ? "Sign in" : "Create an account"}
                 </button>
               </p>
+                </>
+              )}
 
               {/* Pricing CTA */}
               <div className="mt-5 text-center">
