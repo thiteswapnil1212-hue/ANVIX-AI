@@ -43,23 +43,11 @@ const MODEL_INFO: Record<string, ModelInfo> = {
     bestFor: ["Everyday questions", "Learning", "Coding", "Brainstorming"],
     example: "Explain React useEffect with a simple example.",
   },
-  "gpt-5.5": {
-    description:
-      "An OpenAI model entry. Actual capabilities depend on the configured provider integration.",
-    bestFor: ["Complex questions", "Multi-step tasks", "Coding", "Structured responses"],
-    example: "Break a feature into frontend, backend, and database tasks.",
-  },
   "gpt-4.1": {
     description:
       "An OpenAI model entry for instruction-following and coding workflows.",
     bestFor: ["Coding", "Detailed instructions", "Structured outputs", "Text analysis"],
     example: "Review this function and explain what each part does.",
-  },
-  "gpt-6-astra": {
-    description:
-      "A reserved model entry. Its identity, capabilities, and integration have not been verified.",
-    bestFor: ["Reserved for future integration"],
-    example: "Model details will be added after integration is verified.",
   },
   "gpt-4o": {
     description:

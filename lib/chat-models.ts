@@ -17,22 +17,8 @@ export const CHAT_MODELS: ChatModel[] = [
   },
   // Locked models — not connected to an API yet.
   {
-    id: "gpt-5.5",
-    name: "GPT-5.5",
-    provider: "OpenAI",
-    locked: true,
-    apiModelId: null,
-  },
-  {
     id: "gpt-4.1",
     name: "GPT-4.1",
-    provider: "OpenAI",
-    locked: true,
-    apiModelId: null,
-  },
-  {
-    id: "gpt-6-astra",
-    name: "GPT-6 (Astra)",
     provider: "OpenAI",
     locked: true,
     apiModelId: null,
