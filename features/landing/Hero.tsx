@@ -5,7 +5,6 @@ import {
   Sparkles,
   Terminal,
   Zap,
-  Code2,
   Bot,
   } from "lucide-react";
 
@@ -637,55 +636,31 @@ export default function Hero() {
 
                   </div>
 
-                  {/* Fake prompt */}
-
-                  <div
+                  {/* Open the real builder */}
+                  <Link
+                    href="/generate"
                     className="
                       mt-4
-                      flex
+                      inline-flex
                       items-center
-                      gap-3
+                      gap-2
                       rounded-lg
-                      border
-                      border-zinc-800
-                      bg-[#0D0D0F]
-                      px-3
-                      py-3
+                      bg-[#D4AF37]
+                      px-4
+                      py-2.5
+                      text-[12px]
+                      font-semibold
+                      text-black
+                      transition
+                      hover:bg-[#E5C158]
                     "
                   >
-                    <Code2
+                    Start building
+                    <ArrowRight
                       aria-hidden="true"
-                      className="h-4 w-4 shrink-0 text-zinc-600"
+                      className="h-3.5 w-3.5"
                     />
-
-                    <span className="text-[11px] text-zinc-500">
-                      Describe what you want to build...
-                    </span>
-
-                    <span
-                      aria-hidden="true"
-                      className="
-                        ml-auto
-                        h-6
-                        w-6
-                        rounded-full
-                        bg-[#D4AF37]
-                        opacity-80
-                      "
-                    />
-                  </div>
-
-                  {/* Fake loading lines */}
-
-                  <div className="mt-4 space-y-2">
-
-                    <div className="h-2 w-3/4 rounded-full bg-zinc-800" />
-
-                    <div className="h-2 w-1/2 rounded-full bg-zinc-900" />
-
-                    <div className="h-2 w-2/3 rounded-full bg-zinc-900" />
-
-                  </div>
+                  </Link>
                 </div>
               </div>
             </div>
