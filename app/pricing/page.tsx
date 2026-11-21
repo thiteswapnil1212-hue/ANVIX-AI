@@ -20,8 +20,8 @@ import {
 const tiers = [
   {
     name: "Launch",
-    price: "$29",
-    period: "/month",
+    price: "Free",
+    period: "",
     description:
       "Everything you need to turn ideas into intelligent products.",
     icon: Zap,
@@ -33,15 +33,15 @@ const tiers = [
       "Core AI models",
       "Community support",
     ],
-    button: "Start Creating",
+    button: "Start Building",
     popular: false,
     accent: "Starter",
     usage: "Perfect for getting started",
   },
   {
     name: "Accelerate",
-    price: "$99",
-    period: "/month",
+    price: "Free",
+    period: "",
     description:
       "For ambitious builders ready to move from ideas to execution at full speed.",
     icon: Sparkles,
@@ -54,14 +54,14 @@ const tiers = [
       "Advanced analytics",
       "Higher usage limits",
     ],
-    button: "Unlock More Power",
+    button: "Start Building",
     popular: true,
     accent: "Most popular",
     usage: "Best value for active builders",
   },
   {
     name: "Enterprise",
-    price: "Custom",
+    price: "Free",
     period: "",
     description:
       "For organizations ready to deploy AI with enterprise-grade power and control.",
@@ -75,7 +75,7 @@ const tiers = [
       "Priority support",
       "Custom usage limits",
     ],
-    button: "Let's Talk",
+    button: "Start Building",
     popular: false,
     accent: "Scale",
     usage: "Built for larger teams",
@@ -103,17 +103,9 @@ const faqs = [
 export default function PricingPage() {
   const router = useRouter();
 
-  function handlePlanClick(tierName: string) {
-    // Paid checkout is not live yet: builders go straight into the product,
-    // and Enterprise goes to the contact channel named in our Terms.
-    if (tierName === "Enterprise") {
-      window.open(
-        "https://github.com/thiteswapnil1212-hue/ANVIX-AI",
-        "_blank",
-        "noopener,noreferrer"
-      );
-      return;
-    }
+  function handlePlanClick() {
+    // Early access: everything is free for now and there is no checkout,
+    // so every plan goes straight into the product.
     router.push("/generate");
   }
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -285,6 +277,10 @@ export default function PricingPage() {
                 Built around your workflow
               </div>
             </div>
+
+            <p className="mt-5 text-xs text-zinc-500">
+              Early access — everything is free for now. No payment needed.
+            </p>
           </div>
         </section>
 
@@ -602,7 +598,7 @@ export default function PricingPage() {
 
                   <button
                     type="button"
-                    onClick={() => handlePlanClick(tier.name)}
+                    onClick={handlePlanClick}
                     className={`
                       mt-7
                       flex
