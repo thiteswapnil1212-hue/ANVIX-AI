@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getAuthHeaders } from "@/lib/api/auth-headers";
 import {
   deleteCloudConversation,
   fetchConversations,
@@ -633,6 +634,7 @@ export default function ChatLayout() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify({
           prompt: trimmedPrompt,

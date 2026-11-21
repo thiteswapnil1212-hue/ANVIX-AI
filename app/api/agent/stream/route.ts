@@ -77,7 +77,7 @@ function encodeEvent(event: StreamEvent) {
 }
 
 export async function POST(request: Request) {
-  const limited = enforceRateLimit(request, "agent-stream", 15, 60_000);
+  const limited = await enforceRateLimit(request, "agent-stream", 15, 60_000);
   if (limited) return limited;
 
   let body: Record<string, unknown>;

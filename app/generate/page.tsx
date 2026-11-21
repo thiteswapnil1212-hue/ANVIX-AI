@@ -22,6 +22,7 @@ import PromptBuilder from "@/components/generate/PromptBuilder";
 import ExamplePrompts from "@/components/generate/ExamplePrompts";
 import GenerateProgress from "@/components/generate/GenerationProgress";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getAuthHeaders } from "@/lib/api/auth-headers";
 import { insertProject } from "@/lib/supabase/cloud";
 
 const MAX_CHARS = 2200;
@@ -71,6 +72,7 @@ async function streamBuildProject(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await getAuthHeaders()),
     },
     body: JSON.stringify({ prompt }),
   });
@@ -234,6 +236,7 @@ export default function GeneratePage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(await getAuthHeaders()),
           },
           body: JSON.stringify({
             prompt: trimmedPrompt,

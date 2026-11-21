@@ -89,7 +89,7 @@ function validateGeneratedProject(payload: unknown): GeneratedProject {
 }
 
 export async function POST(req: Request) {
-  const limited = enforceRateLimit(req, "agent", 15, 60_000);
+  const limited = await enforceRateLimit(req, "agent", 15, 60_000);
   if (limited) return limited;
 
   try {

@@ -55,7 +55,7 @@ function encodeEvent(event: StreamEvent): string {
 }
 
 export async function POST(req: Request) {
-  const limited = enforceRateLimit(req, "build-stream", 6, 60_000);
+  const limited = await enforceRateLimit(req, "build-stream", 6, 60_000);
   if (limited) return limited;
 
   let prompt: unknown;

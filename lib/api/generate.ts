@@ -1,4 +1,6 @@
-﻿export interface GenerationResult {
+﻿import { getAuthHeaders } from "./auth-headers";
+
+export interface GenerationResult {
   summary: string;
   response: string;
   confidence: string;
@@ -20,6 +22,7 @@ export async function generateProject(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await getAuthHeaders()),
     },
     body: JSON.stringify({ prompt }),
   });

@@ -23,7 +23,7 @@ function isAbortError(error: unknown) {
 }
 
 export async function POST(request: Request) {
-  const limited = enforceRateLimit(request, "chat", 30, 60_000);
+  const limited = await enforceRateLimit(request, "chat", 30, 60_000);
   if (limited) return limited;
 
   let body: { prompt?: unknown; model?: unknown };

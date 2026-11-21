@@ -33,7 +33,7 @@ function jsonError(error: string, status: number) {
 }
 
 export async function POST(req: Request) {
-  const limited = enforceRateLimit(req, "build", 6, 60_000);
+  const limited = await enforceRateLimit(req, "build", 6, 60_000);
   if (limited) return limited;
 
   let body: BuildRequestBody;

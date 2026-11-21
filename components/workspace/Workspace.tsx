@@ -29,6 +29,7 @@ import {
   type ProjectHistory,
 } from "@/lib/agent/history";
 import { downloadProjectZip } from "@/lib/project/export-zip";
+import { getAuthHeaders } from "@/lib/api/auth-headers";
 import {
   isGeneratedProject,
   type GeneratedProject,
@@ -268,6 +269,7 @@ export default function Workspace({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify({
           prompt,
