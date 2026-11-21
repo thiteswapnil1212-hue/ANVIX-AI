@@ -72,6 +72,18 @@ export default function SettingsPage() {
     setProfileStatus(ok ? "Profile saved." : "Could not save your profile. Please try again.");
   };
 
+  const handleSignOut = async () => {
+    // signOut returns false when Supabase did not confirm the sign-out
+    // (e.g. network failure) — say so instead of silently staying put.
+    setProfileStatus("");
+    const ok = await signOut();
+    if (!ok) {
+      setProfileStatus(
+        "Could not sign out. Check your connection and try again."
+      );
+    }
+  };
+
   return (
     <AppShell
       title="Settings"
@@ -264,7 +276,7 @@ export default function SettingsPage() {
 
                     <button
                       type="button"
-                      onClick={() => void signOut()}
+                      onClick={() => void handleSignOut()}
                       className="inline-flex h-10 items-center rounded-lg border border-white/[0.1] px-4 text-xs font-medium text-zinc-300 transition hover:border-white/[0.2] hover:text-white"
                     >
                       Sign out
