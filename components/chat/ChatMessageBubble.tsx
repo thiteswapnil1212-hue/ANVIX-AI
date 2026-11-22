@@ -9,8 +9,8 @@ import {
   useRef,
   useState,
 } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import dynamic from "next/dynamic";
+import type { Components } from "react-markdown";
 import {
   Check,
   ChevronDown,
@@ -33,6 +33,20 @@ import {
   parseArtifacts,
   type ChatArtifact,
 } from "@/lib/artifacts";
+
+// Lazy (perf): the markdown renderer is loaded without ssr: false,
+// so the server still renders the content into the first HTML and
+// only the library's JS moves to a separate chunk. The skeleton
+// covers the rare case the chunk arrives late on the client.
+const MarkdownContent = dynamic(() => import("./MarkdownContent"), {
+  loading: () => (
+    <div className="animate-pulse" aria-hidden="true">
+      <div className="mb-3 h-4 w-3/4 rounded bg-white/[0.06]" />
+      <div className="mb-3 h-4 w-full rounded bg-white/[0.06]" />
+      <div className="h-4 w-2/3 rounded bg-white/[0.06]" />
+    </div>
+  ),
+});
 
 interface ChatMessageBubbleProps {
   role: "assistant" | "user";
@@ -600,45 +614,10 @@ function ChatMessageBubble({
                 // Full markdown renders once when the answer completes.
                 <p className="whitespace-pre-wrap">{content}</p>
               ) : (
-              <div
-                className="
-                  markdown-content min-w-0
-                  [&>*:first-child]:mt-0
-                  [&>*:last-child]:mb-0
-                  [&_h1]:mb-3 [&_h1]:mt-5
-                  [&_h1]:text-xl [&_h1]:font-bold
-                  [&_h1]:leading-tight [&_h1]:text-white
-                  [&_h2]:mb-3 [&_h2]:mt-5
-                  [&_h2]:text-lg [&_h2]:font-bold
-                  [&_h2]:leading-tight [&_h2]:text-white
-                  [&_h3]:mb-2 [&_h3]:mt-4
-                  [&_h3]:text-base [&_h3]:font-semibold
-                  [&_h3]:text-white
-                  [&_p]:my-3
-                  [&_strong]:font-semibold [&_strong]:text-white
-                  [&_em]:italic
-                  [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6
-                  [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6
-                  [&_li]:my-1 [&_li]:pl-1
-                  [&_li::marker]:text-[#D4AF37]
-                  [&_blockquote]:my-3
-                  [&_blockquote]:border-l-2
-                  [&_blockquote]:border-[#D4AF37]/50
-                  [&_blockquote]:pl-4
-                  [&_blockquote]:text-zinc-400
-                  [&_hr]:my-5 [&_hr]:border-white/10
-                  [&_input[type=checkbox]]:mr-2
-                  [&_input[type=checkbox]]:accent-[#D4AF37]
-                "
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  skipHtml
-                  components={markdownComponents}
-                >
-                  {displayText}
-                </ReactMarkdown>
-              </div>
+              <MarkdownContent
+                content={displayText}
+                components={markdownComponents}
+              />
               )
             ) : (
               content
