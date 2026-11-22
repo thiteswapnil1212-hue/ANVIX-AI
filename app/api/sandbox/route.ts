@@ -3,6 +3,10 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 
 import { SandboxManager } from "@/lib/sandbox/manager";
 import type { GeneratedProject } from "@/lib/project/project-schema";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 
 const sandboxManager = new SandboxManager();
 

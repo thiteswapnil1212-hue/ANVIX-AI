@@ -40,6 +40,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 /**
  * Artifact format instruction (report §20). Short and conditional:

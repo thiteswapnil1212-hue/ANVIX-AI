@@ -4,6 +4,10 @@ import { resolveCallerApiKey } from "@/lib/byok/key-resolution";
 import { recordUsage } from "@/lib/usage/meter";
 import { flushUsageInBackground } from "@/lib/usage/server-flush";
 import { isGeneratedProject, type GeneratedProject } from "@/lib/project/project-schema";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
 
 const MAX_PROMPT_LENGTH = 20000;
 

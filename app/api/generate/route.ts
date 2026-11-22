@@ -15,6 +15,7 @@ import { buildBlueprintResult } from "@/lib/api/generate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type ChatRequestBody = {
   prompt?: unknown;
@@ -23,6 +24,32 @@ type ChatRequestBody = {
 
 const MAX_PROVIDER_RETRIES = 2;
 const RETRY_DELAYS_MS = [250, 750];
+
+// App-side timeout for one generation attempt, under the 60 s
+// platform budget (maxDuration): a hang surfaces as parseable JSON
+// from the catch below, not a platform 504 page. The underlying
+// generation is not aborted — it is bounded by maxDuration instead.
+const GENERATE_TIMEOUT_MS = 50_000;
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  message: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(message)),
+          GENERATE_TIMEOUT_MS
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
 
 function getProviderStatus(error: unknown): number | undefined {
   if (
@@ -135,12 +162,20 @@ export async function POST(req: Request) {
     // text stream — accumulate the reply and return it as JSON.
     // Streaming here used to make every home-page generation fail in
     // response.json() with a parse error.
-    const result = await startGeminiStream(model, prompt);
+    const runGeneration = async () => {
+      const result = await startGeminiStream(model, prompt);
 
-    let text = "";
-    for await (const chunk of result.stream) {
-      text += chunk.text();
-    }
+      let text = "";
+      for await (const chunk of result.stream) {
+        text += chunk.text();
+      }
+      return text;
+    };
+
+    const text = await withTimeout(
+      runGeneration(),
+      "Generate request timed out."
+    );
 
     if (!text.trim()) {
       return NextResponse.json(
@@ -155,6 +190,16 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("Gemini chat API error:", error);
+
+    if (
+      error instanceof Error &&
+      error.message === "Generate request timed out."
+    ) {
+      return NextResponse.json(
+        { error: "Generation timed out. Please try again." },
+        { status: 503 }
+      );
+    }
 
     const status = getProviderStatus(error);
     const temporarilyUnavailable =

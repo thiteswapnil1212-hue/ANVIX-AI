@@ -22,6 +22,10 @@ import {
 } from "@/lib/project/validate";
 import type { GeneratedProject, ProjectFile } from "@/lib/project/project-schema";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
 /**
  * Streaming build generation (SSE).
  *

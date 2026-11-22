@@ -6,6 +6,10 @@ import { flushUsageInBackground } from "@/lib/usage/server-flush";
 
 import { runAgentService } from "@/lib/agent/agent";
 import type { GeneratedProject } from "@/lib/project/project-schema";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 
 const VALID_FRAMEWORKS = new Set(["nextjs"]);
 

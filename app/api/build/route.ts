@@ -17,6 +17,10 @@ import {
   SYSTEM_INSTRUCTION,
 } from "@/lib/gemini/build-prompt";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
 
 type BuildRequestBody = {
   prompt?: unknown;
