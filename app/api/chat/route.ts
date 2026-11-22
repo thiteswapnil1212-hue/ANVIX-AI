@@ -1,16 +1,29 @@
-
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { thinkingConfig } from "@/lib/gemini/model-config";
 import {
-  CHAT_THINKING_LEVEL,
-  thinkingConfig,
-} from "@/lib/gemini/model-config";
+  parseChatMode,
+  parseThinkingChoice,
+  resolveChatMode,
+  resolveLegacyChatModel,
+  defaultThinkingForMode,
+  type ChatModeId,
+  type ThinkingChoice,
+} from "@/lib/chat-modes";
+import { splitChunkParts } from "@/lib/gemini/chat-stream";
 import {
-  CHAT_API_MODEL_IDS,
-  DEFAULT_CHAT_MODEL_ID,
-  getChatModel,
-} from "@/lib/chat-models";
+  extractGroundingSources,
+  groundingTools,
+  mergeGroundingSources,
+  type GroundingSource,
+} from "@/lib/gemini/grounding";
+import {
+  attachmentsToInlineDataParts,
+  validateAttachments,
+  type ChatAttachmentInput,
+} from "@/lib/chat-attachments";
+import { encodeChatEvent } from "@/lib/chat-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,11 +35,24 @@ function isAbortError(error: unknown) {
   );
 }
 
+type ChatRequestBody = {
+  prompt?: unknown;
+  /** Legacy raw model id (pre-Wave 2 clients). */
+  model?: unknown;
+  mode?: unknown;
+  thinking?: unknown;
+  /** Web grounding on/off. Defaults to true when absent. */
+  web?: unknown;
+  /** Opt in to the NDJSON event protocol; default streams plain text. */
+  events?: unknown;
+  attachments?: unknown;
+};
+
 export async function POST(request: Request) {
   const limited = await enforceRateLimit(request, "chat", 30, 60_000);
   if (limited) return limited;
 
-  let body: { prompt?: unknown; model?: unknown };
+  let body: ChatRequestBody;
 
   try {
     body = await request.json();
@@ -38,10 +64,6 @@ export async function POST(request: Request) {
   }
 
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
-  const modelId =
-    typeof body.model === "string"
-      ? body.model
-      : DEFAULT_CHAT_MODEL_ID;
 
   if (!prompt) {
     return NextResponse.json(
@@ -50,25 +72,46 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!CHAT_API_MODEL_IDS.has(modelId)) {
+  // Resolve mode + thinking. A legacy `model` id translates to its
+  // equivalent mode + thinking; a `mode` field wins over `model`.
+  let modeId: ChatModeId | undefined;
+  let thinking: ThinkingChoice | undefined;
+
+  if (typeof body.mode === "string") {
+    modeId = parseChatMode(body.mode);
+  }
+
+  const parsedThinking = parseThinkingChoice(body.thinking);
+  if (parsedThinking) thinking = parsedThinking;
+
+  if (modeId === undefined && typeof body.model === "string") {
+    const legacy = resolveLegacyChatModel(body.model);
+    if (!legacy) {
+      return NextResponse.json(
+        { error: "This model is not available." },
+        { status: 400 }
+      );
+    }
+    modeId = legacy.modeId;
+    thinking = thinking ?? legacy.thinking;
+  }
+
+  const resolved = resolveChatMode(
+    modeId ?? "smart",
+    thinking ?? defaultThinkingForMode(modeId ?? "smart")
+  );
+
+  const webEnabled = body.web !== false;
+  const eventsEnabled = body.events === true;
+
+  const validatedAttachments = validateAttachments(body.attachments);
+  if (!validatedAttachments.ok) {
     return NextResponse.json(
-      { error: "This model is not available." },
+      { error: validatedAttachments.error },
       { status: 400 }
     );
   }
-
-  const selectedModel = getChatModel(modelId);
-
-  if (
-    !selectedModel ||
-    selectedModel.locked ||
-    !selectedModel.apiModelId
-  ) {
-    return NextResponse.json(
-      { error: "This model is not connected." },
-      { status: 400 }
-    );
-  }
+  const attachments: ChatAttachmentInput[] = validatedAttachments.attachments;
 
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -80,87 +123,213 @@ export async function POST(request: Request) {
   }
 
   const client = new GoogleGenerativeAI(apiKey);
-  const model = client.getGenerativeModel({
-    model: selectedModel.apiModelId,
-    generationConfig: {
-      ...thinkingConfig(CHAT_THINKING_LEVEL),
-    },
-  });
+  const tools = groundingTools(webEnabled);
+  const modelChain = [resolved.modelId, resolved.fallbackModelId];
 
   let cancelled = false;
-  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
+      let emittedAnything = false;
+      let lastError: unknown = null;
 
-      try {
-        if (request.signal.aborted || cancelled) {
-          controller.close();
-          return;
+      const emitText = (text: string) => {
+        if (!text) return;
+        emittedAnything = true;
+        controller.enqueue(
+          encoder.encode(
+            eventsEnabled
+              ? encodeChatEvent({ t: "text", text })
+              : text
+          )
+        );
+      };
+
+      const emitThinking = (text: string) => {
+        if (!text) return;
+        emittedAnything = true;
+        if (eventsEnabled) {
+          controller.enqueue(
+            encoder.encode(encodeChatEvent({ t: "thinking", text }))
+          );
         }
+        // Plain-text mode never receives thought parts: thinking is
+        // only requested when the client will display it.
+      };
 
-        const result = await model.generateContentStream(prompt);
+      // Fallback chain: a model that fails BEFORE emitting anything
+      // falls through to the next model. Once output has started,
+      // restarting would duplicate it, so the error is surfaced
+      // instead (same rule as the build stream).
+      for (const modelId of modelChain) {
+        if (request.signal.aborted || cancelled) break;
 
-        if (request.signal.aborted || cancelled) {
-          controller.close();
-          return;
-        }
-
-        reader = result.stream
-          ? null
-          : null;
-
-        for await (const chunk of result.stream) {
-          if (request.signal.aborted || cancelled) break;
-
-          const text = chunk.text();
-
-          if (text) {
-            controller.enqueue(encoder.encode(text));
-          }
-        }
-
-        if (!cancelled) {
-          controller.close();
-        }
-      } catch (error) {
-        if (cancelled || request.signal.aborted || isAbortError(error)) {
-          try {
-            controller.close();
-          } catch {
-            // Stream may already be closed.
-          }
-          return;
-        }
-
-        console.error("Gemini stream error:", error);
+        const model = client.getGenerativeModel({
+          model: modelId,
+          generationConfig: {
+            ...thinkingConfig(
+              resolved.thinkingLevel,
+              resolved.includeThoughts
+            ),
+          },
+          ...(tools.length > 0 ? { tools } : {}),
+        });
 
         try {
-          controller.enqueue(
-            encoder.encode("\n\n[An error occurred while generating the response.]")
+          if (request.signal.aborted || cancelled) break;
+
+          const result =
+            attachments.length > 0
+              ? await model.generateContentStream({
+                  contents: [
+                    {
+                      role: "user",
+                      parts: [
+                        ...attachmentsToInlineDataParts(attachments),
+                        { text: prompt },
+                      ],
+                    },
+                  ],
+                })
+              : await model.generateContentStream(prompt);
+
+          if (request.signal.aborted || cancelled) break;
+
+          let sources: GroundingSource[] = [];
+
+          for await (const chunk of result.stream) {
+            if (request.signal.aborted || cancelled) break;
+
+            // NEVER chunk.text() here: it concatenates thought parts
+            // into the visible answer. Split the raw parts instead.
+            const { thinking, text } = splitChunkParts(chunk);
+            emitThinking(thinking);
+            emitText(text);
+
+            if (webEnabled) {
+              sources = mergeGroundingSources(
+                sources,
+                extractGroundingSources(chunk)
+              );
+            }
+          }
+
+          if (request.signal.aborted || cancelled) break;
+
+          // Stream finished cleanly on this model — no fallback.
+          if (eventsEnabled) {
+            if (sources.length > 0) {
+              controller.enqueue(
+                encoder.encode(
+                  encodeChatEvent({ t: "sources", sources })
+                )
+              );
+            }
+            controller.enqueue(
+              encoder.encode(encodeChatEvent({ t: "done" }))
+            );
+          }
+
+          controller.close();
+          return;
+        } catch (error) {
+          if (cancelled || request.signal.aborted || isAbortError(error)) {
+            try {
+              controller.close();
+            } catch {
+              // Stream may already be closed.
+            }
+            return;
+          }
+
+          lastError = error;
+          console.error("Gemini stream error:", error);
+
+          // Output already started: surface the failure, don't retry
+          // (a retry would duplicate the partial answer).
+          if (emittedAnything) {
+            try {
+              if (eventsEnabled) {
+                controller.enqueue(
+                  encoder.encode(
+                    encodeChatEvent({
+                      t: "error",
+                      message:
+                        "The response was interrupted. Please try again.",
+                    })
+                  )
+                );
+              } else {
+                controller.enqueue(
+                  encoder.encode(
+                    "\n\n[An error occurred while generating the response.]"
+                  )
+                );
+              }
+              controller.close();
+            } catch {
+              // Client may have disconnected.
+            }
+            return;
+          }
+
+          // Nothing emitted yet: fall through to the next model.
+          console.warn(
+            "[ANVIX CHAT] Model failed before emitting, trying fallback",
+            { model: modelId }
           );
+        }
+      }
+
+      // Every model failed before emitting anything (or aborted).
+      if (cancelled || request.signal.aborted) {
+        try {
           controller.close();
         } catch {
-          // Client may have disconnected.
+          // Stream may already be closed.
         }
+        return;
+      }
+
+      console.error(
+        "Gemini chat failed on all models:",
+        lastError
+      );
+
+      try {
+        if (eventsEnabled) {
+          controller.enqueue(
+            encoder.encode(
+              encodeChatEvent({
+                t: "error",
+                message: "Failed to generate response. Please try again.",
+              })
+            )
+          );
+        } else {
+          controller.enqueue(
+            encoder.encode(
+              "[An error occurred while generating the response.]"
+            )
+          );
+        }
+        controller.close();
+      } catch {
+        // Client may have disconnected.
       }
     },
 
     async cancel() {
       cancelled = true;
-
-      try {
-        await reader?.cancel();
-      } catch {
-        // Reader may already be closed.
-      }
     },
   });
 
   return new Response(stream, {
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Type": eventsEnabled
+        ? "application/x-ndjson; charset=utf-8"
+        : "text/plain; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       "X-Content-Type-Options": "nosniff",
     },
