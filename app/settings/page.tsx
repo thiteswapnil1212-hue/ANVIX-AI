@@ -38,6 +38,7 @@ import {
   SlidersHorizontal,
   Bot,
   Brain,
+  Calendar,
 } from "lucide-react";
 
 const settingsSections = [
@@ -67,6 +68,13 @@ const settingsSections = [
       "Facts ANVIX remembers about you from chats. View, edit or delete any of them.",
     icon: Brain,
     status: "Quick settings",
+  },
+  {
+    title: "Google Calendar",
+    description:
+      "Connect your Google Calendar to ask about your day and add events.",
+    icon: Calendar,
+    status: "Open",
   },
   {
     title: "Privacy & Security",
@@ -365,6 +373,9 @@ export default function SettingsPage() {
                       document
                         .getElementById("byok-settings")
                         ?.scrollIntoView({ behavior: "smooth" });
+                    }
+                    if (section.title === "Google Calendar") {
+                      router.push("/calendar");
                     }
                   }}
                   className="
