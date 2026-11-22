@@ -4,8 +4,6 @@
 import Navbar from "@/components/layout/Navbar";
 import Hero from "@/features/landing/Hero";
 import PromptEditor from "@/components/ai/PromptEditor";
-import PromptToolbar from "@/components/ai/PromptToolbar";
-import ThinkingPanel from "@/components/ai/ThinkingPanel";
 import BackgroundGlow from "@/components/background/BackgroundGlow";
 
 const capabilities = [
@@ -91,15 +89,6 @@ export default function Home() {
               <div className="p-3 sm:p-5">
                 <PromptEditor />
               </div>
-
-              <div className="border-t border-white/[0.07] bg-black/20">
-                <PromptToolbar />
-              </div>
-            </div>
-
-            {/* Processing panel */}
-            <div className="mt-4">
-              <ThinkingPanel />
             </div>
           </div>
         </section>

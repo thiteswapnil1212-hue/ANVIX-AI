@@ -15,6 +15,7 @@ import {
 import GenerateButton from "@/features/landing/GenerateButton";
 import GenerationStatus from "@/components/ai/GenerationStatus";
 import GenerationResultCard from "@/components/ai/GenerationResultCard";
+import ThinkingPanel from "@/components/ai/ThinkingPanel";
 import {
   generateProject,
   type GenerateProjectResponse,
@@ -412,6 +413,9 @@ Describe your product, who it's for, the features you need, and any preferred te
             detail={statusDetail}
           />
         </div>
+
+        {/* Progress — only while a generation is actually running. */}
+        <ThinkingPanel active={loading} />
 
         {/* Result */}
         {result && (

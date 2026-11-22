@@ -5,13 +5,18 @@ import { Loader2, Sparkles, Check, Circle, Cpu } from "lucide-react";
 
 const steps = [
   "Analyzing your prompt",
-  "Planning application architecture",
-  "Generating frontend",
-  "Generating backend",
-  "Preparing deployment",
+  "Planning the blueprint",
+  "Writing the blueprint",
 ];
 
-export default function ThinkingPanel() {
+export default function ThinkingPanel({ active = false }: { active?: boolean }) {
+  // Nothing is being built until the caller says so — rendering the
+  // "In progress" panel while idle told every home-page visitor a
+  // build was running. Inactive renders nothing.
+  if (!active) {
+    return null;
+  }
+
   const activeStep = 0;
   const progress = ((activeStep + 1) / steps.length) * 100;
 
@@ -41,7 +46,7 @@ export default function ThinkingPanel() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-base font-semibold tracking-tight text-white">
-                Building your project
+                Building your blueprint
               </h3>
 
               <span className="inline-flex items-center gap-1 rounded-full border border-[#D4AF37]/20 bg-[#D4AF37]/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#D4AF37]">
@@ -148,7 +153,7 @@ export default function ThinkingPanel() {
         <div className="mt-4 flex items-center gap-2 border-t border-white/[0.06] pt-4">
           <Cpu className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
           <p className="text-xs leading-5 text-zinc-600">
-            Keep this page open while your project is being generated.
+            Keep this page open while your blueprint is being generated.
           </p>
         </div>
       </div>
