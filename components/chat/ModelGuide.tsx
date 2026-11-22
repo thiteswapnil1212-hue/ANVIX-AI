@@ -39,7 +39,7 @@ type SortOption = "default" | "name" | "provider";
 const MODEL_INFO: Record<string, ModelInfo> = {
   "gemini-3.5-flash-lite": {
     description:
-      "A general-purpose option for everyday questions, coding help, writing, and explanations.",
+      "The Fast chat mode model — a general-purpose option for everyday questions, coding help, writing, and explanations. Fast mode falls back to Gemini 3.8 Flash if it fails; Smart mode uses 3.8 Flash first, and Deep mode uses Gemini 4-hydrogen.",
     bestFor: ["Everyday questions", "Learning", "Coding", "Brainstorming"],
     example: "Explain React useEffect with a simple example.",
   },
@@ -346,7 +346,9 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                 id="model-guide-description"
                 className="mt-0.5 hidden text-xs text-zinc-500 sm:block"
               >
-                Explore models, filter by provider, and check availability.
+                Chat uses Fast, Smart and Deep modes — pick a mode in the
+                chat box. The library below shows every model ANVIX knows
+                about and whether it is connected.
               </p>
             </div>
           </div>
