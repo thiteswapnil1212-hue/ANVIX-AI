@@ -18,6 +18,7 @@ const links = [
   { href: "/generate", label: "Generate" },
   { href: "/chat", label: "Chat" },
   { href: "/dashboard", label: "Projects" },
+  { href: "/calendar", label: "Calendar" },
   { href: "/pricing", label: "Pricing" },
 ];
 
