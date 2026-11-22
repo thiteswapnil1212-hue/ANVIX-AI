@@ -260,6 +260,31 @@ create table if not exists public.memories (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- ------------------------------------------------------- research runs
+-- Deep research (scoped version, report §5). Mirrored in
+-- supabase/migrations/20261122_research_runs.sql for existing DBs.
+-- State for chunked runs: plan, per-step notes, sources, direction,
+-- finished report. RLS: each user sees only their own runs.
+create table if not exists public.research_runs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  question text not null,
+  status text not null default 'queued'
+    check (status in (
+      'queued', 'planning', 'searching', 'synthesizing',
+      'done', 'failed', 'cancelled'
+    )),
+  plan jsonb not null default '[]'::jsonb,
+  step_index integer not null default 0,
+  notes jsonb not null default '[]'::jsonb,
+  sources jsonb not null default '[]'::jsonb,
+  direction text,
+  report_markdown text,
+  error text,
+  steps_used integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 create index if not exists idx_memories_user_created
   on public.memories (user_id, created_at desc);
@@ -279,4 +304,12 @@ create policy "assistants: public read" on public.assistants
 
 drop policy if exists "memories: own rows" on public.memories;
 create policy "memories: own rows" on public.memories
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index if not exists idx_research_runs_user_created
+  on public.research_runs (user_id, created_at desc);
+
+alter table public.research_runs enable row level security;
+
+drop policy if exists "research_runs: own rows" on public.research_runs;
+create policy "research_runs: own rows" on public.research_runs
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
