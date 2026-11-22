@@ -1197,11 +1197,47 @@ export default function ChatLayout() {
     }
   };
 
+  const handleOpenSettings = useCallback(() => {
+    router.push("/settings");
+  }, [router]);
+
+  // Stabilize the sidebar threads array: sortConversations returns a
+  // new array identity on every setConversations, which defeats
+  // ChatSidebar's memo and re-runs its grouping useMemo per chunk.
+  // The signature covers exactly the fields the sidebar renders
+  // (Thread: id/title/preview/updatedAt/pinned), so the mapped array
+  // is rebuilt only when something visible changes.
+  const sidebarSignature = useMemo(
+    () =>
+      conversations
+        .map(
+          (conversation) =>
+            `${conversation.id}|${conversation.title}|${conversation.preview}|${conversation.pinned ? 1 : 0}|${conversation.updatedAt}`
+        )
+        .join(";"),
+    [conversations]
+  );
+  const sidebarThreads = useMemo(
+    () =>
+      conversations.map((conversation) => ({
+        id: conversation.id,
+        title: conversation.title,
+        preview: conversation.preview,
+        updatedAt: conversation.updatedAt,
+        pinned: conversation.pinned,
+      })),
+    // The signature string is the dep: the mapped array only changes
+    // when a rendered field changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sidebarSignature]
+  );
+
   // Send a message and stream the response.
-  const handleSend = async (
-    prompt: string,
-    options: ChatSendOptions
-  ): Promise<boolean> => {
+  const handleSend = useCallback(
+    async (
+      prompt: string,
+      options: ChatSendOptions
+    ): Promise<boolean> => {
     const trimmedPrompt = prompt.trim();
 
     if (!trimmedPrompt) {
@@ -1587,7 +1623,7 @@ export default function ChatLayout() {
         setIsTyping(false);
       }
     }
-  };
+  }, [activeConversationId]);
 
   return (
     <AppShell hideVideo>
@@ -1624,7 +1660,7 @@ export default function ChatLayout() {
             "
           >
             <ChatSidebar
-              threads={conversations}
+              threads={sidebarThreads}
               activeThread={activeConversationId ?? ""}
               onSelectThread={handleSelectConversation}
               onNewThread={handleNewConversation}
@@ -1634,7 +1670,7 @@ export default function ChatLayout() {
               onCollapse={setSidebarCollapsed}
               onSetFolder={handleSetFolder}
               onSetTags={handleSetTags}
-              onOpenSettings={() => router.push("/settings")}
+              onOpenSettings={handleOpenSettings}
               onOpenAccount={handleOpenAccount}
               userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
               plan={authLoading ? "Checking your account…" : user ? "Cloud sync on" : "Local workspace"}
@@ -1735,7 +1771,7 @@ export default function ChatLayout() {
                 "
               >
                 <ChatSidebar
-                  threads={conversations}
+                  threads={sidebarThreads}
                   activeThread={activeConversationId ?? ""}
                   onSelectThread={handleSelectConversation}
                   onNewThread={handleNewConversation}
@@ -1744,7 +1780,7 @@ export default function ChatLayout() {
                   onTogglePin={handleTogglePin}
               onSetFolder={handleSetFolder}
               onSetTags={handleSetTags}
-                  onOpenSettings={() => router.push("/settings")}
+                  onOpenSettings={handleOpenSettings}
                   onOpenAccount={handleOpenAccount}
                   userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
                   plan={authLoading ? "Checking your account…" : user ? "Cloud sync on" : "Local workspace"}

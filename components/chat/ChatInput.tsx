@@ -2,6 +2,7 @@
 "use client";
 
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -144,7 +145,7 @@ function readStoredResearch(): boolean {
   return window.localStorage.getItem(RESEARCH_STORAGE_KEY) === "on";
 }
 
-export default function ChatInput({
+function ChatInput({
   onSend,
   isGenerating,
   onStop,
@@ -1487,3 +1488,5 @@ export default function ChatInput({
     </>
   );
 }
+
+export default memo(ChatInput);
