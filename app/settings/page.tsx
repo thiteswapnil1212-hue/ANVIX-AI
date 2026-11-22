@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
+import PushSettings from "@/components/notifications/PushSettings";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchProfile, upsertProfile } from "@/lib/supabase/cloud";
 import {
@@ -579,6 +581,39 @@ export default function SettingsPage() {
                 )}
               </div>
             )}
+          </div>
+        </section>
+
+        {/* NOTIFICATIONS + INSTALL */}
+        <section>
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              Notifications
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Stay in the loop
+            </h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              Install ANVIX on this device and choose how it reaches you.
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5 sm:p-6">
+              <h3 className="text-sm font-semibold text-white">
+                Install ANVIX
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">
+                Add ANVIX to your home screen for full-screen, app-like use.
+              </p>
+              <div className="mt-4">
+                <InstallPrompt />
+              </div>
+            </div>
+
+            <PushSettings />
           </div>
         </section>
 
