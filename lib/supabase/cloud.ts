@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { normalizeFolderName, normalizeTags } from "@/lib/chat-organization";
 
 /**
  * Cloud persistence for chats and generated projects (Supabase).
@@ -24,6 +25,10 @@ export interface CloudConversation {
   title: string;
   preview: string;
   pinned?: boolean;
+  /** Folder name, or null for no folder (see migration 20261122). */
+  folder?: string | null;
+  /** Lowercase tags (see migration 20261122). */
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
   messages: CloudMessage[];
@@ -44,6 +49,8 @@ interface ConversationRow {
   title: string;
   preview: string;
   pinned: boolean;
+  folder?: string | null;
+  tags?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +94,33 @@ export async function fetchConversations(
   const conversations = conversationRows as ConversationRow[];
   if (conversations.length === 0) return [];
 
+  // Folders/tags live in the 20261122 migration. If it has not been
+  // applied yet, this second query fails and we keep the base rows —
+  // organization stays local-only instead of breaking cloud load.
+  const { data: orgRows } = await supabase
+    .from("conversations")
+    .select("id, folder, tags")
+    .eq("user_id", userId)
+    .in(
+      "id",
+      conversations.map((conversation) => conversation.id)
+    );
+  const orgById = new Map<string, { folder?: string | null; tags?: string[] }>();
+  for (const row of (orgRows ?? []) as {
+    id: string;
+    folder?: string | null;
+    tags?: string[];
+  }[]) {
+    orgById.set(row.id, row);
+  }
+  for (const row of conversations) {
+    const org = orgById.get(row.id);
+    if (org) {
+      row.folder = normalizeFolderName(org.folder);
+      row.tags = normalizeTags(org.tags);
+    }
+  }
+
   const { data: messageRows, error: messagesError } = await supabase
     .from("messages")
     .select("id, conversation_id, role, content, created_at")
@@ -119,6 +153,8 @@ export async function fetchConversations(
     title: row.title,
     preview: row.preview,
     pinned: row.pinned,
+    folder: normalizeFolderName(row.folder),
+    tags: normalizeTags(row.tags),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     messages: messagesByConversation.get(row.id) ?? [],
@@ -131,18 +167,44 @@ export async function upsertConversation(
 ): Promise<boolean> {
   if (!supabase) return false;
 
-  const { error } = await supabase.from("conversations").upsert(
-    {
-      id: conversation.id,
-      user_id: userId,
-      title: conversation.title,
-      preview: conversation.preview,
-      pinned: Boolean(conversation.pinned),
-      created_at: conversation.createdAt,
-      updated_at: conversation.updatedAt,
-    },
-    { onConflict: "id" }
-  );
+  const baseRow = {
+    id: conversation.id,
+    user_id: userId,
+    title: conversation.title,
+    preview: conversation.preview,
+    pinned: Boolean(conversation.pinned),
+    created_at: conversation.createdAt,
+    updated_at: conversation.updatedAt,
+  };
+
+  // Try with folder/tags first (migration 20261122 applied). If the
+  // columns do not exist yet, PostgREST reports the missing column
+  // and we retry with the base row so sync keeps working.
+  const { error: orgError } = await supabase
+    .from("conversations")
+    .upsert(
+      {
+        ...baseRow,
+        folder: normalizeFolderName(conversation.folder),
+        tags: normalizeTags(conversation.tags),
+      },
+      { onConflict: "id" }
+    );
+
+  if (!orgError) return true;
+
+  const missingColumn =
+    /folder|tags|column/i.test(orgError.message ?? "") ||
+    orgError.code === "PGRST204";
+
+  if (!missingColumn) {
+    console.warn("Unable to sync conversation.", orgError);
+    return false;
+  }
+
+  const { error } = await supabase
+    .from("conversations")
+    .upsert(baseRow, { onConflict: "id" });
 
   if (error) {
     console.warn("Unable to sync conversation.", error);
