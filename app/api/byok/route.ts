@@ -29,8 +29,8 @@ export const dynamic = "force-dynamic";
  * Requires sign-in (a stored key belongs to a user) and a configured
  * `BYOK_ENCRYPTION_KEY`. Without the encryption secret the route says
  * so with a 503 instead of storing anything weakly. Without the
- * `user_api_keys` table (supabase/byok-usage.sql not run yet) it also
- * says so, instead of failing silently.
+ * `user_api_keys` table (migration 0005_byok_keys.sql not run yet) it
+ * also says so, instead of failing silently.
  */
 
 function jsonError(error: string, status: number) {
@@ -135,22 +135,26 @@ export async function POST(request: Request) {
   }
 
   const verifiedAt = new Date().toISOString();
+  // Columns are the live `user_api_keys` shape from migration
+  // 0005_byok_keys.sql (`key_hint`, `is_valid`, `last_validated_at`;
+  // unique on (user_id, provider)).
   const { error } = await client.from("user_api_keys").upsert(
     {
       user_id: userId,
       provider: "gemini",
       encrypted_key: encrypted,
-      key_last4: keyLast4(key),
-      verified_at: verifiedAt,
+      key_hint: keyLast4(key),
+      is_valid: true,
+      last_validated_at: verifiedAt,
       updated_at: verifiedAt,
     },
-    { onConflict: "user_id" }
+    { onConflict: "user_id,provider" }
   );
 
   if (error) {
     if (isMissingTableError(error)) {
       return jsonError(
-        "The BYOK tables have not been created in Supabase yet (supabase/byok-usage.sql). Your key was verified but not stored.",
+        "The BYOK tables have not been created in Supabase yet (migration 0005_byok_keys.sql). Your key was verified but not stored.",
         503
       );
     }

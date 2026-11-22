@@ -86,8 +86,14 @@ type AuthedClientFactory = (
  * Fetch the caller's stored BYOK key row via their own authed client
  * (RLS: own row only). Returns null on every failure path — Supabase
  * unconfigured, no token, no row, or the table not created yet
- * (`supabase/byok-usage.sql` not run) — so callers always fall back
- * to the shared key instead of erroring.
+ * (migration 0005 not run) — so callers always fall back to the shared
+ * key instead of erroring.
+ *
+ * Columns are the live `user_api_keys` shape from migration
+ * 0005_byok_keys.sql: `encrypted_key`, `key_hint` (last 4 chars),
+ * `is_valid`, `last_validated_at`. Only the caller's Gemini row is
+ * read (the table is unique on (user_id, provider)); a row marked
+ * invalid is treated as absent.
  */
 export async function fetchStoredByokKey(
   userId: string,
@@ -100,8 +106,10 @@ export async function fetchStoredByokKey(
   try {
     const { data, error } = await client
       .from("user_api_keys")
-      .select("encrypted_key, key_last4, verified_at")
+      .select("encrypted_key, key_hint, is_valid, last_validated_at")
       .eq("user_id", userId)
+      .eq("provider", "gemini")
+      .eq("is_valid", true)
       .maybeSingle();
 
     if (error || !data || typeof data.encrypted_key !== "string") {
@@ -109,10 +117,11 @@ export async function fetchStoredByokKey(
     }
     return {
       encryptedKey: data.encrypted_key,
-      keyLast4:
-        typeof data.key_last4 === "string" ? data.key_last4 : "",
+      keyLast4: typeof data.key_hint === "string" ? data.key_hint : "",
       verifiedAt:
-        typeof data.verified_at === "string" ? data.verified_at : null,
+        typeof data.last_validated_at === "string"
+          ? data.last_validated_at
+          : null,
     };
   } catch {
     return null;

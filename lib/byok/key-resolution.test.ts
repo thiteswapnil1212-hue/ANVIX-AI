@@ -148,17 +148,17 @@ test("fetchStoredByokKey returns null when the table/client is missing or errors
     null
   );
 
-  // Query returns an error row: null.
+  // Query returns an error row: null. The stub chains `.eq` like the
+  // real query builder so a shape mismatch surfaces here, not live.
+  const chain: Record<string, unknown> = {};
+  chain.eq = () => chain;
+  chain.maybeSingle = async () => ({
+    data: null,
+    error: { code: "PGRST205", message: "table not found" },
+  });
   const errorClient = {
     from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({
-            data: null,
-            error: { code: "PGRST205", message: "table not found" },
-          }),
-        }),
-      }),
+      select: () => chain,
     }),
   };
   assert.equal(
@@ -172,35 +172,79 @@ test("fetchStoredByokKey returns null when the table/client is missing or errors
   );
 });
 
-test("fetchStoredByokKey returns the row when present", async () => {
-  const okClient = {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({
-            data: {
-              encrypted_key: ENCRYPTED_OWN,
-              key_last4: "90ab",
-              verified_at: "2026-11-22T00:00:00Z",
-            },
-            error: null,
-          }),
-        }),
-      }),
-    }),
+/** Chainable query-builder stub that records the select + eq filters. */
+function mockQueryClient(row: Record<string, unknown> | null) {
+  const calls: { select: string; eq: [string, unknown][] } = {
+    select: "",
+    eq: [],
   };
+  const chain: Record<string, unknown> = {};
+  chain.eq = (column: string, value: unknown) => {
+    calls.eq.push([column, value]);
+    return chain;
+  };
+  chain.maybeSingle = async () => ({ data: row, error: null });
+  return {
+    calls,
+    client: {
+      from: () => ({
+        select: (columns: string) => {
+          calls.select = columns;
+          return chain;
+        },
+      }),
+    },
+  };
+}
+
+test("fetchStoredByokKey reads the live user_api_keys columns", async () => {
+  const { calls, client } = mockQueryClient({
+    encrypted_key: ENCRYPTED_OWN,
+    key_hint: "90ab",
+    is_valid: true,
+    last_validated_at: "2026-11-22T00:00:00Z",
+  });
   assert.deepEqual(
     await fetchStoredByokKey(
       "u1",
       "tok",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      () => okClient as any
+      () => client as any
     ),
     {
       encryptedKey: ENCRYPTED_OWN,
       keyLast4: "90ab",
       verifiedAt: "2026-11-22T00:00:00Z",
     }
+  );
+  // Pins the query to migration 0005_byok_keys.sql: the old
+  // `key_last4` / `verified_at` columns do not exist live.
+  assert.equal(
+    calls.select,
+    "encrypted_key, key_hint, is_valid, last_validated_at"
+  );
+  assert.deepEqual(calls.eq, [
+    ["user_id", "u1"],
+    ["provider", "gemini"],
+    ["is_valid", true],
+  ]);
+});
+
+test("fetchStoredByokKey maps a missing hint/verification to empty values", async () => {
+  const { client } = mockQueryClient({
+    encrypted_key: ENCRYPTED_OWN,
+    key_hint: null,
+    is_valid: true,
+    last_validated_at: null,
+  });
+  assert.deepEqual(
+    await fetchStoredByokKey(
+      "u1",
+      "tok",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => client as any
+    ),
+    { encryptedKey: ENCRYPTED_OWN, keyLast4: "", verifiedAt: null }
   );
 });
 
