@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   BookOpen,
   ArrowUpDown,
+  ArrowLeft,
   Command,
   RotateCcw,
 } from "lucide-react";
@@ -114,13 +115,11 @@ const PROVIDERS = [
   "xAI",
 ];
 
-const PROVIDER_LOGOS: Record<string, string> = {
-  Google: "/model-logos/google.svg",
-  OpenAI: "/model-logos/openai.svg",
-  Anthropic: "/model-logos/anthropic.svg",
-  DeepSeek: "/model-logos/deepseek.svg",
-  xAI: "/model-logos/xai.svg",
-};
+// No logo files ship in public/ (there is only /logo.png), so provider
+// marks are initial tiles instead of <Image> tags that 404.
+function providerInitial(provider: string): string {
+  return provider.charAt(0).toUpperCase();
+}
 
 function getProvider(provider: string) {
   const normalized = provider.toLowerCase();
@@ -320,7 +319,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#19191E]">
               <Image
-                src="/anvix-logo.png"
+                src="/logo.png"
                 alt="ANVIX AI"
                 width={40}
                 height={40}
@@ -591,17 +590,11 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
                         />
 
                         <div className="flex items-start gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/[0.07] bg-[#1B1B21] p-2.5">
-                            <Image
-                              src={
-                                PROVIDER_LOGOS[provider] ??
-                                "/model-logos/default.svg"
-                              }
-                              alt={`${provider} logo`}
-                              width={28}
-                              height={28}
-                              className="h-full w-full object-contain"
-                            />
+                          <div
+                            aria-hidden="true"
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-[#1B1B21] text-sm font-semibold text-[#D4AF37]"
+                          >
+                            {providerInitial(provider)}
                           </div>
 
                           <div className="min-w-0 flex-1">
@@ -694,7 +687,7 @@ export default function ModelGuide({ onClose }: ModelGuideProps) {
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-zinc-300 transition hover:border-[#D4AF37]/25 hover:bg-[#D4AF37]/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
           >
             Back to chat
-            <ArrowUpDown className="h-3.5 w-3.5 rotate-45" />
+            <ArrowLeft className="h-3.5 w-3.5" />
           </button>
         </footer>
       </section>
