@@ -39,6 +39,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [submitting, setSubmitting] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -205,6 +206,8 @@ export default function AuthPage() {
   }
 
   async function handleForgotPassword() {
+    // No busy guard here meant a double-click sent two reset emails.
+    if (resetBusy) return;
     setMessage("");
 
     if (!email.trim()) {
@@ -217,18 +220,27 @@ export default function AuthPage() {
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/auth`,
-    });
+    setResetBusy(true);
 
-    if (error) {
-      setMessage(friendlyAuthError(error));
-      return;
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/auth`,
+        }
+      );
+
+      if (error) {
+        setMessage(friendlyAuthError(error));
+        return;
+      }
+
+      setMessage(
+        "If an account exists for that email, a password reset link is on its way."
+      );
+    } finally {
+      setResetBusy(false);
     }
-
-    setMessage(
-      "If an account exists for that email, a password reset link is on its way."
-    );
   }
 
   return (
@@ -371,8 +383,9 @@ export default function AuthPage() {
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-white/45">
-                    Sign up to access other models available in the
-                    ANVIX AI model selector.
+                    More models arrive as providers are connected.
+                    For now, signing up saves your workspace and
+                    syncs your projects across devices.
                   </p>
                 </div>
 
@@ -688,9 +701,10 @@ export default function AuthPage() {
                       <button
                         type="button"
                         onClick={handleForgotPassword}
-                        className="text-xs text-[#d4b35e] transition hover:text-[#f0d98d]"
+                        disabled={resetBusy}
+                        className="text-xs text-[#d4b35e] transition hover:text-[#f0d98d] disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Forgot password?
+                        {resetBusy ? "Sending…" : "Forgot password?"}
                       </button>
                     )}
                   </div>
