@@ -243,6 +243,27 @@ create table if not exists public.assistants (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- ============================================ integrations (2026-11-22) ===
+-- Google Calendar OAuth connections + public API keys. Run the whole file
+-- once in the Supabase SQL Editor; every statement is idempotent.
+-- Gmail read is deliberately NOT here: gmail.readonly/modify/compose are
+-- restricted scopes needing a CASA assessment, so no Gmail table exists.
+
+-- ------------------------------------------------- google_connections
+-- One row per user. Tokens are AES-256-GCM encrypted server-side
+-- (lib/google/crypto.ts) before they reach this table — plaintext tokens
+-- are never stored. `access_token_encrypted` is short-lived (1h); the
+-- refresh token is what survives, and it is re-encrypted on refresh.
+create table if not exists public.google_connections (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  provider text not null default 'google',
+  encrypted_refresh_token text not null,
+  encrypted_access_token text,
+  access_token_expires_at timestamptz,
+  scope text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 create index if not exists idx_assistants_owner_updated
   on public.assistants (owner_id, updated_at desc);
@@ -312,4 +333,39 @@ alter table public.research_runs enable row level security;
 
 drop policy if exists "research_runs: own rows" on public.research_runs;
 create policy "research_runs: own rows" on public.research_runs
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+alter table public.google_connections enable row level security;
+
+drop policy if exists "google_connections: own row" on public.google_connections;
+create policy "google_connections: own row" on public.google_connections
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ----------------------------------------------------------------- api_keys
+-- Public API keys. Only the SHA-256 hash is stored — the plaintext key
+-- (`anvix_live_...`) is shown to its owner exactly once, at creation.
+-- Until BYOK lands, every key draws on the app's shared Gemini quota, so
+-- each key has a strict per-minute limit and a hard daily cap (see
+-- docs/public-api.md). Revocation is `revoked_at is not null`.
+create table if not exists public.api_keys (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  key_hash text not null unique,
+  name text not null default 'Default key',
+  scopes text[] not null default '{chat}',
+  rate_limit_per_min integer not null default 30,
+  daily_cap integer not null default 100,
+  last_used_at timestamptz,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_api_keys_user_created
+  on public.api_keys (user_id, created_at desc);
+create index if not exists idx_api_keys_hash
+  on public.api_keys (key_hash);
+
+alter table public.api_keys enable row level security;
+
+drop policy if exists "api_keys: own rows" on public.api_keys;
+create policy "api_keys: own rows" on public.api_keys
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
