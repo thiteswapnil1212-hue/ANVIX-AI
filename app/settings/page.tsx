@@ -6,6 +6,7 @@ import AppShell from "@/components/layout/AppShell";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import PushSettings from "@/components/notifications/PushSettings";
 import TelegramSettings from "@/components/notifications/TelegramSettings";
+import EmailSettings from "@/components/notifications/EmailSettings";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchProfile, upsertProfile } from "@/lib/supabase/cloud";
 import {
@@ -617,6 +618,8 @@ export default function SettingsPage() {
             <PushSettings />
 
             <TelegramSettings />
+
+            <EmailSettings />
           </div>
         </section>
 
