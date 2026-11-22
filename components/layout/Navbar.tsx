@@ -5,8 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ChevronDown,
   LogIn,
+  LogOut,
   Menu,
+  Settings,
   UserRound,
   X,
   ChevronRight,
@@ -25,13 +28,41 @@ const links = [
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
 
   const isAuthPage = pathname === "/auth";
 
   const closeMenu = useCallback(() => {
     setMobileOpen(false);
   }, []);
+
+  const closeAccountMenu = useCallback(() => {
+    setAccountMenuOpen(false);
+  }, []);
+
+  // Sign out through AuthProvider (it reports failure instead of
+  // pretending). Guest chats live in localStorage, which sign-out
+  // never touches, so they survive; the full reload re-reads them so
+  // the user lands on /chat as a guest with their guest history
+  // visible (client-side navigation would leave the cloud list in
+  // memory).
+  const handleSignOut = useCallback(async () => {
+    if (signingOut) return;
+    setSignOutFailed(false);
+    setSigningOut(true);
+    const ok = await signOut();
+    setSigningOut(false);
+    if (!ok) {
+      setSignOutFailed(true);
+      return;
+    }
+    setAccountMenuOpen(false);
+    setMobileOpen(false);
+    window.location.assign("/chat");
+  }, [signOut, signingOut]);
 
   const isActive = useCallback(
     (href: string) => {
@@ -47,12 +78,14 @@ export default function Navbar() {
     [pathname]
   );
 
-  // Close the mobile menu after route changes (adjust state during render,
-  // the React-endorsed replacement for a setState-in-effect here).
+  // Close the mobile menu and the account menu after route changes
+  // (adjust state during render, the React-endorsed replacement for a
+  // setState-in-effect here).
   const [lastPathname, setLastPathname] = useState(pathname);
   if (pathname !== lastPathname) {
     setLastPathname(pathname);
     setMobileOpen(false);
+    setAccountMenuOpen(false);
   }
 
   // Escape key closes the mobile menu.
@@ -71,6 +104,23 @@ export default function Navbar() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [mobileOpen, closeMenu]);
+
+  // Escape key closes the account menu.
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeAccountMenu();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [accountMenuOpen, closeAccountMenu]);
 
   // Prevent background scrolling while the menu is open.
   useEffect(() => {
@@ -142,7 +192,7 @@ export default function Navbar() {
           </div>
         </nav>
 
-        {/* Desktop account action — "Account" for a signed-in user,
+        {/* Desktop account action — account menu for a signed-in user,
             "Sign In" for a guest. Showing "Sign In" while signed in
             just bounced /auth back to /chat. */}
         {authLoading ? (
@@ -151,14 +201,70 @@ export default function Navbar() {
             className="hidden h-9 w-[118px] rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 md:flex"
           />
         ) : user ? (
-          <Link
-            href="/settings"
-            aria-label={`Account settings for ${user.email ?? "your account"}`}
-            className="hidden items-center gap-2 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-2 text-[13px] font-semibold text-[#E2C259] transition-colors hover:bg-[#D4AF37]/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex"
-          >
-            <UserRound className="h-4 w-4" aria-hidden="true" strokeWidth={1.8} />
-            <span>Account</span>
-          </Link>
+          <div className="relative hidden md:block">
+            <button
+              type="button"
+              onClick={() => setAccountMenuOpen((open) => !open)}
+              aria-expanded={accountMenuOpen}
+              aria-haspopup="menu"
+              aria-label={`Account menu for ${user.email ?? "your account"}`}
+              className="flex items-center gap-2 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-2 text-[13px] font-semibold text-[#E2C259] transition-colors hover:bg-[#D4AF37]/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            >
+              <UserRound className="h-4 w-4" aria-hidden="true" strokeWidth={1.8} />
+              <span>Account</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${accountMenuOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+                strokeWidth={1.8}
+              />
+            </button>
+
+            {accountMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close account menu"
+                  tabIndex={-1}
+                  onClick={closeAccountMenu}
+                  className="fixed inset-0 cursor-default"
+                />
+                <div
+                  role="menu"
+                  aria-label="Account menu"
+                  className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-white/[0.09] bg-[#121214] p-2 shadow-[0_15px_40px_rgba(0,0,0,0.45)]"
+                >
+                  <p className="truncate px-3 pb-1 pt-2 text-[13px] text-zinc-400">
+                    {user.email ?? "Signed in"}
+                  </p>
+                  <Link
+                    href="/settings"
+                    role="menuitem"
+                    onClick={closeAccountMenu}
+                    className="flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70"
+                  >
+                    <Settings className="h-4 w-4 text-zinc-400" aria-hidden="true" strokeWidth={1.8} />
+                    Settings
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    className="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70 disabled:opacity-60"
+                  >
+                    <LogOut className="h-4 w-4 text-zinc-400" aria-hidden="true" strokeWidth={1.8} />
+                    {signingOut ? "Signing out…" : "Sign out"}
+                  </button>
+                  {signOutFailed && (
+                    <p role="alert" className="px-3 pb-1 pt-1 text-[12px] leading-5 text-red-400">
+                      Couldn&apos;t sign out. Check your connection and
+                      try again.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         ) : (
           <Link
             href="/auth"
@@ -250,28 +356,50 @@ export default function Navbar() {
                     className="flex min-h-12 items-center rounded-xl bg-white/[0.03] px-4"
                   />
                 ) : user ? (
-                  <Link
-                    href="/settings"
-                    aria-label={`Account settings for ${user.email ?? "your account"}`}
-                    tabIndex={mobileOpen ? 0 : -1}
-                    onClick={closeMenu}
-                    className="flex min-h-12 items-center justify-between rounded-xl bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70"
-                  >
-                    <span className="flex items-center gap-2.5">
-                      <UserRound
+                  <>
+                    <Link
+                      href="/settings"
+                      aria-label={`Account settings for ${user.email ?? "your account"}`}
+                      tabIndex={mobileOpen ? 0 : -1}
+                      onClick={closeMenu}
+                      className="flex min-h-12 items-center justify-between rounded-xl bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <UserRound
+                          aria-hidden="true"
+                          className="h-4 w-4"
+                          strokeWidth={1.8}
+                        />
+                        Account
+                      </span>
+
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="h-4 w-4 text-[#D4AF37]/70"
+                        strokeWidth={1.8}
+                      />
+                    </Link>
+                    <button
+                      type="button"
+                      tabIndex={mobileOpen ? 0 : -1}
+                      onClick={handleSignOut}
+                      disabled={signingOut}
+                      className="mt-1 flex min-h-12 w-full items-center gap-2.5 rounded-xl px-4 text-sm font-medium text-zinc-300 transition-colors hover:bg-white/[0.05] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70 disabled:opacity-60"
+                    >
+                      <LogOut
                         aria-hidden="true"
                         className="h-4 w-4"
                         strokeWidth={1.8}
                       />
-                      Account
-                    </span>
-
-                    <ChevronRight
-                      aria-hidden="true"
-                      className="h-4 w-4 text-[#D4AF37]/70"
-                      strokeWidth={1.8}
-                    />
-                  </Link>
+                      {signingOut ? "Signing out…" : "Sign out"}
+                    </button>
+                    {signOutFailed && (
+                      <p role="alert" className="px-4 pb-1 pt-1 text-[12px] leading-5 text-red-400">
+                        Couldn&apos;t sign out. Check your connection and
+                        try again.
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <Link
                     href="/auth"
