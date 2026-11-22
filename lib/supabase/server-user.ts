@@ -86,3 +86,25 @@ export async function getServerUserId(
   const caller = await getAuthedCaller(request).catch(() => null);
   return caller?.userId ?? null;
 }
+
+/**
+ * Optional service-role client (bypasses RLS). Only used by the Google
+ * OAuth callback, which arrives from Google as a plain browser redirect
+ * with no Bearer token — the user id there comes from the HMAC-signed
+ * `state` instead. Returns null when `SUPABASE_SERVICE_ROLE_KEY` is not
+ * set; the callback then falls back to the signed setup-cookie flow
+ * (see `app/api/integrations/google/complete/route.ts`), so the key is
+ * genuinely optional. Never expose this key to the browser.
+ */
+export function getServiceClient(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+  try {
+    return createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  } catch {
+    return null;
+  }
+}
