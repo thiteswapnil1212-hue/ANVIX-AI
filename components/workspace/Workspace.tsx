@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   Bot,
@@ -45,7 +46,17 @@ import {
 } from "@/lib/project/project-schema";
 
 import FileExplorer from "./FileExplorer";
-import CodePreview from "./CodePreview";
+
+// CodePreview (1,039 lines, lucide + React only) is split out of the
+// workspace initial chunk. ssr stays ON: this component renders the
+// DEFAULT code-editor view, so ssr: false would delay the workspace's
+// primary content behind a skeleton. The preview half sits behind a
+// tab, but it shares this component with the default code view.
+const CodePreview = dynamic(() => import("./CodePreview"), {
+  loading: () => (
+    <div className="h-full min-h-[60vh] animate-pulse rounded-2xl bg-white/5" />
+  ),
+});
 
 interface WorkspaceProps {
   projectName?: string;
