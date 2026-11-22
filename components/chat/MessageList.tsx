@@ -364,7 +364,6 @@ export default function MessageList({
             rounded-full border border-white/[0.12]
             bg-[#19191D]/95 px-3 text-zinc-300
             shadow-[0_8px_30px_rgba(0,0,0,0.45)]
-            backdrop-blur-xl
             transition-all duration-200
             hover:-translate-x-1/2 hover:-translate-y-0.5
             hover:border-[#D4AF37]/40

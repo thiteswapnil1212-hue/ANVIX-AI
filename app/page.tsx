@@ -79,7 +79,7 @@ export default function Home() {
               className="pointer-events-none absolute -inset-3 -z-10 rounded-[2rem] bg-[#D4AF37]/[0.035] blur-2xl sm:-inset-5 sm:blur-3xl"
             />
 
-            <div className="relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[#0E0E10]/95 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] backdrop-blur-xl sm:rounded-3xl">
+            <div className="relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[#0E0E10]/95 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] sm:rounded-3xl">
               {/* Top highlight */}
               <div
                 aria-hidden="true"

@@ -112,7 +112,6 @@ export default function Hero() {
               font-medium
               text-zinc-300
               shadow-[0_0_30px_rgba(212,175,55,0.04)]
-              backdrop-blur-md
               transition-all
               duration-300
               hover:border-[#D4AF37]/40
@@ -288,7 +287,6 @@ export default function Hero() {
               text-sm
               font-medium
               text-zinc-200
-              backdrop-blur-md
               transition-all
               duration-200
               hover:scale-[1.02]
