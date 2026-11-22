@@ -165,6 +165,9 @@ export function downloadProjectZip(project: GeneratedProject): void {
     anchor.click();
     anchor.remove();
   } finally {
-    URL.revokeObjectURL(url);
+    // Revoking synchronously can cancel the download in browsers
+    // that resolve the object URL lazily (Firefox). Give the click a
+    // moment to hand the URL to the download manager first.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 }
