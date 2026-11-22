@@ -9,12 +9,15 @@ interface AppShellProps {
   children: ReactNode;
   title?: string;
   description?: string;
+  /** Skip the background video (e.g. /chat renders its own video). */
+  hideVideo?: boolean;
 }
 
 export default function AppShell({
   children,
   title,
   description,
+  hideVideo = false,
 }: AppShellProps) {
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -42,7 +45,7 @@ export default function AppShell({
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#09090B]"
       >
-        {!reduceMotion && (
+        {!reduceMotion && !hideVideo && (
           <video
             autoPlay
             loop

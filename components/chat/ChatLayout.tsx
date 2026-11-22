@@ -1368,7 +1368,7 @@ export default function ChatLayout() {
   };
 
   return (
-    <AppShell>
+    <AppShell hideVideo>
       <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
         {/* DESKTOP SIDEBAR */}
         <aside
