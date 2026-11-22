@@ -30,6 +30,7 @@ import {
   readConversationMessages,
   readGuestState,
   sortConversations,
+  toMeta,
   type GuestChatConversation,
   type GuestChatMessage,
   type GuestChatMeta,
@@ -46,7 +47,6 @@ import ResearchPanel from "./ResearchPanel";
 import VoiceChatButton from "@/components/voice/VoiceChatButton";
 import AppShell from "@/components/layout/AppShell";
 import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
-import type { GroundingSource } from "@/lib/gemini/grounding";
 import { getPromptTemplate } from "@/lib/prompt-templates";
 import {
   forkConversation,
@@ -56,8 +56,6 @@ import {
 import {
   GeneratedImageError,
   requestGeneratedImage,
-  toPersistableImage,
-  type GeneratedImage,
 } from "@/lib/image-client";
 import { shouldExtractNow } from "@/lib/memory";
 import type { ChatArtifact } from "@/lib/artifacts";
@@ -771,7 +769,7 @@ export default function ChatLayout() {
   // Move a conversation into a folder (null = no folder).
   const handleSetFolder = useCallback(
     (id: string, folder: string | null) => {
-      setConversations((prev) =>
+      setConversationList((prev) =>
         prev.map((conversation) =>
           conversation.id === id
             ? {
@@ -789,14 +787,17 @@ export default function ChatLayout() {
   // Append one message to a conversation (research flow helper).
   const appendMessageToConversation = useCallback(
     (conversationId: string, message: Message) => {
-      setConversations((prev) =>
+      setMessagesById((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] ?? []), message],
+      }));
+      setConversationList((prev) =>
         sortConversations(
           prev.map((conversation) =>
             conversation.id === conversationId
               ? {
                   ...conversation,
                   updatedAt: createTimestamp(),
-                  messages: [...conversation.messages, message],
                 }
               : conversation
           )
@@ -808,7 +809,7 @@ export default function ChatLayout() {
 
   // Replace a conversation's tags (normalized, de-duplicated).
   const handleSetTags = useCallback((id: string, tags: string[]) => {
-    setConversations((prev) =>
+    setConversationList((prev) =>
       prev.map((conversation) =>
         conversation.id === id
           ? {
@@ -838,7 +839,10 @@ export default function ChatLayout() {
       // part of the stored conversation shape and is dropped by the
       // cloud sync (which upserts explicit columns only).
       const next: GuestChatConversation = forked;
-      setConversations((prev) => sortConversations([next, ...prev]));
+      setConversationList((prev) =>
+        sortConversations([toMeta(next), ...prev])
+      );
+      setMessagesById((prev) => ({ ...prev, [next.id]: next.messages }));
       setActiveConversationId(next.id);
     },
     [activeConversation, handleStop]
@@ -858,18 +862,24 @@ export default function ChatLayout() {
 
       if (!workingConversationId) {
         workingConversationId = crypto.randomUUID();
-        const newConversation: GuestChatConversation = {
+        // Const capture: TS does not carry `let` narrowing into the
+        // updater closure below.
+        const newId = workingConversationId;
+        const newMeta: GuestChatMeta = {
           id: workingConversationId,
           title: generateChatTitle(trimmedPrompt),
           preview: trimmedPrompt,
           createdAt: timestamp,
           updatedAt: timestamp,
           pinned: false,
-          messages: [],
         };
-        setConversations((prev) =>
-          sortConversations([newConversation, ...prev])
+        setConversationList((prev) =>
+          sortConversations([newMeta, ...prev])
         );
+        setMessagesById((prev) => ({
+          ...prev,
+          [newId]: [],
+        }));
         setActiveConversationId(workingConversationId);
       }
 
@@ -887,41 +897,45 @@ export default function ChatLayout() {
         createdAt: createTimestamp(),
       };
 
-      setConversations((prev) =>
-        sortConversations(
-          prev.map((conversation) =>
-            conversation.id === workingConversationId
-              ? {
-                  ...conversation,
-                  preview: trimmedPrompt,
-                  updatedAt: timestamp,
-                  messages: [
-                    ...conversation.messages,
-                    userMessage,
-                    assistantMessage,
-                  ],
-                }
-              : conversation
-          )
+      setMessagesById((prev) => ({
+        ...prev,
+        [workingConversationId]: [
+          ...(prev[workingConversationId] ?? []),
+          userMessage,
+          assistantMessage,
+        ],
+      }));
+      setConversationList((prev) =>
+        prev.map((conversation) =>
+          conversation.id === workingConversationId
+            ? {
+                ...conversation,
+                preview: trimmedPrompt,
+                updatedAt: timestamp,
+              }
+            : conversation
         )
       );
 
       const updateAssistantMessage = (patch: Partial<Message>) => {
-        setConversations((prev) =>
-          sortConversations(
-            prev.map((conversation) =>
-              conversation.id === workingConversationId
-                ? {
-                    ...conversation,
-                    updatedAt: createTimestamp(),
-                    messages: conversation.messages.map((message) =>
-                      message.id === assistantMessageId
-                        ? { ...message, ...patch }
-                        : message
-                    ),
-                  }
-                : conversation
-            )
+        setMessagesById((prev) => ({
+          ...prev,
+          [workingConversationId]: (
+            prev[workingConversationId] ?? []
+          ).map((message) =>
+            message.id === assistantMessageId
+              ? { ...message, ...patch }
+              : message
+          ),
+        }));
+        setConversationList((prev) =>
+          prev.map((conversation) =>
+            conversation.id === workingConversationId
+              ? {
+                  ...conversation,
+                  updatedAt: createTimestamp(),
+                }
+              : conversation
           )
         );
       };
@@ -1104,32 +1118,42 @@ export default function ChatLayout() {
   }, [researchRun, cancelResearch]);
 
   // Start a scoped deep-research run instead of a normal chat reply.
-  const handleStartResearch = async (
-    prompt: string
-  ): Promise<boolean> => {
-    if (researchRun && !isResearchTerminal(researchRun.status)) {
-      return false;
-    }
+  // Deep research takes its own path: POST /api/research, show the
+  // run in the side panel, append the user question to history now
+  // and the report when it finishes. Memoized so handleSend (which
+  // delegates to it) stays referentially stable: it only changes
+  // when the active conversation or the running research changes,
+  // never per streamed chunk.
+  const handleStartResearch = useCallback(
+    async (prompt: string): Promise<boolean> => {
+      if (researchRun && !isResearchTerminal(researchRun.status)) {
+        return false;
+      }
 
-    let workingConversationId = activeConversationId;
+      let workingConversationId = activeConversationId;
     const timestamp = createTimestamp();
 
     if (!workingConversationId) {
       workingConversationId = crypto.randomUUID();
-
-      const newConversation: GuestChatConversation = {
+      // Const capture: TS does not carry `let` narrowing into the
+      // updater closure below.
+      const newId = workingConversationId;
+      const newMeta: GuestChatMeta = {
         id: workingConversationId,
         title: generateChatTitle(prompt),
         preview: prompt,
         createdAt: timestamp,
         updatedAt: timestamp,
         pinned: false,
-        messages: [],
       };
 
-      setConversations((prev) =>
-        sortConversations([newConversation, ...prev])
+      setConversationList((prev) =>
+        sortConversations([newMeta, ...prev])
       );
+      setMessagesById((prev) => ({
+        ...prev,
+        [newId]: [],
+      }));
       setActiveConversationId(workingConversationId);
     }
 
@@ -1183,7 +1207,7 @@ export default function ChatLayout() {
       });
       return true;
     }
-  };
+  }, [researchRun, activeConversationId, appendMessageToConversation]);
 
   const handleOpenSettings = useCallback(() => {
     router.push("/settings");
@@ -1549,15 +1573,23 @@ export default function ChatLayout() {
       commitStreaming(finalText);
 
       // Memory v2: this turn counts once the reply landed. The prior
-      // user-turn count comes from the pre-send message list.
-      const priorUserTurns = messages.filter(
+      // user-turn count comes from the pre-send message list. Read it
+      // from messagesByIdRef, not the `messages` closure: handleSend
+      // is memoized (deps below), so the closure would go stale after
+      // the first answer in a conversation — the ref is fresh at call
+      // time. At this point the ref still holds the pre-send list
+      // (commitStreaming's setState has not re-rendered yet), which is
+      // exactly the list the extraction wants.
+      const preSendMessages =
+        messagesByIdRef.current[workingConversationId] ?? [];
+      const priorUserTurns = preSendMessages.filter(
         (message) => message.role === "user"
       ).length;
       maybeExtractMemories(
         workingConversationId,
         priorUserTurns + 1,
         [
-          ...messages.map((message) => ({
+          ...preSendMessages.map((message) => ({
             role: message.role,
             content: message.content,
           })),
@@ -1625,7 +1657,14 @@ export default function ChatLayout() {
         setIsTyping(false);
       }
     }
-  }, [activeConversationId]);
+    // Deps are the stable values only: handleStartResearch and
+    // maybeExtractMemories are memoized callbacks (they change on
+    // research/user change, never per chunk). `messages` is
+    // deliberately NOT a dep — the extraction above reads the fresh
+    // list from messagesByIdRef instead, so this callback stays
+    // referentially stable across streamed chunks and ChatInput
+    // does not re-render per chunk.
+  }, [activeConversationId, handleStartResearch, maybeExtractMemories]);
 
   return (
     <AppShell hideVideo>
