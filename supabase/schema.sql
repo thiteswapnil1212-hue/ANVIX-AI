@@ -187,3 +187,96 @@ create policy "share_reports: share owner reads" on public.share_reports
     )
   );
 
+-- ------------------------------------------------- custom assistants + memory
+-- v2 (2026-11-22, assistants-memory work).
+--
+-- Custom assistants follow the "skills" pattern the leaders converged on
+-- in Nov 2026 (Claude Projects / Gemini skills): a named assistant =
+-- instructions + reference files + a tool set. NOT Custom GPTs / Gems —
+-- OpenAI retires Custom GPTs 11 Dec 2026 and Google deletes Gems
+-- 17 Dec 2026, so neither pattern is copied here.
+--
+-- Custom-instructions v1 (Wave 3, BLOCKED, never built) does NOT exist
+-- in this base, so the minimal global layer ships here too:
+-- profiles.custom_instructions, injected into every chat system prompt.
+--
+-- Memory v2: durable facts auto-extracted from chats into `memories`.
+-- Retrieval is recency + keyword match (see lib/memory.ts). There is NO
+-- pgvector store in this base, so there is no embedding-similarity
+-- retrieval yet. Upgrade path: enable pgvector, add a
+-- `memories.embedding vector(768)` column, backfill embeddings for
+-- existing rows, and replace selectRelevantMemories() with a
+-- similarity query ordered by recency as the tiebreak. The table shape
+-- (user, fact, source chat, confidence) does not need to change.
+--
+-- All three additions are additive and idempotent: run the whole file
+-- again and nothing breaks. Code tolerates the tables/column being
+-- absent (every query checks for errors and degrades to "no
+-- assistants / no memories / no custom instructions").
+
+-- Minimal global custom instructions (v1 base layer for memory v2).
+alter table public.profiles
+  add column if not exists custom_instructions text;
+
+create table if not exists public.assistants (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  description text not null default '',
+  instructions text not null default '',
+  -- Reference file ids (upload/RAG plumbing). No stored-file plumbing
+  -- exists in this base, so this is a reserved column: the chat route
+  -- loads instructions + tools only, and ignores file_ids until a
+  -- file store lands. Never claim files are attached when they are not.
+  file_ids jsonb not null default '[]'::jsonb,
+  -- Tool ids the assistant may use. Only "web" (web grounding, already
+  -- in the chat route) is honoured today; unknown ids are ignored.
+  tools_enabled jsonb not null default '["web"]'::jsonb,
+  -- Chat mode the assistant prefers: fast | smart | deep. Null = the
+  -- chat's own mode picker decides.
+  mode text check (mode is null or mode in ('fast', 'smart', 'deep')),
+  is_public boolean not null default false,
+  -- Short token for the public share/copy link. Owner-only rows have
+  -- one too, so flipping private -> public never needs a migration.
+  share_token text not null unique
+    default encode(gen_random_bytes(12), 'hex'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_assistants_owner_updated
+  on public.assistants (owner_id, updated_at desc);
+create index if not exists idx_assistants_public
+  on public.assistants (is_public, updated_at desc)
+  where is_public;
+
+create table if not exists public.memories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  fact text not null,
+  source_chat_id uuid references public.conversations (id) on delete set null,
+  confidence numeric not null default 0.5
+    check (confidence >= 0 and confidence <= 1),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_memories_user_created
+  on public.memories (user_id, created_at desc);
+
+alter table public.assistants enable row level security;
+alter table public.memories enable row level security;
+
+-- Assistants: owners manage their own rows; anyone may read public ones
+-- (that is what makes a share link work); copying is done server-side
+-- in /api/assistants/copy, which inserts a fresh owner row.
+drop policy if exists "assistants: own rows" on public.assistants;
+create policy "assistants: own rows" on public.assistants
+  for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+drop policy if exists "assistants: public read" on public.assistants;
+create policy "assistants: public read" on public.assistants
+  for select using (is_public = true);
+
+drop policy if exists "memories: own rows" on public.memories;
+create policy "memories: own rows" on public.memories
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
