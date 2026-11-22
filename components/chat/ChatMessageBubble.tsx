@@ -12,14 +12,140 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Check,
+  ChevronDown,
   Copy,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
   Sparkles,
   UserRound,
 } from "lucide-react";
+import type { GroundingSource } from "@/lib/gemini/grounding";
 
 interface ChatMessageBubbleProps {
   role: "assistant" | "user";
   content: string;
+  /** Thought-summary text streamed alongside the answer (assistant only). */
+  thinking?: string;
+  /** Grounded web sources for this answer (assistant only). */
+  sources?: GroundingSource[];
+  /** Files the user attached to this message (user only). */
+  attachments?: { name: string; mimeType: string }[];
+}
+
+function ThinkingBlock({ thinking }: { thinking: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.02]">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="
+          flex w-full items-center gap-2 px-3 py-2
+          text-left text-xs font-medium text-zinc-400
+          transition-colors hover:text-zinc-200
+          focus-visible:outline-none
+          focus-visible:ring-2 focus-visible:ring-[#D4AF37]/60
+        "
+      >
+        <ChevronDown
+          className={`
+            h-3.5 w-3.5 shrink-0 text-zinc-500
+            transition-transform duration-150
+            ${open ? "" : "-rotate-90"}
+          `}
+          aria-hidden="true"
+        />
+        <Sparkles
+          className="h-3.5 w-3.5 shrink-0 text-[#D4AF37]"
+          aria-hidden="true"
+        />
+        Thinking
+      </button>
+
+      {open && (
+        <p className="whitespace-pre-wrap border-t border-white/[0.06] px-3 py-2.5 text-[13px] leading-6 text-zinc-400">
+          {thinking}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SourcesList({ sources }: { sources: GroundingSource[] }) {
+  return (
+    <div className="mt-4 border-t border-white/[0.06] pt-3">
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.17em] text-zinc-500">
+        Sources
+      </p>
+      <ol className="space-y-1.5">
+        {sources.map((source, index) => (
+          <li key={`${source.uri}-${index}`} className="min-w-0">
+            <a
+              href={source.uri}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="
+                group/source flex items-start gap-1.5
+                text-[13px] leading-5 text-zinc-400
+                transition-colors hover:text-[#E9C96B]
+                focus-visible:outline-none
+                focus-visible:ring-2 focus-visible:ring-[#D4AF37]/60
+              "
+            >
+              <span className="shrink-0 font-medium tabular-nums text-zinc-500">
+                {index + 1}.
+              </span>
+              <span className="min-w-0 truncate underline underline-offset-4">
+                {source.title}
+              </span>
+              <ExternalLink
+                className="mt-0.5 h-3 w-3 shrink-0 text-zinc-600 group-hover/source:text-[#D4AF37]"
+                aria-hidden="true"
+              />
+            </a>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function AttachmentChips({
+  attachments,
+}: {
+  attachments: { name: string; mimeType: string }[];
+}) {
+  return (
+    <div className="mb-2 flex flex-wrap gap-1.5">
+      {attachments.map((attachment) => (
+        <span
+          key={attachment.name}
+          className="
+            inline-flex max-w-full items-center gap-1.5
+            rounded-lg border border-white/10
+            bg-white/[0.05] px-2 py-1
+            text-[11px] font-medium text-zinc-300
+          "
+        >
+          {attachment.mimeType === "application/pdf" ? (
+            <FileText
+              className="h-3 w-3 shrink-0 text-zinc-400"
+              aria-hidden="true"
+            />
+          ) : (
+            <ImageIcon
+              className="h-3 w-3 shrink-0 text-zinc-400"
+              aria-hidden="true"
+            />
+          )}
+          <span className="truncate">{attachment.name}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function CopyButton({
@@ -269,9 +395,13 @@ const markdownComponents: Components = {
 function ChatMessageBubble({
   role,
   content,
+  thinking,
+  sources,
+  attachments,
 }: ChatMessageBubbleProps) {
   const isAssistant = role === "assistant";
-  const isEmptyAssistant = isAssistant && !content.trim();
+  const isEmptyAssistant =
+    isAssistant && !content.trim() && !thinking?.trim();
 
   if (isEmptyAssistant) return null;
 
@@ -363,6 +493,14 @@ function ChatMessageBubble({
               }
             `}
           >
+            {isAssistant && thinking?.trim() ? (
+              <ThinkingBlock thinking={thinking} />
+            ) : null}
+
+            {!isAssistant && attachments && attachments.length > 0 ? (
+              <AttachmentChips attachments={attachments} />
+            ) : null}
+
             {isAssistant ? (
               <div
                 className="
@@ -407,6 +545,10 @@ function ChatMessageBubble({
               content
             )}
           </div>
+
+          {isAssistant && sources && sources.length > 0 ? (
+            <SourcesList sources={sources} />
+          ) : null}
 
           <div
             className={`
