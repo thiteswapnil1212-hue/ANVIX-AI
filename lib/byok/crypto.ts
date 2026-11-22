@@ -30,7 +30,7 @@ export function isByokEncryptionConfigured(secret?: string): boolean {
 
 /** The server secret, or null when BYOK storage is not configured. */
 export function getByokEncryptionSecret(
-  env: NodeJS.ProcessEnv = process.env
+  env: Record<string, string | undefined> = process.env
 ): string | null {
   const secret = env.BYOK_ENCRYPTION_KEY;
   return isByokEncryptionConfigured(secret) ? (secret as string) : null;
