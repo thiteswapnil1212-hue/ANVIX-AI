@@ -1,4 +1,4 @@
-﻿
+
 "use client";
 
 import {
@@ -10,35 +10,89 @@ import {
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   FormEvent,
+  ChangeEvent,
 } from "react";
 
 import {
   ArrowUp,
   ChevronDown,
-  Lock,
   Check,
+  Globe,
   Paperclip,
   Square,
   LoaderCircle,
   BookOpen,
+  X,
 } from "lucide-react";
 
 import {
-  CHAT_MODELS,
-  DEFAULT_CHAT_MODEL_ID,
-  type ChatModel,
-} from "@/lib/chat-models";
+  CHAT_MODES,
+  DEFAULT_CHAT_MODE_ID,
+  defaultThinkingForMode,
+  type ChatMode,
+  type ChatModeId,
+  type ThinkingChoice,
+} from "@/lib/chat-modes";
+import {
+  MAX_ATTACHMENTS,
+  type ChatAttachmentInput,
+} from "@/lib/chat-attachments";
+import { prepareAttachmentFiles } from "@/lib/chat-attachments-client";
 
 import ModelGuide from "./ModelGuide";
+
+export type ChatSendOptions = {
+  mode: ChatModeId;
+  thinking: ThinkingChoice;
+  web: boolean;
+  attachments: ChatAttachmentInput[];
+};
 
 type ChatInputProps = {
   onSend: (
     message: string,
-    model: string
+    options: ChatSendOptions
   ) => boolean | Promise<boolean>;
   isGenerating: boolean;
   onStop: () => void;
 };
+
+const THINKING_CHOICES: {
+  id: ThinkingChoice;
+  name: string;
+  hint: string;
+}[] = [
+  { id: "off", name: "Off", hint: "Fastest, lowest quota use." },
+  { id: "fast", name: "Fast", hint: "A little reasoning." },
+  { id: "deep", name: "Deep", hint: "Hardest reasoning, most quota." },
+];
+
+const MODE_STORAGE_KEY = "anvix-chat-mode";
+const THINKING_STORAGE_KEY = "anvix-chat-thinking";
+const WEB_STORAGE_KEY = "anvix-chat-web";
+
+function readStoredMode(): ChatModeId {
+  if (typeof window === "undefined") return DEFAULT_CHAT_MODE_ID;
+  const stored = window.localStorage.getItem(MODE_STORAGE_KEY);
+  return CHAT_MODES.some((mode) => mode.id === stored)
+    ? (stored as ChatModeId)
+    : DEFAULT_CHAT_MODE_ID;
+}
+
+function readStoredThinking(modeId: ChatModeId): ThinkingChoice {
+  if (typeof window === "undefined") {
+    return defaultThinkingForMode(modeId);
+  }
+  const stored = window.localStorage.getItem(THINKING_STORAGE_KEY);
+  return stored === "off" || stored === "fast" || stored === "deep"
+    ? stored
+    : defaultThinkingForMode(modeId);
+}
+
+function readStoredWeb(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.localStorage.getItem(WEB_STORAGE_KEY) !== "off";
+}
 
 export default function ChatInput({
   onSend,
@@ -49,22 +103,46 @@ export default function ChatInput({
   const [modelOpen, setModelOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedModel, setSelectedModel] =
-    useState(DEFAULT_CHAT_MODEL_ID);
+  const [selectedMode, setSelectedMode] =
+    useState<ChatModeId>(readStoredMode);
+  const [thinking, setThinking] = useState<ThinkingChoice>(() =>
+    readStoredThinking(readStoredMode())
+  );
+  const [webEnabled, setWebEnabled] = useState<boolean>(readStoredWeb);
+  const [attachments, setAttachments] = useState<ChatAttachmentInput[]>(
+    []
+  );
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [isPreparingFiles, setIsPreparingFiles] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
   const previousGeneratingRef = useRef(isGenerating);
 
   const hasMessage = value.trim().length > 0;
 
   const canSend =
-    hasMessage && !isSubmitting && !isGenerating;
+    hasMessage && !isSubmitting && !isGenerating && !isPreparingFiles;
 
-  const selectedModelConfig =
-    CHAT_MODELS.find((model) => model.id === selectedModel) ??
-    CHAT_MODELS[0];
+  const selectedModeConfig =
+    CHAT_MODES.find((mode) => mode.id === selectedMode) ??
+    CHAT_MODES[1];
+
+  // Remember the mode / thinking / web choices on this device.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MODE_STORAGE_KEY, selectedMode);
+      window.localStorage.setItem(THINKING_STORAGE_KEY, thinking);
+      window.localStorage.setItem(
+        WEB_STORAGE_KEY,
+        webEnabled ? "on" : "off"
+      );
+    } catch {
+      // Private mode / full storage: choices just don't persist.
+    }
+  }, [selectedMode, thinking, webEnabled]);
 
   // Auto-resize textarea.
   useEffect(() => {
@@ -81,7 +159,7 @@ export default function ChatInput({
     textarea.style.height = `${nextHeight}px`;
   }, [value]);
 
-  // Close model dropdown when clicking outside.
+  // Close mode dropdown when clicking outside.
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
@@ -154,7 +232,8 @@ export default function ChatInput({
       !message ||
       submittingRef.current ||
       isSubmitting ||
-      isGenerating
+      isGenerating ||
+      isPreparingFiles
     ) {
       return;
     }
@@ -164,13 +243,17 @@ export default function ChatInput({
     setIsSubmitting(true);
 
     try {
-      const accepted = await onSend(
-        message,
-        selectedModel
-      );
+      const accepted = await onSend(message, {
+        mode: selectedMode,
+        thinking,
+        web: webEnabled,
+        attachments,
+      });
 
       if (accepted) {
         setValue("");
+        setAttachments([]);
+        setAttachError(null);
         setModelOpen(false);
         setGuideOpen(false);
       }
@@ -187,8 +270,12 @@ export default function ChatInput({
     value,
     isSubmitting,
     isGenerating,
+    isPreparingFiles,
     onSend,
-    selectedModel,
+    selectedMode,
+    thinking,
+    webEnabled,
+    attachments,
   ]);
 
   function handleKeyDown(
@@ -229,19 +316,24 @@ export default function ChatInput({
     }
   }
 
-  function handleModelSelect(model: ChatModel) {
-    if (
-      model.locked ||
-      model.apiModelId === null ||
-      isSubmitting ||
-      isGenerating
-    ) {
+  function handleModeSelect(mode: ChatMode) {
+    if (isSubmitting || isGenerating) {
       return;
     }
 
-    setSelectedModel(model.id);
+    // Changing mode resets thinking to that mode's default.
+    setSelectedMode(mode.id);
+    setThinking(defaultThinkingForMode(mode.id));
     setModelOpen(false);
     textareaRef.current?.focus();
+  }
+
+  function handleThinkingSelect(choice: ThinkingChoice) {
+    if (isSubmitting || isGenerating) {
+      return;
+    }
+
+    setThinking(choice);
   }
 
   function handleOpenGuide() {
@@ -250,6 +342,45 @@ export default function ChatInput({
 
   function handleCloseGuide() {
     setGuideOpen(false);
+  }
+
+  async function handleFilesSelected(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const files = Array.from(event.target.files ?? []);
+    // Reset so picking the same file again still fires onChange.
+    event.target.value = "";
+
+    if (files.length === 0 || isGenerating || isSubmitting) {
+      return;
+    }
+
+    setIsPreparingFiles(true);
+    setAttachError(null);
+
+    try {
+      const prepared = await prepareAttachmentFiles(
+        files,
+        attachments.length
+      );
+
+      if (prepared.attachments.length > 0) {
+        setAttachments((prev) => [...prev, ...prepared.attachments]);
+      }
+
+      if (prepared.errors.length > 0) {
+        setAttachError(prepared.errors[0]);
+      }
+    } finally {
+      setIsPreparingFiles(false);
+    }
+  }
+
+  function handleRemoveAttachment(name: string) {
+    setAttachments((prev) =>
+      prev.filter((attachment) => attachment.name !== name)
+    );
+    setAttachError(null);
   }
 
   return (
@@ -261,7 +392,7 @@ export default function ChatInput({
         >
           <div
             className="
-              relative flex w-full items-end gap-2
+              relative flex w-full flex-col
               rounded-2xl border border-zinc-800/90
               bg-[#151518] p-2.5
               shadow-[0_8px_30px_rgba(0,0,0,0.22)]
@@ -269,316 +400,477 @@ export default function ChatInput({
               duration-200
               focus-within:border-zinc-700
               focus-within:shadow-[0_10px_34px_rgba(0,0,0,0.28)]
-              sm:gap-2.5 sm:p-3
+              sm:p-3
             "
           >
-            {/* Attachment button */}
-            <button
-              type="button"
-              disabled
-              className="
-                mb-0.5 flex h-8 w-8 shrink-0
-                items-center justify-center rounded-xl
-                text-zinc-600
-                disabled:cursor-not-allowed
-                disabled:opacity-40
-              "
-              aria-label="Attach file"
-              title="File attachments coming soon"
-            >
-              <Paperclip
-                className="h-[17px] w-[17px]"
-                strokeWidth={1.8}
-                aria-hidden="true"
-              />
-            </button>
-
-            {/* Message textarea */}
-            <textarea
-              id="chat-message"
-              name="message"
-              ref={textareaRef}
-              value={value}
-              onChange={(event) => {
-                const nextValue = event.target.value;
-                setValue(nextValue);
-
-                if (nextValue.trim()) {
-                  setModelOpen(false);
-                }
-              }}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={isSubmitting}
-              placeholder={
-                isGenerating
-                  ? "Press Enter to stop..."
-                  : "Message ANVIX AI..."
-              }
-              aria-label="Message ANVIX AI"
-              aria-describedby="chat-input-hint"
-              className="
-                min-h-[36px] max-h-[120px] min-w-0 flex-1
-                resize-none overflow-y-auto bg-transparent
-                px-0.5 py-1.5 text-[15px] leading-6
-                text-zinc-100 outline-none
-                placeholder:text-zinc-600
-                disabled:cursor-wait disabled:opacity-70
-              "
-            />
-
-            {/* Model selector */}
-            {!hasMessage && !isGenerating && (
-              <div
-                ref={modelRef}
-                className="relative mb-0.5 shrink-0"
-              >
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() =>
-                    setModelOpen((open) => !open)
-                  }
-                  className="
-                    flex h-8 max-w-[150px] items-center
-                    gap-1.5 rounded-xl px-2
-                    text-[11px] font-medium text-zinc-400
-                    transition-colors
-                    hover:bg-zinc-800/70 hover:text-zinc-200
-                    disabled:opacity-40 sm:text-xs
-                  "
-                  aria-haspopup="listbox"
-                  aria-expanded={modelOpen}
-                  aria-label={`Selected model: ${selectedModelConfig.name}`}
-                >
-                  <span className="truncate whitespace-nowrap">
-                    {selectedModelConfig.name}
-                  </span>
-
-                  <ChevronDown
-                    className={`
-                      h-3.5 w-3.5 shrink-0 text-zinc-600
-                      transition-transform duration-150
-                      ${modelOpen ? "rotate-180" : ""}
-                    `}
-                    aria-hidden="true"
-                  />
-                </button>
-
-                {/* Model dropdown */}
-                {modelOpen && (
-                  <div
+            {/* Attachment chips */}
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5 px-1 pt-1">
+                {attachments.map((attachment) => (
+                  <span
+                    key={attachment.name}
                     className="
-                      absolute bottom-[43px] right-0 z-[9999]
-                      max-h-[min(360px,60vh)]
-                      w-[min(290px,calc(100vw-32px))]
-                      overflow-y-auto overflow-x-hidden
-                      rounded-xl border border-zinc-800
-                      bg-[#18181B] p-1.5
-                      shadow-[0_16px_45px_rgba(0,0,0,0.55)]
+                      inline-flex max-w-full items-center
+                      gap-1.5 rounded-lg border
+                      border-white/10 bg-white/[0.05]
+                      py-1 pl-2 pr-1
+                      text-[11px] font-medium text-zinc-300
                     "
-                    aria-label="Select AI model"
                   >
-                    {/* Dropdown header + Notes */}
-                    <div
+                    <span className="truncate">
+                      {attachment.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRemoveAttachment(attachment.name)
+                      }
+                      aria-label={`Remove ${attachment.name}`}
                       className="
-                        flex items-center justify-between
-                        gap-2 px-2.5 pb-2 pt-2
+                        flex h-4 w-4 shrink-0 items-center
+                        justify-center rounded text-zinc-500
+                        transition-colors hover:bg-white/10
+                        hover:text-zinc-200
+                        focus-visible:outline-none
+                        focus-visible:ring-2
+                        focus-visible:ring-[#D4AF37]/60
                       "
                     >
-                      <p
-                        className="
-                          text-[10px] font-medium uppercase
-                          tracking-[0.1em] text-zinc-600
-                        "
-                      >
-                        Choose a model
-                      </p>
-
-                      <button
-                        type="button"
-                        onClick={handleOpenGuide}
-                        className="
-                          inline-flex shrink-0
-                          items-center gap-1.5
-                          rounded-full
-                          border border-[#D4AF37]/40
-                          bg-[#D4AF37]/10
-                          px-2.5 py-1.5
-                          text-[11px] font-medium
-                          text-[#D4AF37]
-                          transition-colors
-                          hover:bg-[#D4AF37]/20
-                          focus-visible:outline-none
-                          focus-visible:ring-2
-                          focus-visible:ring-[#D4AF37]
-                        "
-                        aria-label="Open model guide"
-                      >
-                        <BookOpen
-                          className="h-3.5 w-3.5"
-                          aria-hidden="true"
-                        />
-                        Notes
-                      </button>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      {CHAT_MODELS.map((model) => {
-                        const selected =
-                          selectedModel === model.id;
-
-                        const unavailable =
-                          model.locked ||
-                          model.apiModelId === null ||
-                          isSubmitting ||
-                          isGenerating;
-
-                        return (
-                          <button
-                            key={model.id}
-                            type="button"
-                            disabled={unavailable}
-                            onClick={() =>
-                              handleModelSelect(model)
-                            }
-                            aria-pressed={selected}
-                            className={`
-                              flex w-full items-center
-                              justify-between gap-3
-                              rounded-lg px-2.5 py-2.5
-                              text-left transition-colors
-                              ${
-                                unavailable
-                                  ? "cursor-not-allowed opacity-45"
-                                  : "hover:bg-zinc-800/70"
-                              }
-                            `}
-                          >
-                            <span className="min-w-0">
-                              <span
-                                className={`
-                                  block truncate text-sm
-                                  font-medium
-                                  ${
-                                    selected
-                                      ? "text-zinc-100"
-                                      : "text-zinc-300"
-                                  }
-                                `}
-                              >
-                                {model.name}
-                              </span>
-
-                              <span
-                                className="
-                                  mt-0.5 block truncate
-                                  text-[11px] text-zinc-600
-                                "
-                              >
-                                {model.provider}
-                              </span>
-                            </span>
-
-                            {model.locked ||
-                            model.apiModelId === null ? (
-                              <span
-                                className="
-                                  flex shrink-0 items-center
-                                  gap-1 rounded-md
-                                  border border-zinc-800
-                                  px-1.5 py-1
-                                  text-[9px] font-semibold
-                                  uppercase tracking-wide
-                                  text-zinc-600
-                                "
-                              >
-                                <Lock
-                                  className="h-2.5 w-2.5"
-                                  aria-hidden="true"
-                                />
-                                Soon
-                              </span>
-                            ) : selected ? (
-                              <Check
-                                className="
-                                  h-4 w-4 shrink-0
-                                  text-[#D4AF37]
-                                "
-                                strokeWidth={2}
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                      <X
+                        className="h-3 w-3"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </span>
+                ))}
               </div>
             )}
 
-            {/* Stop / Send */}
-            <button
-              type={isGenerating ? "button" : "submit"}
-              onClick={
-                isGenerating ? handleStop : undefined
-              }
-              disabled={
-                isGenerating ? false : !canSend
-              }
-              aria-label={
-                isGenerating
-                  ? "Stop response"
-                  : isSubmitting
-                    ? "Sending message"
-                    : "Send message"
-              }
-              title={
-                isGenerating
-                  ? "Stop response"
-                  : isSubmitting
-                    ? "Sending..."
-                    : "Send message"
-              }
-              className={`
-                mb-0.5 flex h-8 w-8 shrink-0
-                items-center justify-center rounded-full
-                transition-all duration-150
-                focus-visible:outline-none
-                focus-visible:ring-2
-                focus-visible:ring-[#D4AF37]
-                focus-visible:ring-offset-2
-                focus-visible:ring-offset-[#151518]
-                ${
-                  isGenerating
-                    ? "bg-zinc-200 text-black hover:bg-white active:scale-95"
-                    : canSend
-                      ? "bg-[#D4AF37] text-black hover:bg-[#E0BB4C] active:scale-95"
-                      : "cursor-not-allowed bg-zinc-800 text-zinc-600"
+            {attachError && (
+              <p
+                role="alert"
+                className="mb-2 px-1 text-[11px] text-red-400"
+              >
+                {attachError}
+              </p>
+            )}
+
+            <div className="flex w-full items-end gap-2 sm:gap-2.5">
+              {/* Attachment button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                className="hidden"
+                aria-hidden="true"
+                tabIndex={-1}
+                onChange={handleFilesSelected}
+              />
+              <button
+                type="button"
+                disabled={
+                  isSubmitting ||
+                  isGenerating ||
+                  isPreparingFiles ||
+                  attachments.length >= MAX_ATTACHMENTS
                 }
-              `}
-            >
-              {isGenerating ? (
-                <Square
-                  className="h-3.5 w-3.5"
-                  fill="currentColor"
-                  strokeWidth={2}
+                onClick={() => fileInputRef.current?.click()}
+                className="
+                  mb-0.5 flex h-8 w-8 shrink-0
+                  items-center justify-center rounded-xl
+                  text-zinc-400 transition-colors
+                  hover:bg-zinc-800/70 hover:text-zinc-200
+                  disabled:cursor-not-allowed
+                  disabled:opacity-40
+                  focus-visible:outline-none
+                  focus-visible:ring-2
+                  focus-visible:ring-[#D4AF37]/60
+                "
+                aria-label="Attach image or PDF"
+                title="Attach image or PDF (max 3, images downscaled to 768px, PDFs up to 3 MB)"
+              >
+                <Paperclip
+                  className="h-[17px] w-[17px]"
+                  strokeWidth={1.8}
                   aria-hidden="true"
                 />
-              ) : isSubmitting ? (
-                <LoaderCircle
-                  className="h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ArrowUp
-                  className="h-[16px] w-[16px]"
-                  strokeWidth={2.2}
-                  aria-hidden="true"
-                />
+              </button>
+
+              {/* Message textarea */}
+              <textarea
+                id="chat-message"
+                name="message"
+                ref={textareaRef}
+                value={value}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setValue(nextValue);
+
+                  if (nextValue.trim()) {
+                    setModelOpen(false);
+                  }
+                }}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                disabled={isSubmitting}
+                placeholder={
+                  isGenerating
+                    ? "Press Enter to stop..."
+                    : "Message ANVIX AI..."
+                }
+                aria-label="Message ANVIX AI"
+                aria-describedby="chat-input-hint"
+                className="
+                  min-h-[36px] max-h-[120px] min-w-0 flex-1
+                  resize-none overflow-y-auto bg-transparent
+                  px-0.5 py-1.5 text-[15px] leading-6
+                  text-zinc-100 outline-none
+                  placeholder:text-zinc-600
+                  disabled:cursor-wait disabled:opacity-70
+                "
+              />
+
+              {/* Mode selector */}
+              {!hasMessage && !isGenerating && (
+                <div
+                  ref={modelRef}
+                  className="relative mb-0.5 shrink-0"
+                >
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() =>
+                      setModelOpen((open) => !open)
+                    }
+                    className="
+                      flex h-8 max-w-[150px] items-center
+                      gap-1.5 rounded-xl px-2
+                      text-[11px] font-medium text-zinc-400
+                      transition-colors
+                      hover:bg-zinc-800/70 hover:text-zinc-200
+                      disabled:opacity-40 sm:text-xs
+                    "
+                    aria-haspopup="listbox"
+                    aria-expanded={modelOpen}
+                    aria-label={`Selected mode: ${selectedModeConfig.name}`}
+                  >
+                    <span className="truncate whitespace-nowrap">
+                      {selectedModeConfig.name}
+                    </span>
+
+                    <ChevronDown
+                      className={`
+                        h-3.5 w-3.5 shrink-0 text-zinc-600
+                        transition-transform duration-150
+                        ${modelOpen ? "rotate-180" : ""}
+                      `}
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  {/* Mode dropdown */}
+                  {modelOpen && (
+                    <div
+                      className="
+                        absolute bottom-[43px] right-0 z-[9999]
+                        max-h-[min(420px,60vh)]
+                        w-[min(300px,calc(100vw-32px))]
+                        overflow-y-auto overflow-x-hidden
+                        rounded-xl border border-zinc-800
+                        bg-[#18181B] p-1.5
+                        shadow-[0_16px_45px_rgba(0,0,0,0.55)]
+                      "
+                      aria-label="Select chat mode"
+                    >
+                      {/* Dropdown header + Notes */}
+                      <div
+                        className="
+                          flex items-center justify-between
+                          gap-2 px-2.5 pb-2 pt-2
+                        "
+                      >
+                        <p
+                          className="
+                            text-[10px] font-medium uppercase
+                            tracking-[0.1em] text-zinc-600
+                          "
+                        >
+                          Choose a mode
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={handleOpenGuide}
+                          className="
+                            inline-flex shrink-0
+                            items-center gap-1.5
+                            rounded-full
+                            border border-[#D4AF37]/40
+                            bg-[#D4AF37]/10
+                            px-2.5 py-1.5
+                            text-[11px] font-medium
+                            text-[#D4AF37]
+                            transition-colors
+                            hover:bg-[#D4AF37]/20
+                            focus-visible:outline-none
+                            focus-visible:ring-2
+                            focus-visible:ring-[#D4AF37]
+                          "
+                          aria-label="Open model guide"
+                        >
+                          <BookOpen
+                            className="h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                          Notes
+                        </button>
+                      </div>
+
+                      <div
+                        className="space-y-0.5"
+                        role="listbox"
+                        aria-label="Chat mode"
+                      >
+                        {CHAT_MODES.map((mode) => {
+                          const selected =
+                            selectedMode === mode.id;
+
+                          const unavailable =
+                            isSubmitting || isGenerating;
+
+                          return (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              role="option"
+                              aria-selected={selected}
+                              disabled={unavailable}
+                              onClick={() =>
+                                handleModeSelect(mode)
+                              }
+                              className={`
+                                flex w-full items-center
+                                justify-between gap-3
+                                rounded-lg px-2.5 py-2.5
+                                text-left transition-colors
+                                ${
+                                  unavailable
+                                    ? "cursor-not-allowed opacity-45"
+                                    : "hover:bg-zinc-800/70"
+                                }
+                              `}
+                            >
+                              <span className="min-w-0">
+                                <span
+                                  className={`
+                                    block truncate text-sm
+                                    font-medium
+                                    ${
+                                      selected
+                                        ? "text-zinc-100"
+                                        : "text-zinc-300"
+                                    }
+                                  `}
+                                >
+                                  {mode.name}
+                                </span>
+
+                                <span
+                                  className="
+                                    mt-0.5 block
+                                    text-[11px] text-zinc-600
+                                  "
+                                >
+                                  {mode.blurb}
+                                </span>
+                              </span>
+
+                              {selected ? (
+                                <Check
+                                  className="
+                                    h-4 w-4 shrink-0
+                                    text-[#D4AF37]
+                                  "
+                                  strokeWidth={2}
+                                  aria-hidden="true"
+                                />
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Thinking toggle */}
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 pb-1 pt-3">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-zinc-600">
+                          Thinking
+                        </p>
+                        <div
+                          className="mt-2 flex gap-1"
+                          role="group"
+                          aria-label="Thinking effort"
+                        >
+                          {THINKING_CHOICES.map((choice) => {
+                            const selected =
+                              thinking === choice.id;
+                            return (
+                              <button
+                                key={choice.id}
+                                type="button"
+                                aria-pressed={selected}
+                                disabled={
+                                  isSubmitting || isGenerating
+                                }
+                                onClick={() =>
+                                  handleThinkingSelect(choice.id)
+                                }
+                                className={`
+                                  flex-1 rounded-lg border px-2
+                                  py-1.5 text-xs font-medium
+                                  transition-colors
+                                  focus-visible:outline-none
+                                  focus-visible:ring-2
+                                  focus-visible:ring-[#D4AF37]/60
+                                  ${
+                                    selected
+                                      ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                                      : "border-zinc-800 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                                  }
+                                `}
+                              >
+                                {choice.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-1.5 text-[11px] leading-5 text-zinc-600">
+                          {
+                            THINKING_CHOICES.find(
+                              (choice) => choice.id === thinking
+                            )?.hint
+                          }{" "}
+                          Deep thinking uses the most quota.
+                        </p>
+                      </div>
+
+                      {/* Web grounding toggle */}
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2.5">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={webEnabled}
+                          disabled={isSubmitting || isGenerating}
+                          onClick={() =>
+                            setWebEnabled((value) => !value)
+                          }
+                          className="
+                            flex w-full items-center
+                            justify-between gap-3 rounded-lg
+                            px-1 py-1 text-left
+                            focus-visible:outline-none
+                            focus-visible:ring-2
+                            focus-visible:ring-[#D4AF37]/60
+                          "
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Globe
+                              className="h-4 w-4 shrink-0 text-zinc-500"
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-zinc-300">
+                                Search the web
+                              </span>
+                              <span className="mt-0.5 block text-[11px] leading-4 text-zinc-600">
+                                Ground answers in live results, with
+                                sources.
+                              </span>
+                            </span>
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className={`
+                              flex h-5 w-9 shrink-0 items-center
+                              rounded-full p-0.5 transition-colors
+                              ${
+                                webEnabled
+                                  ? "justify-end bg-[#D4AF37]"
+                                  : "justify-start bg-zinc-700"
+                              }
+                            `}
+                          >
+                            <span className="h-4 w-4 rounded-full bg-white shadow" />
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
-            </button>
+
+              {/* Stop / Send */}
+              <button
+                type={isGenerating ? "button" : "submit"}
+                onClick={
+                  isGenerating ? handleStop : undefined
+                }
+                disabled={
+                  isGenerating ? false : !canSend
+                }
+                aria-label={
+                  isGenerating
+                    ? "Stop response"
+                    : isSubmitting
+                      ? "Sending message"
+                      : "Send message"
+                }
+                title={
+                  isGenerating
+                    ? "Stop response"
+                    : isSubmitting
+                      ? "Sending..."
+                      : "Send message"
+                }
+                className={`
+                  mb-0.5 flex h-8 w-8 shrink-0
+                  items-center justify-center rounded-full
+                  transition-all duration-150
+                  focus-visible:outline-none
+                  focus-visible:ring-2
+                  focus-visible:ring-[#D4AF37]
+                  focus-visible:ring-offset-2
+                  focus-visible:ring-offset-[#151518]
+                  ${
+                    isGenerating
+                      ? "bg-zinc-200 text-black hover:bg-white active:scale-95"
+                      : canSend
+                        ? "bg-[#D4AF37] text-black hover:bg-[#E0BB4C] active:scale-95"
+                        : "cursor-not-allowed bg-zinc-800 text-zinc-600"
+                  }
+                `}
+              >
+                {isGenerating ? (
+                  <Square
+                    className="h-3.5 w-3.5"
+                    fill="currentColor"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
+                ) : isSubmitting ? (
+                  <LoaderCircle
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <ArrowUp
+                    className="h-[16px] w-[16px]"
+                    strokeWidth={2.2}
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Keyboard hint */}
