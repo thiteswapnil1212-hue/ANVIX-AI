@@ -64,7 +64,15 @@ export default function CalendarPage() {
   const [eventsError, setEventsError] = useState("");
   const [eventsLoading, setEventsLoading] = useState(false);
   const [date, setDate] = useState(todayIsoDate());
-  const [notice, setNotice] = useState("");
+  // Google redirect outcomes (?google_connected=1, ?google_error=...) are
+  // read once, lazily, from the query string — not set inside an effect.
+  // (window is absent during prerender, so the initializer guards it.)
+  const [notice, setNotice] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google_connected")) return "Google Calendar connected.";
+    return params.get("google_error") ?? "";
+  });
   const [askQuestion, setAskQuestion] = useState("");
   const [askAnswer, setAskAnswer] = useState("");
   const [askBusy, setAskBusy] = useState(false);
@@ -74,24 +82,72 @@ export default function CalendarPage() {
   const [addError, setAddError] = useState("");
   const [addBusy, setAddBusy] = useState(false);
 
-  const loadStatus = useCallback(async () => {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch("/api/integrations/google/status", {
-        headers,
-      });
-      const json = (await response.json()) as StatusResponse;
-      setStatus(json);
-    } catch {
-      setStatusError("Could not check the Google Calendar connection.");
-    }
+  // Initial status load; when the callback redirected here with
+  // ?google_setup=1, finish the connection first (the callback left a
+  // signed setup cookie, and this call turns it into a stored
+  // connection). Same shape as the profile load in Settings: an inline
+  // async function with a cancelled guard.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // Read the query string directly (instead of useSearchParams) so
+      // the page does not need a Suspense boundary to prerender.
+      if (
+        new URLSearchParams(window.location.search).get("google_setup")
+      ) {
+        try {
+          const headers = await getAuthHeaders();
+          const response = await fetch("/api/integrations/google/complete", {
+            method: "POST",
+            headers,
+          });
+          const json = (await response.json()) as { error?: string };
+          if (!cancelled) {
+            setNotice(
+              response.ok
+                ? "Google Calendar connected."
+                : (json.error ??
+                  "Could not finish connecting Google Calendar.")
+            );
+          }
+        } catch {
+          if (!cancelled) {
+            setNotice("Could not finish connecting Google Calendar.");
+          }
+        }
+      }
+      try {
+        const headers = await getAuthHeaders();
+        const response = await fetch("/api/integrations/google/status", {
+          headers,
+        });
+        const json = (await response.json()) as StatusResponse;
+        if (!cancelled) setStatus(json);
+      } catch {
+        if (!cancelled) {
+          setStatusError("Could not check the Google Calendar connection.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loadEvents = useCallback(async (day: string) => {
+    // getAuthHeaders() awaits first: the setState calls below happen
+    // after an await, not synchronously (keeps the set-state-in-effect
+    // rule happy when this is called from an effect).
+    let headers: Record<string, string>;
+    try {
+      headers = await getAuthHeaders();
+    } catch {
+      setEventsError("Could not load events. Check your connection.");
+      return;
+    }
     setEventsLoading(true);
     setEventsError("");
     try {
-      const headers = await getAuthHeaders();
       const response = await fetch(
         `/api/calendar/events?date=${encodeURIComponent(day)}`,
         { headers }
@@ -114,43 +170,13 @@ export default function CalendarPage() {
     }
   }, []);
 
-  // Initial status + Google redirect outcomes (?google_connected=1,
-  // ?google_setup=1, ?google_error=...).
   useEffect(() => {
-    // Read the query string directly (instead of useSearchParams) so the
-    // page does not need a Suspense boundary to prerender.
-    const searchParams = new URLSearchParams(window.location.search);
-    const connected = searchParams.get("google_connected");
-    const setup = searchParams.get("google_setup");
-    const error = searchParams.get("google_error");
-    if (connected) setNotice("Google Calendar connected.");
-    if (error) setNotice(error);
-    if (setup) {
-      void (async () => {
-        try {
-          const headers = await getAuthHeaders();
-          const response = await fetch(
-            "/api/integrations/google/complete",
-            { method: "POST", headers }
-          );
-          const json = (await response.json()) as { error?: string };
-          setNotice(
-            response.ok
-              ? "Google Calendar connected."
-              : (json.error ?? "Could not finish connecting Google Calendar.")
-          );
-        } catch {
-          setNotice("Could not finish connecting Google Calendar.");
-        }
-        await loadStatus();
-      })();
-      return;
-    }
-    void loadStatus();
-  }, [loadStatus]);
-
-  useEffect(() => {
-    if (status?.connected) void loadEvents(date);
+    if (!status?.connected) return;
+    // Inline async call (same shape as the status load above): the
+    // setState calls inside loadEvents run after its awaits.
+    void (async () => {
+      await loadEvents(date);
+    })();
   }, [status?.connected, date, loadEvents]);
 
   const handleDisconnect = async () => {

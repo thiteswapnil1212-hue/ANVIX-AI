@@ -28,6 +28,7 @@ import ChatInput, { type ChatSendOptions } from "./ChatInput";
 import ShareButton from "@/components/share/ShareButton";
 import ArtifactViewer from "./ArtifactViewer";
 import ResearchPanel from "./ResearchPanel";
+import VoiceChatButton from "@/components/voice/VoiceChatButton";
 import AppShell from "@/components/layout/AppShell";
 import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
 import type { GroundingSource } from "@/lib/gemini/grounding";
@@ -1776,6 +1777,10 @@ export default function ChatLayout() {
                       <span className="font-mono">{"{{…}}"}</span>{" "}
                       parts before sending.
                     </p>
+                  </div>
+
+                  <div className="mt-8">
+                    <VoiceChatButton />
                   </div>
                 </div>
               ) : (
