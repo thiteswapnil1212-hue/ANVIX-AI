@@ -5,6 +5,7 @@ import {
   AGENT_THINKING_LEVEL,
   thinkingConfig,
 } from "@/lib/gemini/model-config";
+import { classifyGeminiFailure } from "@/lib/gemini/fallback";
 
 import type {
   AgentToolCall,
@@ -475,6 +476,16 @@ async function generateStructuredActionsWithRetry(request: AgentRequest) {
       lastError = error;
 
       if (error instanceof Error && error.message.includes("GEMINI_API_KEY")) {
+        throw error;
+      }
+
+      // Step 3.9 pattern (classify): a non-retryable failure (400/401/
+      // 404/invalid request) will fail on the fallback too — throw
+      // immediately instead of burning a second 60 s attempt on it.
+      // Retryable failures (429/503/timeout/malformed plan) still try
+      // the next model below.
+      const failure = classifyGeminiFailure(error);
+      if (!failure.retryable) {
         throw error;
       }
 
