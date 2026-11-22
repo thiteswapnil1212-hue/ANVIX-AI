@@ -12,6 +12,7 @@ import {
 import { ArrowDown, Sparkles } from "lucide-react";
 import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
+import type { ChatArtifact } from "@/lib/artifacts";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -37,6 +38,8 @@ interface MessageListProps {
   isTyping?: boolean;
   /** Branch/fork the active chat at this message. Omit to hide. */
   onForkMessage?: (messageId: string) => void;
+  /** Open an artifact from a message in the side panel. */
+  onOpenArtifact?: (artifact: ChatArtifact) => void;
 }
 
 const BOTTOM_THRESHOLD = 120;
@@ -44,9 +47,11 @@ const BOTTOM_THRESHOLD = 120;
 const MessageRow = memo(function MessageRow({
   message,
   onForkMessage,
+  onOpenArtifact,
 }: {
   message: Message;
   onForkMessage?: (messageId: string) => void;
+  onOpenArtifact?: (artifact: ChatArtifact) => void;
 }) {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
@@ -63,6 +68,7 @@ const MessageRow = memo(function MessageRow({
         }
         generatedImage={message.generatedImage}
         comparePrompt={message.comparePrompt}
+        onOpenArtifact={onOpenArtifact}
       />
     </div>
   );
@@ -104,6 +110,7 @@ export default function MessageList({
   messages = [],
   isTyping = false,
   onForkMessage,
+  onOpenArtifact,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -320,6 +327,7 @@ export default function MessageList({
               key={message.id}
               message={message}
               onForkMessage={onForkMessage}
+              onOpenArtifact={onOpenArtifact}
             />
           ))}
 

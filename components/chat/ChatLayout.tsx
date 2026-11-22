@@ -26,6 +26,7 @@ import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
 import ChatInput, { type ChatSendOptions } from "./ChatInput";
 import ShareButton from "@/components/share/ShareButton";
+import ArtifactViewer from "./ArtifactViewer";
 import AppShell from "@/components/layout/AppShell";
 import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
 import type { GroundingSource } from "@/lib/gemini/grounding";
@@ -42,6 +43,7 @@ import {
   type GeneratedImage,
 } from "@/lib/image-client";
 import { shouldExtractNow } from "@/lib/memory";
+import type { ChatArtifact } from "@/lib/artifacts";
 
 type Message = {
   id: string;
@@ -296,6 +298,10 @@ export default function ChatLayout() {
       nonce: Date.now(),
     });
   }, []);
+
+  // Artifact open in the side panel (null = panel closed).
+  const [openArtifact, setOpenArtifact] =
+    useState<ChatArtifact | null>(null);
 
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -1386,6 +1392,9 @@ export default function ChatLayout() {
               </div>
             )}
 
+            {/* MESSAGES + INPUT with the artifact side panel */}
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {/* MESSAGES */}
             <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
               {messages.length === 0 && !isTyping ? (
@@ -1521,6 +1530,7 @@ export default function ChatLayout() {
                   messages={messages}
                   isTyping={isTyping}
                   onForkMessage={handleForkMessage}
+                  onOpenArtifact={setOpenArtifact}
                 />
               )}
             </div>
@@ -1562,6 +1572,41 @@ export default function ChatLayout() {
                 </p>
               </div>
             </div>
+              </div>
+
+              {/* ARTIFACT SIDE PANEL (desktop) */}
+              {openArtifact && (
+                <aside
+                  className="
+                    hidden
+                    w-[440px]
+                    shrink-0
+                    flex-col
+                    overflow-hidden
+                    border-l
+                    border-white/[0.08]
+                    bg-[#0B0B0C]
+                    md:flex
+                  "
+                  aria-label={`Artifact: ${openArtifact.title}`}
+                >
+                  <ArtifactViewer
+                    artifact={openArtifact}
+                    onClose={() => setOpenArtifact(null)}
+                  />
+                </aside>
+              )}
+            </div>
+
+            {/* ARTIFACT PANEL (mobile overlay) */}
+            {openArtifact && (
+              <div className="fixed inset-0 z-[60] md:hidden">
+                <ArtifactViewer
+                  artifact={openArtifact}
+                  onClose={() => setOpenArtifact(null)}
+                />
+              </div>
+            )}
           </div>
         </main>
       </div>

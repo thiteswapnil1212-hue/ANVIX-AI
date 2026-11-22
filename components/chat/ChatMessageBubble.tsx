@@ -5,6 +5,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -19,6 +20,7 @@ import {
   GitFork,
   Image as ImageIcon,
   Scale,
+  PanelTop,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -27,6 +29,10 @@ import type { GeneratedImage } from "@/lib/image-client";
 import GeneratedImageView from "./GeneratedImageView";
 import ListenButton from "./ListenButton";
 import ComparePanel from "./ComparePanel";
+import {
+  parseArtifacts,
+  type ChatArtifact,
+} from "@/lib/artifacts";
 
 interface ChatMessageBubbleProps {
   role: "assistant" | "user";
@@ -43,6 +49,8 @@ interface ChatMessageBubbleProps {
   generatedImage?: GeneratedImage;
   /** The user prompt this answer replies to (assistant only). */
   comparePrompt?: string;
+  /** Open an artifact in the side panel (assistant only). */
+  onOpenArtifact?: (artifact: ChatArtifact) => void;
 }
 
 function ThinkingBlock({ thinking }: { thinking: string }) {
@@ -157,6 +165,49 @@ function AttachmentChips({
         </span>
       ))}
     </div>
+  );
+}
+
+function ArtifactCard({
+  artifact,
+  onOpen,
+}: {
+  artifact: ChatArtifact;
+  onOpen: (artifact: ChatArtifact) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(artifact)}
+      className="
+        mt-4 flex w-full items-center gap-3
+        rounded-xl border border-[#D4AF37]/30
+        bg-[#D4AF37]/[0.06] px-3 py-2.5 text-left
+        transition-colors hover:border-[#D4AF37]/50
+        hover:bg-[#D4AF37]/[0.10]
+        focus-visible:outline-none
+        focus-visible:ring-2 focus-visible:ring-[#D4AF37]/60
+      "
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#D4AF37]/25 bg-[#D4AF37]/10">
+        <PanelTop
+          className="h-4 w-4 text-[#D4AF37]"
+          aria-hidden="true"
+        />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium text-zinc-100">
+          {artifact.title}
+        </span>
+        <span className="mt-0.5 block text-[11px] leading-4 text-zinc-500">
+          Interactive artifact · HTML · sandboxed, no network — tap to
+          open
+        </span>
+      </span>
+      <span className="shrink-0 rounded-md bg-[#D4AF37] px-2 py-1 text-[11px] font-semibold text-black">
+        Open
+      </span>
+    </button>
   );
 }
 
@@ -413,14 +464,29 @@ function ChatMessageBubble({
   onFork,
   generatedImage,
   comparePrompt,
+  onOpenArtifact,
 }: ChatMessageBubbleProps) {
   const isAssistant = role === "assistant";
   const [compareOpen, setCompareOpen] = useState(false);
+
+  // Artifact blocks are extracted from assistant text so the raw
+  // fence never renders as code — the card below opens the panel.
+  // When no panel handler is wired up, the raw text is kept verbatim
+  // instead: extracting without a card would hide the code.
+  const { text: displayText, artifacts } = useMemo(
+    () =>
+      isAssistant && onOpenArtifact
+        ? parseArtifacts(content)
+        : { text: content, artifacts: [] as ChatArtifact[] },
+    [content, isAssistant, onOpenArtifact]
+  );
+
   const isEmptyAssistant =
     isAssistant &&
-    !content.trim() &&
+    !displayText.trim() &&
     !thinking?.trim() &&
-    !generatedImage;
+    !generatedImage &&
+    artifacts.length === 0;
 
   if (isEmptyAssistant) return null;
 
@@ -561,13 +627,25 @@ function ChatMessageBubble({
                   skipHtml
                   components={markdownComponents}
                 >
-                  {content}
+                  {displayText}
                 </ReactMarkdown>
               </div>
             ) : (
               content
             )}
           </div>
+
+          {isAssistant && artifacts.length > 0 && onOpenArtifact ? (
+            <div className="mt-1">
+              {artifacts.map((artifact) => (
+                <ArtifactCard
+                  key={artifact.id}
+                  artifact={artifact}
+                  onOpen={onOpenArtifact}
+                />
+              ))}
+            </div>
+          ) : null}
 
           {isAssistant && sources && sources.length > 0 ? (
             <SourcesList sources={sources} />
