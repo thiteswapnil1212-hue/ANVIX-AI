@@ -41,6 +41,24 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Artifact format instruction (report §20). Short and conditional:
+ * the model only emits an artifact block when the user asked for
+ * something interactive (widget, chart, calculator, mini-app, game,
+ * visual demo). Plain code the user asked to see as code stays a
+ * normal fenced block — artifact blocks are extracted out of the
+ * reply text by the client, so emitting one unbidden would hide
+ * code the user wanted to read.
+ */
+export const ARTIFACT_SYSTEM_INSTRUCTION =
+  "When the user asks for something interactive (a widget, chart, " +
+  "calculator, mini-app, game, or visual demo), you MAY return it as " +
+  "one fenced block marked ```artifact:html with an optional " +
+  'title="..." attribute, containing a single complete self-contained ' +
+  "HTML document with inline CSS/JS only and no external URLs. Keep " +
+  "the surrounding reply short. Do not use artifact blocks for plain " +
+  "code, and never emit more than 3 artifact blocks in one reply.";
+
 function isAbortError(error: unknown) {
   return (
     error instanceof Error &&
@@ -347,12 +365,20 @@ export async function POST(request: Request) {
       for (const modelId of modelChain) {
         if (request.signal.aborted || cancelled) break;
 
+        // System prompt: the artifact fence format first, then the
+        // user's custom instructions + selected assistant + relevant
+        // memories (empty = no override, the model behaves exactly
+        // as before).
+        const systemInstruction = [
+          ARTIFACT_SYSTEM_INSTRUCTION,
+          systemPrompt,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
         const model = client.getGenerativeModel({
           model: modelId,
-          // System prompt: global custom instructions + selected
-          // assistant + relevant memories (empty = no override, the
-          // model behaves exactly as before).
-          ...(systemPrompt ? { systemInstruction: systemPrompt } : {}),
+          ...(systemInstruction ? { systemInstruction } : {}),
           generationConfig: {
             ...thinkingConfig(
               resolved.thinkingLevel,
