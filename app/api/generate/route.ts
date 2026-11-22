@@ -3,6 +3,7 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
+  BUILD_MODEL_CHAIN,
   CHAT_THINKING_LEVEL,
   thinkingConfig,
 } from "@/lib/gemini/model-config";
@@ -22,8 +23,33 @@ type ChatRequestBody = {
   model?: unknown;
 };
 
-const MAX_PROVIDER_RETRIES = 2;
-const RETRY_DELAYS_MS = [250, 750];
+async function startGeminiStream(
+  models: Array<ReturnType<GoogleGenerativeAI["getGenerativeModel"]>>,
+  prompt: string
+) {
+  // Try each model once, in order: the selected model, then the other
+  // model of the pair (3.5-flash-lite <-> 3.8-flash, the same pair
+  // BUILD_MODEL_CHAIN already defines). A 503 usually means that
+  // model is overloaded — retrying the same overloaded model is the
+  // lowest-yield move, so there is no second same-model retry.
+  // Non-retryable failures fail immediately, without trying the
+  // fallback. The last retryable error is thrown so the caller can
+  // return its clean 503.
+  let lastError: unknown = null;
+
+  for (const model of models) {
+    try {
+      return await model.generateContentStream(prompt);
+    } catch (error) {
+      if (!isRetryableProviderError(error)) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error("Gemini provider request failed");
+}
 
 // App-side timeout for one generation attempt, under the 60 s
 // platform budget (maxDuration): a hang surfaces as parseable JSON
@@ -67,30 +93,6 @@ function getProviderStatus(error: unknown): number | undefined {
 function isRetryableProviderError(error: unknown): boolean {
   const status = getProviderStatus(error);
   return status === 429 || status === 503;
-}
-
-async function startGeminiStream(
-  model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]>,
-  prompt: string
-) {
-  for (let attempt = 0; attempt <= MAX_PROVIDER_RETRIES; attempt += 1) {
-    try {
-      return await model.generateContentStream(prompt);
-    } catch (error) {
-      if (
-        !isRetryableProviderError(error) ||
-        attempt === MAX_PROVIDER_RETRIES
-      ) {
-        throw error;
-      }
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, RETRY_DELAYS_MS[attempt])
-      );
-    }
-  }
-
-  throw new Error("Gemini provider request failed");
 }
 
 export async function POST(req: Request) {
@@ -151,19 +153,30 @@ export async function POST(req: Request) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    const model = genAI.getGenerativeModel({
-      model: selectedModel.apiModelId ?? DEFAULT_CHAT_MODEL_ID,
-      generationConfig: {
-        ...thinkingConfig(CHAT_THINKING_LEVEL),
-      },
-    });
+    // Selected model first, then the other model of the pair — so a
+    // retryable failure switches model instead of retrying the same
+    // overloaded one (step 3.10).
+    const selectedModelId =
+      selectedModel.apiModelId ?? DEFAULT_CHAT_MODEL_ID;
+    const modelIds = [
+      selectedModelId,
+      ...BUILD_MODEL_CHAIN.filter((id) => id !== selectedModelId),
+    ];
+    const models = modelIds.map((id) =>
+      genAI.getGenerativeModel({
+        model: id,
+        generationConfig: {
+          ...thinkingConfig(CHAT_THINKING_LEVEL),
+        },
+      })
+    );
 
     // The client (lib/api/generate) expects a JSON blueprint, not a
     // text stream — accumulate the reply and return it as JSON.
     // Streaming here used to make every home-page generation fail in
     // response.json() with a parse error.
     const runGeneration = async () => {
-      const result = await startGeminiStream(model, prompt);
+      const result = await startGeminiStream(models, prompt);
 
       let text = "";
       for await (const chunk of result.stream) {
