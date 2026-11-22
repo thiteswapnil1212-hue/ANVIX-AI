@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { ArrowDown, ChevronUp, Sparkles } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import type { ChatArtifact } from "@/lib/artifacts";
@@ -58,8 +59,10 @@ const MessageRow = memo(function MessageRow({
   onOpenArtifact?: (artifact: ChatArtifact) => void;
   isStreaming?: boolean;
 }) {
+  // No entrance animation: virtualized rows remount on scroll and
+  // the animation would replay (flicker) every time.
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
+    <div>
       <ChatMessageBubble
         role={message.role}
         content={message.content}
@@ -122,7 +125,6 @@ export default function MessageList({
   onLoadEarlierMessages,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
 
   const autoScrollRef = useRef(true);
   const frameRef = useRef<number | null>(null);
@@ -152,6 +154,29 @@ export default function MessageList({
     isTyping &&
     (!showingAssistant || !latestMessage?.content?.trim());
 
+  // Virtualized rows (perf): only the viewport + overscan are in the
+  // DOM, so very long chats scroll smoothly instead of mounting
+  // hundreds of markdown bubbles. Row heights are dynamic
+  // (measureElement); the 28px inter-row gap rides inside each row
+  // (pb-7) so it is part of the measured size. The typing indicator
+  // is the last virtual row while it is shown, so scrolling to the
+  // bottom always lands on it instead of cutting it off.
+  // Trade-off: browser find-in-page (Ctrl+F) no longer finds
+  // off-screen messages, because they are not in the DOM.
+  const totalCount =
+    messages.length + (shouldShowTypingIndicator ? 1 : 0);
+  // useVirtualizer returns functions the React Compiler cannot
+  // memoize safely, so it skips memoizing this component — that is
+  // the intended behaviour for a virtualizer (it owns mutable
+  // measurement state), not a defect.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const rowVirtualizer = useVirtualizer({
+    count: totalCount,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 150,
+    overscan: 5,
+  });
+
   const isNearBottom = useCallback(() => {
     const container = scrollRef.current;
 
@@ -173,12 +198,10 @@ export default function MessageList({
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
-      const container = scrollRef.current;
+      if (totalCount === 0) return;
 
-      if (!container) return;
-
-      container.scrollTo({
-        top: container.scrollHeight,
+      rowVirtualizer.scrollToIndex(totalCount - 1, {
+        align: "end",
         behavior,
       });
 
@@ -186,7 +209,7 @@ export default function MessageList({
       updateScrollButton(false);
       setUnreadCount(0);
     },
-    [updateScrollButton]
+    [updateScrollButton, rowVirtualizer, totalCount]
   );
 
   const scheduleScroll = useCallback(
@@ -309,25 +332,20 @@ export default function MessageList({
     }
   }, [hasEarlierMessages]);
 
-  // Observe actual content size changes. This catches streamed
-  // text, images, and other layout changes without relying on
-  // message count or character length.
+  // Pin to the streaming row on each flush while the reader is at
+  // the bottom: the virtualizer re-measures the growing row, so the
+  // total size changes and the viewport would otherwise drift up.
+  // (Replaces the ResizeObserver that used to follow streamed
+  // growth; the observer could feed back through the virtualizer's
+  // own re-measurement.)
   useEffect(() => {
-    const container = scrollRef.current;
-    const content = contentRef.current;
-
-    if (!container || !content) return;
-
-    const observer = new ResizeObserver(() => {
-      if (autoScrollRef.current) {
-        scheduleScroll("auto");
-      }
-    });
-
-    observer.observe(content);
-
-    return () => observer.disconnect();
-  }, [scheduleScroll]);
+    if (isTyping && autoScrollRef.current && totalCount > 0) {
+      rowVirtualizer.scrollToIndex(totalCount - 1, {
+        align: "end",
+        behavior: "auto",
+      });
+    }
+  }, [messages, isTyping, rowVirtualizer, totalCount]);
 
   // Reposition when the viewport changes.
   useEffect(() => {
@@ -365,15 +383,39 @@ export default function MessageList({
         className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#0B0B0C]/50 to-transparent"
       />
 
+      {/* Load earlier messages: a floating pill, not an inline row —
+          it must stay outside the virtualizer's measured area or
+          scroll offsets drift by its height. */}
+      {hasEarlierMessages && (
+        <button
+          type="button"
+          onClick={handleLoadEarlier}
+          disabled={loadingEarlierMessages}
+          className="
+            absolute left-1/2 top-3 z-30
+            inline-flex -translate-x-1/2 items-center gap-1.5
+            rounded-full border border-white/[0.12]
+            bg-[#19191D]/95 px-3.5 py-2
+            text-xs font-medium text-zinc-300
+            shadow-[0_8px_30px_rgba(0,0,0,0.45)]
+            transition hover:border-[#D4AF37]/40
+            hover:text-[#D4AF37]
+            disabled:opacity-50
+          "
+        >
+          <ChevronUp className="h-3.5 w-3.5" strokeWidth={2} />
+          {loadingEarlierMessages
+            ? "Loading earlier messages…"
+            : "Load earlier messages"}
+        </button>
+      )}
+
       {/* Scroll container */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="
           h-full min-h-0 overflow-y-auto overscroll-contain
-          px-3 py-6 pb-10
-          sm:px-5 sm:py-8 sm:pb-12
-          lg:px-8 lg:py-10
           [scrollbar-color:#3f3f46_transparent]
           [scrollbar-width:thin]
           [&::-webkit-scrollbar]:w-1.5
@@ -384,54 +426,50 @@ export default function MessageList({
         "
       >
         <div
-          ref={contentRef}
-          className="mx-auto flex w-full max-w-5xl flex-col gap-7 pb-4 sm:gap-9"
+          className="
+            mx-auto w-full max-w-5xl
+            px-3 py-6 pb-10
+            sm:px-5 sm:py-8 sm:pb-12
+            lg:px-8 lg:py-10
+          "
         >
-          {hasEarlierMessages && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={handleLoadEarlier}
-                disabled={loadingEarlierMessages}
-                className="
-                  inline-flex items-center gap-1.5
-                  rounded-full border border-white/[0.12]
-                  bg-[#19191D]/95 px-3.5 py-2
-                  text-xs font-medium text-zinc-300
-                  transition hover:border-[#D4AF37]/40
-                  hover:text-[#D4AF37]
-                  disabled:opacity-50
-                "
-              >
-                <ChevronUp className="h-3.5 w-3.5" strokeWidth={2} />
-                {loadingEarlierMessages
-                  ? "Loading earlier messages…"
-                  : "Load earlier messages"}
-              </button>
-            </div>
-          )}
-
-          {messages.map((message) => (
-            <MessageRow
-              key={message.id}
-              message={message}
-              onForkMessage={onForkMessage}
-              onOpenArtifact={onOpenArtifact}
-              isStreaming={
-                isTyping &&
-                message.role === "assistant" &&
-                message.id ===
-                  messages[messages.length - 1]?.id
-              }
-            />
-          ))}
-
-          {shouldShowTypingIndicator && <TypingIndicator />}
-
           <div
-            className="h-px w-full"
-            aria-hidden="true"
-          />
+            style={{
+              height: rowVirtualizer.getTotalSize(),
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+              const message = messages[virtualItem.index];
+
+              return (
+                <div
+                  key={virtualItem.key}
+                  ref={rowVirtualizer.measureElement}
+                  data-index={virtualItem.index}
+                  className="absolute left-0 top-0 w-full pb-7 sm:pb-9"
+                  style={{
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {message ? (
+                    <MessageRow
+                      message={message}
+                      onForkMessage={onForkMessage}
+                      onOpenArtifact={onOpenArtifact}
+                      isStreaming={
+                        isTyping &&
+                        message.role === "assistant" &&
+                        virtualItem.index === messages.length - 1
+                      }
+                    />
+                  ) : (
+                    <TypingIndicator />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
