@@ -24,6 +24,7 @@ import {
 import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import GeneratedImageView from "./GeneratedImageView";
+import ListenButton from "./ListenButton";
 
 interface ChatMessageBubbleProps {
   role: "assistant" | "user";
@@ -595,6 +596,9 @@ function ChatMessageBubble({
                 <span>Branch</span>
               </button>
             )}
+            {isAssistant && content.trim() ? (
+              <ListenButton text={content} />
+            ) : null}
             <CopyButton
               text={content}
               label="Copy message"

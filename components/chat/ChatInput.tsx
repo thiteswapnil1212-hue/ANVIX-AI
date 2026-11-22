@@ -709,7 +709,6 @@ export default function ChatInput({
                     aria-hidden="true"
                   />
                 </button>
-<<<<<<< HEAD
 
                 {/* Template picker */}
                 {templateOpen && (

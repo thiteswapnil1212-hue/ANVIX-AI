@@ -1,5 +1,5 @@
-import { getAuthHeaders } from "@/lib/api/auth-headers";
-import { IMAGE_PROVIDER_NOTE } from "@/lib/pollinations";
+import { getAuthHeaders } from "./api/auth-headers.ts";
+import { IMAGE_PROVIDER_NOTE } from "./pollinations.ts";
 
 /**
  * Client for `/api/image` (Pollinations via the ANVIX route).

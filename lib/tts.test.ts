@@ -5,6 +5,7 @@ import {
   buildTtsRequestBody,
   isGeminiTtsFree,
   parseTtsAudio,
+  pcmToWav,
   stripMarkdownForSpeech,
   TTS_MAX_CHARS,
   TTS_MODEL_ID,
@@ -99,4 +100,25 @@ test("parseTtsAudio extracts inline audio, null when absent", () => {
   assert.equal(parseTtsAudio({ candidates: [] }), null);
   assert.equal(parseTtsAudio({}), null);
   assert.equal(parseTtsAudio(null), null);
+});
+
+test("pcmToWav writes a valid 44-byte WAV header around the samples", () => {
+  const pcm = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
+  const wav = pcmToWav(pcm);
+
+  assert.equal(wav.length, 48);
+  const text = (offset: number, length: number) =>
+    new TextDecoder().decode(wav.slice(offset, offset + length));
+  assert.equal(text(0, 4), "RIFF");
+  assert.equal(text(8, 4), "WAVE");
+  assert.equal(text(12, 4), "fmt ");
+  assert.equal(text(36, 4), "data");
+
+  const view = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
+  assert.equal(view.getUint32(4, true), 36 + 4); // RIFF size
+  assert.equal(view.getUint16(20, true), 1); // PCM format
+  assert.equal(view.getUint16(22, true), 1); // mono
+  assert.equal(view.getUint32(24, true), 24_000); // sample rate
+  assert.equal(view.getUint32(40, true), 4); // data size
+  assert.deepEqual(wav.slice(44), pcm);
 });

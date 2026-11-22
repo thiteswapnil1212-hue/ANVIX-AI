@@ -78,6 +78,40 @@ export function validateTtsText(value: unknown): TtsTextValidation {
   return { ok: true, text: cleaned, truncated: false };
 }
 
+/**
+ * Wrap raw 16-bit mono PCM in a WAV header (24 kHz, Gemini TTS).
+ * Gemini TTS sometimes returns raw PCM (`audio/L16...`) instead of
+ * WAV — the client wraps it so the browser can play it.
+ */
+export function pcmToWav(pcm: Uint8Array, sampleRate = 24_000): Uint8Array {
+  const header = new ArrayBuffer(44);
+  const view = new DataView(header);
+  const writeString = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) {
+      view.setUint8(offset + i, value.charCodeAt(i));
+    }
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + pcm.length, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true); // block align
+  view.setUint16(34, 16, true); // bits per sample
+  writeString(36, "data");
+  view.setUint32(40, pcm.length, true);
+
+  const wav = new Uint8Array(44 + pcm.length);
+  wav.set(new Uint8Array(header), 0);
+  wav.set(pcm, 44);
+  return wav;
+}
+
 /** REST body for `models/<tts-model>:generateContent`. */
 export function buildTtsRequestBody(text: string): Record<string, unknown> {
   return {
