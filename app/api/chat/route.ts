@@ -27,6 +27,16 @@ import {
   type ChatAttachmentInput,
 } from "@/lib/chat-attachments";
 import { encodeChatEvent } from "@/lib/chat-events";
+import { getAuthedServerContext } from "@/lib/supabase/server-auth";
+import {
+  buildSystemPrompt,
+  MAX_ASSISTANT_INSTRUCTIONS_CHARS,
+  parseAssistantMode,
+} from "@/lib/assistants";
+import {
+  selectRelevantMemories,
+  type MemoryRecord,
+} from "@/lib/memory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +61,25 @@ type ChatRequestBody = {
   /** BYOK: use the caller's own stored Gemini key instead of shared. */
   useOwnKey?: unknown;
   attachments?: unknown;
+  /** Id of a saved assistant (owned by the caller, or public). */
+  assistantId?: unknown;
+  /**
+   * Inline assistant (guest path: starters, or a not-yet-saved draft).
+   * A saved assistant loaded by `assistantId` always wins over this.
+   */
+  assistant?: unknown;
 };
+
+/** Best-effort helper: a failed context query yields null, never a 500. */
+async function quietly<T>(
+  promise: PromiseLike<T>
+): Promise<T | null> {
+  try {
+    return await promise;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const limited = await enforceRateLimit(request, "chat", 30, 60_000);
@@ -101,10 +129,8 @@ export async function POST(request: Request) {
     thinking = thinking ?? legacy.thinking;
   }
 
-  const resolved = resolveChatMode(
-    modeId ?? "smart",
-    thinking ?? defaultThinkingForMode(modeId ?? "smart")
-  );
+  // Mode + thinking are finalised after the assistant loads below
+  // (an assistant's preferred mode wins over the mode picker).
 
   const webEnabled = body.web !== false;
   const eventsEnabled = body.events === true;
@@ -124,6 +150,143 @@ export async function POST(request: Request) {
   const resolvedKey = await resolveCallerApiKey(request, {
     useOwnKey: body.useOwnKey === true,
     sharedKey: process.env.GEMINI_API_KEY,
+  });
+
+  // --- Custom assistants + custom instructions + memory v2 ----------
+  // Best-effort context for the system prompt. Guests skip it entirely;
+  // signed-in users get: their global custom instructions (v1 base
+  // layer), the selected assistant's instructions (+ its preferred
+  // mode, which wins over the mode picker), and memories relevant to
+  // this prompt (recency + keyword match — no pgvector store exists
+  // in this base, see lib/memory.ts). Every query tolerates the
+  // tables/column being absent (SQL not applied yet): a failure just
+  // means that layer is empty for this turn, never a failed chat.
+  let assistantInstructions = "";
+  let assistantName = "";
+  let assistantMode = parseAssistantMode(null);
+  let customInstructions = "";
+  let memoryFacts: string[] = [];
+
+  const authed = await getAuthedServerContext(request).catch(() => null);
+  if (authed) {
+    const assistantId =
+      typeof body.assistantId === "string" ? body.assistantId.trim() : "";
+
+    const [assistantRow, profileRow, memoryRows] = await Promise.all([
+      assistantId
+        ? quietly(
+            authed.client
+              .from("assistants")
+              .select("name, instructions, mode, owner_id, is_public")
+              .eq("id", assistantId)
+              .maybeSingle()
+          )
+        : Promise.resolve(null),
+      quietly(
+        authed.client
+          .from("profiles")
+          .select("custom_instructions")
+          .eq("id", authed.userId)
+          .maybeSingle()
+      ),
+      quietly(
+        authed.client
+          .from("memories")
+          .select("id, fact, source_chat_id, confidence, created_at")
+          .eq("user_id", authed.userId)
+          .order("created_at", { ascending: false })
+          .limit(100)
+      ),
+    ]);
+
+    const assistantData = assistantRow?.data as {
+      name?: unknown;
+      instructions?: unknown;
+      mode?: unknown;
+      owner_id?: unknown;
+      is_public?: unknown;
+    } | null;
+    // A saved assistant loads only for its owner or when public —
+    // a private assistant id guessed by someone else stays hidden.
+    if (
+      assistantData &&
+      (assistantData.owner_id === authed.userId ||
+        assistantData.is_public === true)
+    ) {
+      assistantInstructions =
+        typeof assistantData.instructions === "string"
+          ? assistantData.instructions
+          : "";
+      assistantName =
+        typeof assistantData.name === "string" ? assistantData.name : "";
+      assistantMode = parseAssistantMode(assistantData.mode);
+    }
+
+    const profileData = profileRow?.data as {
+      custom_instructions?: unknown;
+    } | null;
+    customInstructions =
+      typeof profileData?.custom_instructions === "string"
+        ? profileData.custom_instructions
+        : "";
+
+    const rows = ((memoryRows?.data ?? []) as unknown as {
+      id: string;
+      fact: string;
+      source_chat_id: string | null;
+      confidence: number;
+      created_at: string;
+    }[]).map((row) => ({
+      id: row.id,
+      fact: row.fact,
+      sourceChatId: row.source_chat_id,
+      confidence: Number(row.confidence ?? 0.5),
+      createdAt: row.created_at,
+    })) as MemoryRecord[];
+    if (rows.length > 0) {
+      memoryFacts = selectRelevantMemories(rows, prompt, 5).map(
+        (memory) => memory.fact
+      );
+    }
+  }
+
+  // Guest / starter path: inline assistant instructions sent by the
+  // client (capped — an unbounded system prompt is a quota hole).
+  // A DB-loaded assistant above always wins over this.
+  if (!assistantInstructions) {
+    const inline =
+      typeof body.assistant === "object" && body.assistant !== null
+        ? (body.assistant as Record<string, unknown>)
+        : null;
+    if (inline) {
+      const text =
+        typeof inline.instructions === "string" ? inline.instructions : "";
+      assistantInstructions = text.slice(
+        0,
+        MAX_ASSISTANT_INSTRUCTIONS_CHARS
+      );
+      assistantName =
+        typeof inline.name === "string" ? inline.name.slice(0, 80) : "";
+      assistantMode = parseAssistantMode(inline.mode);
+    }
+  }
+
+  // An assistant's preferred mode wins over the mode picker; otherwise
+  // the picker's (or legacy model's) mode stands.
+  const effectiveModeId = assistantMode ?? modeId ?? "smart";
+  const effectiveThinking =
+    thinking ?? defaultThinkingForMode(effectiveModeId);
+  const effectiveResolved = resolveChatMode(
+    effectiveModeId,
+    effectiveThinking
+  );
+  const resolved = effectiveResolved;
+
+  const systemPrompt = buildSystemPrompt({
+    customInstructions,
+    assistantInstructions,
+    assistantName,
+    memories: memoryFacts,
   });
 
   if (!resolvedKey.key) {
@@ -186,6 +349,10 @@ export async function POST(request: Request) {
 
         const model = client.getGenerativeModel({
           model: modelId,
+          // System prompt: global custom instructions + selected
+          // assistant + relevant memories (empty = no override, the
+          // model behaves exactly as before).
+          ...(systemPrompt ? { systemInstruction: systemPrompt } : {}),
           generationConfig: {
             ...thinkingConfig(
               resolved.thinkingLevel,
