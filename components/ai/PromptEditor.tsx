@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Sparkles,
   Command,
@@ -13,8 +14,20 @@ import {
 } from "lucide-react";
 
 import GenerateButton from "@/features/landing/GenerateButton";
-import GenerationStatus from "@/components/ai/GenerationStatus";
-import GenerationResultCard from "@/components/ai/GenerationResultCard";
+// Lazy (perf): both components are the only framer-motion import
+// sites in the repo, and neither renders before the user clicks
+// Generate (status renders null when idle; the result card only
+// renders when result is non-null). Splitting them keeps
+// framer-motion out of home's initial JS. ssr: false is legal here
+// — this file is already a Client Component.
+const GenerationStatus = dynamic(
+  () => import("@/components/ai/GenerationStatus"),
+  { ssr: false, loading: () => null }
+);
+const GenerationResultCard = dynamic(
+  () => import("@/components/ai/GenerationResultCard"),
+  { ssr: false, loading: () => null }
+);
 import ThinkingPanel from "@/components/ai/ThinkingPanel";
 import {
   generateProject,
@@ -56,6 +69,18 @@ export default function PromptEditor() {
     GenerateProjectResponse["result"] | null
   >(null);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
+
+  // Preload the lazy generator chunks on first interaction (focus or
+  // first keystroke), never on mount — preloading on mount would
+  // defeat the split. Fires once; the first Generate click then
+  // finds the chunk already in cache.
+  const generatorChunksPreloadedRef = useRef(false);
+  function preloadGeneratorChunks() {
+    if (generatorChunksPreloadedRef.current) return;
+    generatorChunksPreloadedRef.current = true;
+    void import("@/components/ai/GenerationStatus");
+    void import("@/components/ai/GenerationResultCard");
+  }
 
   const trimmedPrompt = prompt.trim();
   const remainingChars = MAX_CHARS - prompt.length;
@@ -258,9 +283,11 @@ export default function PromptEditor() {
 
           <textarea
             value={prompt}
-            onChange={(event) =>
-              updatePrompt(event.target.value)
-            }
+            onChange={(event) => {
+              preloadGeneratorChunks();
+              updatePrompt(event.target.value);
+            }}
+            onFocus={preloadGeneratorChunks}
             onKeyDown={(event) => {
               if (
                 event.key === "Enter" &&
