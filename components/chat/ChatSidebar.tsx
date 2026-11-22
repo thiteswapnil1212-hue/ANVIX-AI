@@ -478,7 +478,7 @@ function ChatSidebar({
     <aside
       aria-label="Chat sidebar"
       className={`
-        relative flex h-dvh min-h-0 min-w-0
+        relative flex h-full min-h-0 min-w-0
         shrink-0 flex-col overflow-hidden
         border-r border-[#2A2A2E]
         bg-[#18181B] text-white
@@ -486,7 +486,7 @@ function ChatSidebar({
         ${
           collapsed
             ? "w-[68px]"
-            : "w-[min(280px,85vw)]"
+            : "w-full"
         }
       `}
     >

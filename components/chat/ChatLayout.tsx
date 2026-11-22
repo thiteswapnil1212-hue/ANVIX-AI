@@ -233,6 +233,7 @@ export default function ChatLayout() {
   );
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [conversations, setConversations] = useState<
     GuestChatConversation[]
@@ -830,10 +831,9 @@ export default function ChatLayout() {
       <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
         {/* DESKTOP SIDEBAR */}
         <aside
-          className="
+          className={`
             hidden
             h-full
-            w-64
             min-h-0
             shrink-0
             overflow-hidden
@@ -842,7 +842,8 @@ export default function ChatLayout() {
             bg-[#18181B]
             md:flex
             md:flex-col
-          "
+            ${sidebarCollapsed ? "w-[68px]" : "w-64"}
+          `}
         >
           <div
             className="
@@ -867,6 +868,7 @@ export default function ChatLayout() {
               onRenameThread={handleRenameConversation}
               onDeleteThread={handleDeleteConversation}
               onTogglePin={handleTogglePin}
+              onCollapse={setSidebarCollapsed}
               onOpenSettings={() => router.push("/settings")}
               onOpenAccount={() => {
                 if (user) {
