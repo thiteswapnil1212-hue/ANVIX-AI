@@ -22,9 +22,19 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
+  Folder,
+  Tag,
   X,
     Sparkles,
 } from "lucide-react";
+import {
+  ORGANIZATION_MIN_CHATS,
+  isOrganizationUnlocked,
+  normalizeFolderName,
+  normalizeTags,
+  searchChats,
+  type OrganizableConversation,
+} from "@/lib/chat-organization";
 
 interface Thread {
   id: string;
@@ -32,6 +42,9 @@ interface Thread {
   preview: string;
   updatedAt?: string | number | Date;
   pinned?: boolean;
+  folder?: string | null;
+  tags?: string[];
+  messages?: { content: string }[];
 }
 
 interface ChatSidebarProps {
@@ -42,6 +55,8 @@ interface ChatSidebarProps {
   onRenameThread?: (id: string, title: string) => void;
   onDeleteThread?: (id: string) => void;
   onTogglePin?: (id: string) => void;
+  onSetFolder?: (id: string, folder: string | null) => void;
+  onSetTags?: (id: string, tags: string[]) => void;
   onCollapse?: (collapsed: boolean) => void;
   onOpenSettings?: () => void;
   onOpenAccount?: () => void;
@@ -93,6 +108,8 @@ function ChatSidebar({
   onRenameThread = () => {},
   onDeleteThread = () => {},
   onTogglePin = () => {},
+  onSetFolder = () => {},
+  onSetTags = () => {},
   onCollapse = () => {},
   onOpenSettings = () => {},
   onOpenAccount = () => {},
@@ -104,6 +121,12 @@ function ChatSidebar({
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // Organization (gated: shown only once the user has 10+ chats).
+  const [folderFilter, setFolderFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [organizingId, setOrganizingId] = useState<string | null>(null);
+  const [newFolderValue, setNewFolderValue] = useState("");
+  const [tagValue, setTagValue] = useState("");
 
   const searchRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +154,34 @@ function ChatSidebar({
     setRenameValue(thread.title || "");
     setMenuOpenFor(null);
   }, []);
+
+  const startOrganize = useCallback((thread: Thread) => {
+    setOrganizingId(thread.id);
+    setNewFolderValue(thread.folder ?? "");
+    setTagValue((thread.tags ?? []).join(", "));
+    setMenuOpenFor(null);
+  }, []);
+
+  const commitFolder = useCallback(
+    (thread: Thread, folder: string | null) => {
+      onSetFolder(thread.id, folder);
+      setNewFolderValue(folder ?? "");
+    },
+    [onSetFolder]
+  );
+
+  const commitTags = useCallback(
+    (thread: Thread) => {
+      onSetTags(
+        thread.id,
+        tagValue
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      );
+    },
+    [onSetTags, tagValue]
+  );
 
   const cancelRename = useCallback(() => {
     renameCommittedRef.current = true;
@@ -210,20 +261,85 @@ function ChatSidebar({
     renamingId,
   ]);
 
+  // Full-text search over title, preview, folder, tags and every
+  // message body (client-side, over chats already loaded). Folder/tag
+  // filters apply on top. When organization is locked (<10 chats)
+  // the folder/tag filters are never set, so this is just search.
+  const organizationUnlocked = isOrganizationUnlocked(threads.length);
+  const folders = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const thread of threads) {
+      const folder = normalizeFolderName(thread.folder);
+      if (folder) counts.set(folder, (counts.get(folder) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [threads]);
+
+  const allTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const thread of threads) {
+      for (const tag of normalizeTags(thread.tags)) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [threads]);
+
   const { pinned, grouped } = useMemo(() => {
     const now = new Date();
 
-    const filtered = normalizedQuery
-      ? threads.filter((thread) => {
-          const title = (thread.title || "").toLowerCase();
-          const preview = (thread.preview || "").toLowerCase();
+    const searchable = threads.map((thread) => ({
+      thread,
+      searchable: {
+        id: thread.id,
+        title: thread.title || "",
+        preview: thread.preview || "",
+        createdAt:
+          thread.updatedAt instanceof Date
+            ? thread.updatedAt.toISOString()
+            : typeof thread.updatedAt === "string"
+              ? thread.updatedAt
+              : now.toISOString(),
+        updatedAt:
+          thread.updatedAt instanceof Date
+            ? thread.updatedAt.toISOString()
+            : typeof thread.updatedAt === "string"
+              ? thread.updatedAt
+              : now.toISOString(),
+        pinned: thread.pinned,
+        folder: thread.folder ?? null,
+        tags: thread.tags ?? [],
+        messages: (thread.messages ?? []).map((message) => ({
+          id: "",
+          role: "user" as const,
+          content: message.content,
+        })),
+      } satisfies OrganizableConversation,
+    }));
 
-          return (
-            title.includes(normalizedQuery) ||
-            preview.includes(normalizedQuery)
-          );
-        })
-      : threads;
+    const matched = searchChats(
+      searchable.map((entry) => entry.searchable),
+      {
+        query: normalizedQuery,
+        // folderFilter: null = any folder; "" = no folder; name = that folder.
+        folder:
+          folderFilter === null
+            ? undefined
+            : folderFilter === ""
+              ? null
+              : folderFilter,
+        tags: tagFilter ? [tagFilter] : [],
+      }
+    );
+
+    const matchedIds = new Set(matched.map((entry) => entry.id));
+    const filtered = searchable
+      .filter((entry) => matchedIds.has(entry.thread.id))
+      .map((entry) => entry.thread);
 
     const pinnedThreads = filtered.filter((thread) => thread.pinned);
     const regularThreads = filtered.filter((thread) => !thread.pinned);
@@ -251,7 +367,7 @@ function ChatSidebar({
       pinned: pinnedThreads,
       grouped: groupedThreads,
     };
-  }, [threads, normalizedQuery]);
+  }, [threads, normalizedQuery, folderFilter, tagFilter]);
 
   const hasThreads = threads.length > 0;
   const hasResults = pinned.length > 0 || grouped.length > 0;
@@ -358,6 +474,13 @@ function ChatSidebar({
                       {thread.preview}
                     </p>
                   )}
+
+                  {thread.folder && (
+                    <p className="mt-1 flex items-center gap-1 truncate text-[10px] font-medium text-[#D4AF37]/80">
+                      <Folder className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{thread.folder}</span>
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -448,6 +571,23 @@ function ChatSidebar({
                 Rename
               </button>
 
+              {organizationUnlocked && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => startOrganize(thread)}
+                  className="
+                    flex w-full items-center gap-2.5
+                    rounded-lg px-3 py-2 text-left
+                    text-xs text-zinc-300 transition
+                    hover:bg-[#303034] hover:text-white
+                  "
+                >
+                  <Folder className="h-3.5 w-3.5 text-zinc-500" />
+                  Organize (folder / tags)
+                </button>
+              )}
+
               <div className="my-1 border-t border-white/[0.06]" />
 
               <button
@@ -469,6 +609,148 @@ function ChatSidebar({
               </button>
             </div>
           </>
+        )}
+
+        {organizingId === thread.id && organizationUnlocked && (
+          <div
+            className="
+              mt-1 rounded-xl border border-[#353539]
+              bg-[#202023] p-3
+            "
+            aria-label={`Organize ${title}`}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
+              Folder
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => commitFolder(thread, null)}
+                aria-pressed={!thread.folder}
+                className={`
+                  rounded-full border px-2.5 py-1 text-[11px]
+                  font-medium transition-colors
+                  ${
+                    !thread.folder
+                      ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                      : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                  }
+                `}
+              >
+                No folder
+              </button>
+              {folders.map((folder) => (
+                <button
+                  key={folder.name}
+                  type="button"
+                  onClick={() => commitFolder(thread, folder.name)}
+                  aria-pressed={thread.folder === folder.name}
+                  className={`
+                    rounded-full border px-2.5 py-1 text-[11px]
+                    font-medium transition-colors
+                    ${
+                      thread.folder === folder.name
+                        ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                        : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                    }
+                  `}
+                >
+                  {folder.name}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <input
+                value={newFolderValue}
+                onChange={(event) =>
+                  setNewFolderValue(event.target.value)
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitFolder(thread, newFolderValue);
+                  }
+                }}
+                placeholder="New folder name…"
+                maxLength={40}
+                aria-label="New folder name"
+                className="
+                  min-w-0 flex-1 rounded-lg border
+                  border-zinc-700 bg-[#151518]
+                  px-2.5 py-1.5 text-xs text-zinc-200
+                  outline-none placeholder:text-zinc-600
+                  focus:border-[#D4AF37]/40
+                "
+              />
+              <button
+                type="button"
+                onClick={() => commitFolder(thread, newFolderValue)}
+                className="
+                  shrink-0 rounded-lg border border-[#D4AF37]/40
+                  bg-[#D4AF37]/10 px-2.5 py-1.5
+                  text-xs font-medium text-[#D4AF37]
+                  transition hover:bg-[#D4AF37]/20
+                "
+              >
+                Move
+              </button>
+            </div>
+
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
+              Tags
+            </p>
+            <div className="mt-2 flex gap-1.5">
+              <input
+                value={tagValue}
+                onChange={(event) => setTagValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitTags(thread);
+                  }
+                }}
+                placeholder="e.g. dsa, resume"
+                aria-label="Tags, comma separated"
+                className="
+                  min-w-0 flex-1 rounded-lg border
+                  border-zinc-700 bg-[#151518]
+                  px-2.5 py-1.5 text-xs text-zinc-200
+                  outline-none placeholder:text-zinc-600
+                  focus:border-[#D4AF37]/40
+                "
+              />
+              <button
+                type="button"
+                onClick={() => commitTags(thread)}
+                className="
+                  shrink-0 rounded-lg border border-[#D4AF37]/40
+                  bg-[#D4AF37]/10 px-2.5 py-1.5
+                  text-xs font-medium text-[#D4AF37]
+                  transition hover:bg-[#D4AF37]/20
+                "
+              >
+                Save
+              </button>
+            </div>
+            {thread.tags && thread.tags.length > 0 && (
+              <p className="mt-2 flex flex-wrap items-center gap-1 text-[11px] text-zinc-500">
+                <Tag className="h-3 w-3" aria-hidden="true" />
+                {thread.tags.join(", ")}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setOrganizingId(null)}
+              className="
+                mt-3 w-full rounded-lg border border-zinc-700
+                px-2.5 py-1.5 text-xs font-medium
+                text-zinc-300 transition hover:bg-zinc-800/70
+              "
+            >
+              Done
+            </button>
+          </div>
         )}
       </div>
     );
@@ -641,6 +923,110 @@ function ChatSidebar({
             </label>
           </div>
         )}
+
+        {!collapsed && !organizationUnlocked && threads.length > 0 && (
+          <p className="mt-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-5 text-zinc-500">
+            Folders &amp; tags unlock once you have{" "}
+            {ORGANIZATION_MIN_CHATS}+ chats — you have {threads.length}.
+          </p>
+        )}
+
+        {!collapsed && organizationUnlocked && (
+          <div className="mt-3">
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
+              Folders
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setFolderFilter(null);
+                  setTagFilter(null);
+                }}
+                aria-pressed={folderFilter === null && tagFilter === null}
+                className={`
+                  rounded-full border px-2.5 py-1 text-[11px]
+                  font-medium transition-colors
+                  ${
+                    folderFilter === null && tagFilter === null
+                      ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                      : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                  }
+                `}
+              >
+                All chats
+              </button>
+              {folders.map((folder) => (
+                <button
+                  key={folder.name}
+                  type="button"
+                  onClick={() => setFolderFilter(folder.name)}
+                  aria-pressed={folderFilter === folder.name}
+                  className={`
+                    rounded-full border px-2.5 py-1 text-[11px]
+                    font-medium transition-colors
+                    ${
+                      folderFilter === folder.name
+                        ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                        : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                    }
+                  `}
+                >
+                  {folder.name} ({folder.count})
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setFolderFilter("")}
+                aria-pressed={folderFilter === ""}
+                className={`
+                  rounded-full border px-2.5 py-1 text-[11px]
+                  font-medium transition-colors
+                  ${
+                    folderFilter === ""
+                      ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                      : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                  }
+                `}
+              >
+                No folder
+              </button>
+            </div>
+
+            {allTags.length > 0 && (
+              <>
+                <p className="mt-2.5 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
+                  Tags
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {allTags.map((tag) => (
+                    <button
+                      key={tag.name}
+                      type="button"
+                      onClick={() =>
+                        setTagFilter(
+                          tagFilter === tag.name ? null : tag.name
+                        )
+                      }
+                      aria-pressed={tagFilter === tag.name}
+                      className={`
+                        rounded-full border px-2.5 py-1 text-[11px]
+                        font-medium transition-colors
+                        ${
+                          tagFilter === tag.name
+                            ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                            : "border-zinc-700 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                        }
+                      `}
+                    >
+                      #{tag.name} ({tag.count})
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {!collapsed && (
@@ -686,14 +1072,19 @@ function ChatSidebar({
                 No matching chats
               </p>
               <p className="mt-1 text-[10px] leading-4 text-zinc-600">
-                Try another search term.
+                Search covers titles, folders, tags and message text.
+                Try another term or clear the filters.
               </p>
               <button
                 type="button"
-                onClick={() => setQuery("")}
+                onClick={() => {
+                  setQuery("");
+                  setFolderFilter(null);
+                  setTagFilter(null);
+                }}
                 className="mt-3 text-[11px] font-medium text-[#D4AF37] hover:text-yellow-300"
               >
-                Clear search
+                Clear search &amp; filters
               </button>
             </div>
           ) : (
