@@ -172,13 +172,15 @@ export function parseExtractedFacts(raw: unknown): string[] {
     }
   }
 
+  const factsValue =
+    typeof parsed === "object" && parsed !== null
+      ? (parsed as Record<string, unknown>).facts
+      : undefined;
   const candidates: unknown[] = Array.isArray(parsed)
     ? parsed
-    : typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>).facts ?? []
+    : Array.isArray(factsValue)
+      ? factsValue
       : [];
-
-  if (!Array.isArray(candidates)) return [];
 
   const facts: string[] = [];
   for (const candidate of candidates) {
