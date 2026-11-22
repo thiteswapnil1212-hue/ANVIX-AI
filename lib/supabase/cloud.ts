@@ -342,6 +342,38 @@ export async function insertProject(
   return mapProjectRow(data as ProjectRow);
 }
 
+export async function updateProject(
+  userId: string,
+  projectId: string,
+  project: {
+    name: string;
+    framework: string;
+    files: CloudProject["files"];
+    prompt?: string;
+  }
+): Promise<boolean> {
+  if (!supabase) return false;
+
+  const { error } = await supabase
+    .from("projects")
+    .update({
+      name: project.name,
+      framework: project.framework,
+      files: project.files,
+      prompt: project.prompt ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", projectId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.warn("Unable to update cloud project.", error);
+    return false;
+  }
+
+  return true;
+}
+
 // ------------------------------------------------------------------ profiles
 
 export interface CloudProfile {

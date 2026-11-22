@@ -31,6 +31,13 @@ import {
 import { downloadProjectZip } from "@/lib/project/export-zip";
 import { getAuthHeaders } from "@/lib/api/auth-headers";
 import { shouldUseOwnKey } from "@/lib/byok/client";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { supabase } from "@/lib/supabase/client";
+import {
+  insertProject,
+  updateProject,
+} from "@/lib/supabase/cloud";
+import ShareButton from "@/components/share/ShareButton";
 import {
   isGeneratedProject,
   type GeneratedProject,
@@ -110,6 +117,22 @@ function readStoredProject(): GeneratedProject | null {
   }
 }
 
+function readStoredCloudId(): string | null {
+  if (typeof window === "undefined") return null;
+  const raw =
+    window.localStorage.getItem(GENERATED_PROJECT_STORAGE_KEY) ??
+    window.sessionStorage.getItem(GENERATED_PROJECT_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return typeof parsed.id === "string" && parsed.id.trim()
+      ? parsed.id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function getFirstFilePath(files: GeneratedProject["files"]) {
   return files.find((file) => file.path.trim().length > 0)?.path ?? null;
 }
@@ -118,7 +141,9 @@ export default function Workspace({
   projectName = "Untitled Project",
 }: WorkspaceProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [project, setProject] = useState<GeneratedProject | null>(null);
+  const [cloudProjectId, setCloudProjectId] = useState<string | null>(null);
   const [savedProject, setSavedProject] = useState<GeneratedProject | null>(null);
   const [history, setHistory] = useState<ProjectHistory>(() =>
     createHistory()
@@ -167,6 +192,7 @@ export default function Workspace({
     setSavedProject(cloneProject(nextProject));
     setSelectedFilePath(getFirstFilePath(nextProject.files));
     setInitialAgentPrompt(storedPrompt);
+    setCloudProjectId(readStoredCloudId());
   }, []);
 
   // Stable callbacks: the agent-prompt effect depends on streamAgent,
@@ -422,6 +448,57 @@ export default function Workspace({
     downloadProjectZip(project);
   }
 
+  /**
+   * Cloud id for the Share button: the share link points at the
+   * cloud row, so a local-only project is saved to the cloud first
+   * (insert once, update after that). Returns null for guests or
+   * when the cloud write fails.
+   */
+  async function ensureCloudProject(): Promise<string | null> {
+    if (!supabase || !user || !project) return null;
+
+    if (cloudProjectId) {
+      await updateProject(user.id, cloudProjectId, {
+        name: project.name,
+        framework: project.framework,
+        files: project.files.map((file) => ({
+          path: file.path,
+          content: file.content,
+          language: file.language,
+        })),
+      });
+      return cloudProjectId;
+    }
+
+    const saved = await insertProject(user.id, {
+      name: project.name,
+      framework: project.framework,
+      files: project.files.map((file) => ({
+        path: file.path,
+        content: file.content,
+        language: file.language,
+      })),
+    });
+
+    if (!saved) return null;
+
+    setCloudProjectId(saved.id);
+    try {
+      const raw = window.localStorage.getItem(GENERATED_PROJECT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        parsed.id = saved.id;
+        window.localStorage.setItem(
+          GENERATED_PROJECT_STORAGE_KEY,
+          JSON.stringify(parsed)
+        );
+      }
+    } catch {
+      // The id lives in state too; storage is only a convenience.
+    }
+    return saved.id;
+  }
+
   function handleAiSubmit() {
     const prompt = aiPrompt.trim();
 
@@ -481,6 +558,19 @@ export default function Workspace({
       serializedProject
     );
     setSavedProject(cloneProject(project));
+
+    // Keep a shared link pointing at the latest saved version.
+    if (supabase && user && cloudProjectId) {
+      void updateProject(user.id, cloudProjectId, {
+        name: project.name,
+        framework: project.framework,
+        files: project.files.map((file) => ({
+          path: file.path,
+          content: file.content,
+          language: file.language,
+        })),
+      });
+    }
   }
 
   function handleReset() {
@@ -640,6 +730,13 @@ export default function Workspace({
 
             <span className="hidden sm:inline">Redo</span>
           </button>
+
+          <ShareButton
+            resourceType="project"
+            resourceId={cloudProjectId}
+            ensureResourceId={ensureCloudProject}
+            resourceLabel="project"
+          />
 
           <button
             type="button"

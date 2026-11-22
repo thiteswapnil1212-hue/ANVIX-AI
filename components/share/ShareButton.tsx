@@ -23,7 +23,14 @@ import {
 
 interface ShareButtonProps {
   resourceType: ShareResourceType;
-  resourceId: string;
+  /**
+   * Cloud id of the resource. Null when the resource only exists
+   * locally so far (e.g. a workspace project never saved to the
+   * cloud) — then `ensureResourceId` saves it first and returns its
+   * cloud id. Omit both only for resources that always have an id.
+   */
+  resourceId: string | null;
+  ensureResourceId?: () => Promise<string | null>;
   resourceLabel: string;
   className?: string;
 }
@@ -40,11 +47,16 @@ interface ShareButtonProps {
 export default function ShareButton({
   resourceType,
   resourceId,
+  ensureResourceId,
   resourceLabel,
   className = "",
 }: ShareButtonProps) {
   const { user, loading: authLoading } = useAuth();
   const [open, setOpen] = useState(false);
+  const [effectiveResourceId, setEffectiveResourceId] = useState<string | null>(
+    resourceId
+  );
+  const [ensuring, setEnsuring] = useState(false);
   const [shares, setShares] = useState<ShareRecord[] | null>(null);
   const [reportCounts, setReportCounts] = useState<Record<string, number>>({});
   const [loadingShares, setLoadingShares] = useState(false);
@@ -56,14 +68,40 @@ export default function ShareButton({
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    setEffectiveResourceId(resourceId);
+  }, [resourceId]);
+
+  async function handleToggle() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    if (!effectiveResourceId && ensureResourceId && user) {
+      setEnsuring(true);
+      setError(null);
+      const ensured = await ensureResourceId();
+      setEnsuring(false);
+      if (!ensured) {
+        setError(
+          "Could not save this to your account first — sign in and try again."
+        );
+        setOpen(true);
+        return;
+      }
+      setEffectiveResourceId(ensured);
+    }
+    setOpen(true);
+  }
+
   async function refreshShares() {
-    if (!supabase || !user) return;
+    if (!supabase || !user || !effectiveResourceId) return;
     setLoadingShares(true);
     const listed = await listSharesForResource(
       supabase,
       user.id,
       resourceType,
-      resourceId
+      effectiveResourceId
     );
     setLoadingShares(false);
     if (listed === null) {
@@ -102,13 +140,13 @@ export default function ShareButton({
   }, [open ]);
 
   async function handleCreate() {
-    if (!supabase || !user) return;
+    if (!supabase || !user || !effectiveResourceId) return;
     setCreating(true);
     setError(null);
     const share = await createShare(supabase, {
       ownerId: user.id,
       resourceType,
-      resourceId,
+      resourceId: effectiveResourceId,
       permission,
       expiry,
     });
@@ -156,15 +194,22 @@ export default function ShareButton({
   const liveShares = (shares ?? []).filter((share) => isShareLive(share));
 
   return (
-    <div ref={panelRef} className={`relative ${className}`}>
+    <div
+      ref={panelRef}
+      className={`relative ${className}`}
+      onClick={(event) => event.stopPropagation()}
+    >
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => void handleToggle()}
+        disabled={ensuring}
         title={`Share ${resourceLabel}`}
-        className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200"
+        className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:opacity-50"
       >
         <Share2 className="h-3 w-3" />
-        <span className="hidden sm:inline">Share</span>
+        <span className="hidden sm:inline">
+          {ensuring ? "Saving…" : "Share"}
+        </span>
       </button>
 
       {open && (

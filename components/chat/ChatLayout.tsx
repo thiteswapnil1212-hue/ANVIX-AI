@@ -25,6 +25,7 @@ import {
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
 import ChatInput, { type ChatSendOptions } from "./ChatInput";
+import ShareButton from "@/components/share/ShareButton";
 import AppShell from "@/components/layout/AppShell";
 import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
 import type { GroundingSource } from "@/lib/gemini/grounding";
@@ -1197,6 +1198,20 @@ export default function ChatLayout() {
                 <Menu className="h-5 w-5" />
               </button>
             </header>
+
+            {/* DESKTOP TOOLBAR — conversation title + share */}
+            {messages.length > 0 && activeConversationId && (
+              <div className="hidden h-11 shrink-0 items-center justify-between border-b border-white/[0.06] px-4 md:flex">
+                <p className="min-w-0 truncate text-xs font-medium text-zinc-300">
+                  {activeConversation?.title ?? "Chat"}
+                </p>
+                <ShareButton
+                  resourceType="chat"
+                  resourceId={activeConversationId}
+                  resourceLabel="chat"
+                />
+              </div>
+            )}
 
             {/* MESSAGES */}
             <div className="min-h-0 flex-1 overflow-hidden bg-transparent">

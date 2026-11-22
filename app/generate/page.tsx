@@ -280,12 +280,24 @@ export default function GeneratePage() {
       // Signed-in users also get the project in their account, so it
       // appears on the dashboard from any device. Fire-and-forget: the
       // local copy above is already saved if the cloud write fails.
+      // The returned cloud id is written back into the local copy so
+      // Share and GitHub export can point at this exact cloud row.
       if (user) {
         void insertProject(user.id, {
           name: data.project.name,
           framework: data.project.framework,
           files: data.project.files,
           prompt: trimmedPrompt,
+        }).then((saved) => {
+          if (!saved) return;
+          try {
+            localStorage.setItem(
+              GENERATED_PROJECT_STORAGE_KEY,
+              JSON.stringify({ ...data.project, id: saved.id })
+            );
+          } catch {
+            // The workspace still opens from the copy saved above.
+          }
         });
       }
 
