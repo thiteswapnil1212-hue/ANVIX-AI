@@ -29,6 +29,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Perf §3: tree-shake @base-ui/react imports (only the button
+    // primitive is used). lucide-react is already on Next's built-in
+    // auto-optimized list — do not list it here.
+    optimizePackageImports: ["@base-ui/react"],
+  },
   async headers() {
     return [
       {
