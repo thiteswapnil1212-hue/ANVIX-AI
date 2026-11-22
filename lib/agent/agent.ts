@@ -20,6 +20,12 @@ export interface AgentRequest {
   project: GeneratedProject;
   signal?: AbortSignal;
   onEvent?: (event: AgentProgressEvent) => void;
+  /**
+   * Resolved Gemini key for this call (BYOK caller key or shared key).
+   * When omitted the service reads `GEMINI_API_KEY` itself — routes
+   * that support BYOK pass the resolved key instead.
+   */
+  apiKey?: string;
 }
 
 export type AgentProgressEvent =
@@ -399,7 +405,7 @@ async function generateStructuredActions(
   request: AgentRequest,
   modelName: string
 ) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = request.apiKey ?? process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set on the server");

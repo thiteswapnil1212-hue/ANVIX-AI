@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveCallerApiKey } from "@/lib/byok/key-resolution";
+import { recordUsage } from "@/lib/usage/meter";
+import { flushUsageInBackground } from "@/lib/usage/server-flush";
 
 import { runAgentService } from "@/lib/agent/agent";
 import type { GeneratedProject } from "@/lib/project/project-schema";
@@ -113,9 +116,30 @@ export async function POST(req: Request) {
       return jsonError("Unsupported project framework", 400);
     }
 
+    // BYOK: the caller's own key when they asked for it and one is
+    // stored, else the shared server key (see /api/chat for the same
+    // pattern). The key never leaves this route.
+    const resolvedKey = await resolveCallerApiKey(req, {
+      useOwnKey: body.useOwnKey === true,
+      sharedKey: process.env.GEMINI_API_KEY,
+    });
+    if (!resolvedKey.key) {
+      return jsonError("Gemini API key is not configured.", 500);
+    }
+
+    // Quota meter: count this request (hourly-aggregated).
+    recordUsage(
+      "agent",
+      resolvedKey.userId
+        ? `user:${resolvedKey.userId}`
+        : `ip:${getClientIp(req)}`
+    );
+    flushUsageInBackground(req);
+
     const response = await runAgentService({
       prompt: body.prompt.trim(),
       project,
+      apiKey: resolvedKey.key,
     });
 
     if (!response.success) {

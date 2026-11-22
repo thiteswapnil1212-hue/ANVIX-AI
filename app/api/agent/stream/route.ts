@@ -1,5 +1,8 @@
 import { runAgentService, type AgentProgressEvent } from "@/lib/agent/agent";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveCallerApiKey } from "@/lib/byok/key-resolution";
+import { recordUsage } from "@/lib/usage/meter";
+import { flushUsageInBackground } from "@/lib/usage/server-flush";
 import { isGeneratedProject, type GeneratedProject } from "@/lib/project/project-schema";
 
 const MAX_PROMPT_LENGTH = 20000;
@@ -103,6 +106,26 @@ export async function POST(request: Request) {
     return jsonError(getErrorMessage(error), 400);
   }
 
+  // BYOK: the caller's own key when they asked for it and one is stored,
+  // else the shared server key. Resolved before the stream starts so a
+  // missing key fails fast instead of mid-stream.
+  const resolvedKey = await resolveCallerApiKey(request, {
+    useOwnKey: body.useOwnKey === true,
+    sharedKey: process.env.GEMINI_API_KEY,
+  });
+  if (!resolvedKey.key) {
+    return jsonError("Gemini API key is not configured.", 500);
+  }
+
+  // Quota meter: count this request (hourly-aggregated).
+  recordUsage(
+    "agent",
+    resolvedKey.userId
+      ? `user:${resolvedKey.userId}`
+      : `ip:${getClientIp(request)}`
+  );
+  flushUsageInBackground(request);
+
   const encoder = new TextEncoder();
   let streamClosed = false;
 
@@ -139,6 +162,7 @@ export async function POST(request: Request) {
             project,
             signal: request.signal,
             onEvent: emit,
+            apiKey: resolvedKey.key,
           });
 
           if (streamClosed || request.signal.aborted) {
