@@ -11,9 +11,9 @@ import {
   Eye,
   Folder,
   GitBranch,
-  MoreHorizontal,
   Redo2,
   Rocket,
+  RotateCcw,
   Sparkles,
   Terminal,
   Undo2,
@@ -500,7 +500,7 @@ export default function Workspace({
 
   if (!project || !project.files.length) {
     return (
-      <div className="flex h-[calc(100vh-64px)] min-h-0 w-full items-center justify-center overflow-hidden bg-[#0B0B0D] px-6 text-white">
+      <div className="flex h-dvh min-h-0 w-full items-center justify-center overflow-hidden bg-[#0B0B0D] px-6 text-white">
         <div className="max-w-md rounded-2xl border border-zinc-800 bg-[#0D0D0F] p-8 text-center shadow-2xl">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-[#D4AF37]/15 bg-[#D4AF37]/[0.06]">
             <Sparkles className="h-5 w-5 text-[#D4AF37]" strokeWidth={1.8} />
@@ -530,7 +530,7 @@ export default function Workspace({
     <div
       className="
         flex
-        h-[calc(100vh-64px)]
+        h-dvh
         min-h-0
         w-full
         flex-col
@@ -576,13 +576,11 @@ export default function Workspace({
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            className="hidden items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 sm:flex"
-          >
+          {/* Branch — a static label; there is no branch picker yet. */}
+          <span className="hidden items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 sm:flex">
             <GitBranch className="h-3 w-3" />
             main
-          </button>
+          </span>
 
           <button
             type="button"
@@ -602,7 +600,10 @@ export default function Workspace({
             className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-[#0B0B0D] px-3 py-2 text-[10px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={handleReset}
             disabled={!isDirty || !selectedFilePath}
+            title="Discard unsaved edits to this file"
           >
+            <RotateCcw className="h-3 w-3" />
+
             <span className="hidden sm:inline">Reset</span>
           </button>
 
@@ -642,23 +643,19 @@ export default function Workspace({
             <span className="hidden sm:inline">Export</span>
           </button>
 
+          {/* Deploy does not exist yet — disabled and labelled, not a
+              gold button that silently does nothing. */}
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-[10px] font-semibold text-black transition hover:bg-[#E2C259]"
+            disabled
+            title="Deployments coming soon"
+            className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-[#D4AF37] px-3 py-2 text-[10px] font-semibold text-black opacity-50"
           >
             <Rocket className="h-3 w-3" />
 
             <span className="hidden sm:inline">
               Deploy
             </span>
-          </button>
-
-          <button
-            type="button"
-            aria-label="More options"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 text-zinc-500 transition hover:border-zinc-700 hover:text-zinc-300"
-          >
-            <MoreHorizontal className="h-4 w-4" />
           </button>
         </div>
       </header>
@@ -675,14 +672,6 @@ export default function Workspace({
                 Explorer
               </span>
             </div>
-
-            <button
-              type="button"
-              aria-label="Explorer options"
-              className="rounded p-1 text-zinc-600 transition hover:text-zinc-300"
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden">
