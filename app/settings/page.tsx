@@ -9,6 +9,7 @@ import TelegramSettings from "@/components/notifications/TelegramSettings";
 import EmailSettings from "@/components/notifications/EmailSettings";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchProfile, upsertProfile } from "@/lib/supabase/cloud";
+import GitHubPanel from "@/components/github/GitHubPanel";
 import {
   fetchByokStatus,
   fetchUsage,
@@ -621,6 +622,11 @@ export default function SettingsPage() {
 
             <EmailSettings />
           </div>
+        </section>
+
+        {/* GITHUB */}
+        <section>
+          <GitHubPanel />
         </section>
 
         {/* KEYBOARD SHORTCUTS */}

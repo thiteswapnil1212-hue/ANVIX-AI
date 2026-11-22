@@ -38,6 +38,7 @@ import {
   updateProject,
 } from "@/lib/supabase/cloud";
 import ShareButton from "@/components/share/ShareButton";
+import GitHubPushButton from "@/components/github/GitHubPushButton";
 import {
   isGeneratedProject,
   type GeneratedProject,
@@ -737,6 +738,8 @@ export default function Workspace({
             ensureResourceId={ensureCloudProject}
             resourceLabel="project"
           />
+
+          <GitHubPushButton project={project} />
 
           <button
             type="button"

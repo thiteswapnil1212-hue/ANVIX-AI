@@ -86,7 +86,9 @@ export default function SharedPage() {
   const token = typeof params.token === "string" ? params.token : "";
 
   const [payload, setPayload] = useState<SharePayload | null>(null);
-  const [loadError, setLoadError] = useState<LoadError | null>(null);
+  const [loadError, setLoadError] = useState<LoadError | null>(() =>
+    token ? null : "not_found"
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
@@ -95,10 +97,7 @@ export default function SharedPage() {
   const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) {
-      setLoadError("not_found");
-      return;
-    }
+    if (!token) return;
 
     let cancelled = false;
 

@@ -56,6 +56,14 @@ export default function ShareButton({
   const [effectiveResourceId, setEffectiveResourceId] = useState<string | null>(
     resourceId
   );
+  const [prevResourceId, setPrevResourceId] = useState<string | null>(resourceId);
+
+  // Keep the id in step when the parent hands us a new resource.
+  // Adjusting state during render is the documented pattern here.
+  if (prevResourceId !== resourceId) {
+    setPrevResourceId(resourceId);
+    setEffectiveResourceId(resourceId);
+  }
   const [ensuring, setEnsuring] = useState(false);
   const [shares, setShares] = useState<ShareRecord[] | null>(null);
   const [reportCounts, setReportCounts] = useState<Record<string, number>>({});
@@ -68,18 +76,15 @@ export default function ShareButton({
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    setEffectiveResourceId(resourceId);
-  }, [resourceId]);
-
   async function handleToggle() {
     if (open) {
       setOpen(false);
       return;
     }
-    if (!effectiveResourceId && ensureResourceId && user) {
+    setError(null);
+    let resourceId = effectiveResourceId;
+    if (!resourceId && ensureResourceId && user) {
       setEnsuring(true);
-      setError(null);
       const ensured = await ensureResourceId();
       setEnsuring(false);
       if (!ensured) {
@@ -89,19 +94,24 @@ export default function ShareButton({
         setOpen(true);
         return;
       }
+      resourceId = ensured;
       setEffectiveResourceId(ensured);
     }
     setOpen(true);
+    // Load the link list when the panel opens. This is an event
+    // handler, so the fetch-then-setState here is not an in-effect
+    // setState; the id is passed in so it never reads stale state.
+    void refreshShares(resourceId);
   }
 
-  async function refreshShares() {
-    if (!supabase || !user || !effectiveResourceId) return;
+  async function refreshShares(resourceId: string | null = effectiveResourceId) {
+    if (!supabase || !user || !resourceId) return;
     setLoadingShares(true);
     const listed = await listSharesForResource(
       supabase,
       user.id,
       resourceType,
-      effectiveResourceId
+      resourceId
     );
     setLoadingShares(false);
     if (listed === null) {
@@ -117,13 +127,6 @@ export default function ShareButton({
     }
     setReportCounts(counts);
   }
-
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    void refreshShares();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open ]);
 
   useEffect(() => {
     if (!open) return;
