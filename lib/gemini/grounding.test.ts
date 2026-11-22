@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   extractGroundingSources,
   groundingTools,
+  isGroundingToolRejection,
   mergeGroundingSources,
 } from "./grounding.ts";
 
@@ -72,4 +73,34 @@ test("mergeGroundingSources dedupes by uri, first title wins", () => {
     { title: "A", uri: "https://example.com/a" },
     { title: "B", uri: "https://example.com/b" },
   ]);
+});
+
+test("isGroundingToolRejection flags only a 400 (tools rejected)", () => {
+  // Shape of the SDK's fetch error: numeric status on the error.
+  const err400 = Object.assign(
+    new Error(
+      "Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent: [400 Bad Request] Invalid argument"
+    ),
+    { status: 400 }
+  );
+  assert.equal(isGroundingToolRejection(err400), true);
+
+  const err429 = Object.assign(new Error("429 RESOURCE_EXHAUSTED"), {
+    status: 429,
+  });
+  assert.equal(isGroundingToolRejection(err429), false);
+
+  const err500 = Object.assign(new Error("500 Internal error"), {
+    status: 500,
+  });
+  assert.equal(isGroundingToolRejection(err500), false);
+
+  // A 400 in the message alone, without a numeric status, is not
+  // trusted — the SDK always attaches the status to fetch errors.
+  assert.equal(
+    isGroundingToolRejection(new Error("[400 Bad Request] nope")),
+    false
+  );
+  assert.equal(isGroundingToolRejection(new Error("boom")), false);
+  assert.equal(isGroundingToolRejection(undefined), false);
 });

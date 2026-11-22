@@ -19,6 +19,7 @@ import { splitChunkParts } from "@/lib/gemini/chat-stream";
 import {
   extractGroundingSources,
   groundingTools,
+  isGroundingToolRejection,
   mergeGroundingSources,
   type GroundingSource,
 } from "@/lib/gemini/grounding";
@@ -481,10 +482,18 @@ export async function POST(request: Request) {
       // controller ONLY while it is the race winner. The first chunk
       // claims the win; the loser returns "aborted" without emitting
       // anything, so the client never sees duplicated output.
+      // A grounded attempt the API rejects with a 400 retries the
+      // SAME model once without grounding tools before reporting
+      // failure — the live API rejects the googleSearch/urlContext
+      // tools on these models while plain chat works. The retry only
+      // happens before any output (a retry after partial output
+      // would duplicate the answer).
       const runAttempt = async (
         modelId: string,
-        signal: AbortSignal
+        signal: AbortSignal,
+        useTools = true
       ): Promise<AttemptResult> => {
+        const attemptTools = useTools && tools.length > 0;
         const model = client.getGenerativeModel({
           model: modelId,
           ...(systemInstruction ? { systemInstruction } : {}),
@@ -494,7 +503,7 @@ export async function POST(request: Request) {
               resolved.includeThoughts
             ),
           },
-          ...(tools.length > 0 ? { tools } : {}),
+          ...(attemptTools ? { tools } : {}),
         });
 
         try {
@@ -576,6 +585,21 @@ export async function POST(request: Request) {
             return { kind: "aborted" };
           }
 
+          // Grounding degrade: the API rejected the request while
+          // tools were attached — retry the same model without
+          // them. Only before any output has been emitted.
+          if (
+            attemptTools &&
+            !emittedAnything &&
+            isGroundingToolRejection(error)
+          ) {
+            console.warn(
+              "[ANVIX CHAT] Grounding tools rejected (400), retrying without tools",
+              { model: modelId }
+            );
+            return runAttempt(modelId, signal, false);
+          }
+
           return { kind: "failed", error };
         }
       };
@@ -626,10 +650,14 @@ export async function POST(request: Request) {
         // Only provider/transient failures are fallback-worthy. A
         // 400 / 401 / 404 / invalid-request fails immediately — no
         // second round-trip for a request that can never succeed.
+        // Exception: a 400 with grounding on may be the tools being
+        // rejected, not the request — the fallback attempt degrades
+        // to no-tools itself, so it still gets a chance.
         const fallbackWorthy =
           (classification.status !== undefined &&
             FALLBACK_WORTHY_STATUSES.has(classification.status)) ||
-          classification.category === "timeout";
+          classification.category === "timeout" ||
+          (webEnabled && classification.status === 400);
         if (!fallbackWorthy) {
           console.warn(
             "[ANVIX CHAT] Model failed with a non-retryable error, not falling back",

@@ -1,5 +1,7 @@
 import type { Tool } from "@google/generative-ai";
 
+import { classifyGeminiFailure } from "./fallback.ts";
+
 /**
  * Web grounding for chat (Wave 2, §3a).
  *
@@ -33,6 +35,21 @@ export function groundingTools(webEnabled: boolean): Tool[] {
     { googleSearch: {} },
     { urlContext: {} },
   ] as unknown as Tool[];
+}
+
+/**
+ * True when a failed attempt is worth retrying without grounding
+ * tools: the API rejected the request (HTTP 400) while tools were
+ * attached. A 400 with tools attached means the tools were the
+ * problem, not the prompt — the live API rejects `{ googleSearch,
+ * urlContext }` on these models, while the same model answers fine
+ * without them. The SDK attaches the numeric status to fetch
+ * errors (`GoogleGenerativeAIFetchError.status`), so the check is
+ * exact; anything else (429, 5xx, no status) is not a tool
+ * rejection and keeps the existing fallback behaviour.
+ */
+export function isGroundingToolRejection(error: unknown): boolean {
+  return classifyGeminiFailure(error).status === 400;
 }
 
 type RawGroundingChunk = {
