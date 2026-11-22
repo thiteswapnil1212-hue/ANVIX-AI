@@ -1,4 +1,4 @@
-import { getAuthHeaders } from "./auth-headers";
+import { getAuthHeaders } from "./auth-headers.ts";
 
 export interface GenerationResult {
   summary: string;
