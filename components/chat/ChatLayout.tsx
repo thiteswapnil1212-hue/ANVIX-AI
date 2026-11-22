@@ -247,7 +247,7 @@ export default function ChatLayout() {
   const [isTyping, setIsTyping] = useState(false);
 
   const router = useRouter();
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // Cloud sync bookkeeping: which conversation snapshots are already in
   // Supabase, and which ids existed there (so deletions propagate).
@@ -521,6 +521,18 @@ export default function ChatLayout() {
       )
     );
   }, []);
+
+  // Open the account area: settings for a signed-in user (sign-out
+  // lives there, with failure messaging), /auth for a guest. This
+  // used to sign a signed-in user out on the spot, with no
+  // confirmation, from a button labelled with their email.
+  const handleOpenAccount = useCallback(() => {
+    if (user) {
+      router.push("/settings");
+    } else {
+      router.push("/auth");
+    }
+  }, [user, router]);
 
   // Send a message and stream the response.
   const handleSend = async (
@@ -870,13 +882,7 @@ export default function ChatLayout() {
               onTogglePin={handleTogglePin}
               onCollapse={setSidebarCollapsed}
               onOpenSettings={() => router.push("/settings")}
-              onOpenAccount={() => {
-                if (user) {
-                  void signOut();
-                } else {
-                  router.push("/auth");
-                }
-              }}
+              onOpenAccount={handleOpenAccount}
               userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
               plan={authLoading ? "Checking your account…" : user ? "Cloud sync on" : "Local workspace"}
             />
@@ -984,13 +990,7 @@ export default function ChatLayout() {
                   onDeleteThread={handleDeleteConversation}
                   onTogglePin={handleTogglePin}
                   onOpenSettings={() => router.push("/settings")}
-                  onOpenAccount={() => {
-                    if (user) {
-                      void signOut();
-                    } else {
-                      router.push("/auth");
-                    }
-                  }}
+                  onOpenAccount={handleOpenAccount}
                   userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
                   plan={authLoading ? "Checking your account…" : user ? "Cloud sync on" : "Local workspace"}
                 />
