@@ -6,6 +6,16 @@ import AppShell from "@/components/layout/AppShell";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchProfile, upsertProfile } from "@/lib/supabase/cloud";
 import {
+  fetchByokStatus,
+  fetchUsage,
+  revokeByokKey,
+  saveByokKey,
+  setUseOwnKey,
+  shouldUseOwnKey,
+  type ByokStatus,
+  type UsageStatus,
+} from "@/lib/byok/client";
+import {
   User,
   KeyRound,
   ShieldCheck,
@@ -29,11 +39,18 @@ const settingsSections = [
   },
   {
     title: "API Keys",
-    description: "Manage provider credentials and integrations.",
+    description: "Use your own free Gemini key (optional) — the shared key stays the default.",
     icon: KeyRound,
-    status: "Coming soon",
+    status: "Optional",
   },
 ];
+
+const scopeLabels: Record<string, string> = {
+  chat: "Chat",
+  build: "App builds",
+  agent: "Agent edits",
+  generate: "Generate",
+};
 
 const shortcuts = [
   { keys: ["Ctrl", "Enter"], label: "Send message" },
@@ -45,6 +62,74 @@ export default function SettingsPage() {
   const { configured, user, loading, signOut } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [profileStatus, setProfileStatus] = useState("");
+
+  // BYOK + quota meter state.
+  const [byokStatus, setByokStatus] = useState<ByokStatus | null>(null);
+  const [byokLoaded, setByokLoaded] = useState(false);
+  const [byokKeyInput, setByokKeyInput] = useState("");
+  const [byokMessage, setByokMessage] = useState("");
+  const [byokSaving, setByokSaving] = useState(false);
+  const [useOwnKey, setUseOwnKeyState] = useState(() => shouldUseOwnKey());
+  const [usage, setUsage] = useState<UsageStatus | null>(null);
+
+  const refreshByokAndUsage = async () => {
+    const [status, usageStatus] = await Promise.all([
+      fetchByokStatus(),
+      fetchUsage(),
+    ]);
+    setByokStatus(status);
+    setUsage(usageStatus);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      await refreshByokAndUsage();
+      if (!cancelled) setByokLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const handleSaveKey = async () => {
+    if (!byokKeyInput.trim()) {
+      setByokMessage("Paste your Gemini API key first.");
+      return;
+    }
+    setByokSaving(true);
+    setByokMessage("Verifying your key with Google…");
+    const error = await saveByokKey(byokKeyInput.trim());
+    setByokSaving(false);
+    if (error) {
+      setByokMessage(error);
+      return;
+    }
+    setByokKeyInput("");
+    setByokMessage("Key verified and saved. It is stored encrypted on the server.");
+    await refreshByokAndUsage();
+  };
+
+  const handleRevokeKey = async () => {
+    setByokSaving(true);
+    setByokMessage("");
+    const error = await revokeByokKey();
+    setByokSaving(false);
+    if (error) {
+      setByokMessage(error);
+      return;
+    }
+    setUseOwnKey(false);
+    setUseOwnKeyState(false);
+    setByokMessage("Your key was removed. Chats now use the shared key.");
+    await refreshByokAndUsage();
+  };
+
+  const handleToggleUseOwnKey = (checked: boolean) => {
+    setUseOwnKey(checked);
+    setUseOwnKeyState(checked);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -160,6 +245,11 @@ export default function SettingsPage() {
                     if (section.title === "Profile") {
                       document
                         .getElementById("account-settings")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    }
+                    if (section.title === "API Keys") {
+                      document
+                        .getElementById("byok-settings")
                         ?.scrollIntoView({ behavior: "smooth" });
                     }
                   }}
@@ -287,6 +377,206 @@ export default function SettingsPage() {
                     <p className="mt-2 text-xs text-zinc-500">{profileStatus}</p>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* USAGE TODAY */}
+        <section id="usage-settings" className="scroll-mt-24">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              Usage
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Today&apos;s free allowance
+            </h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              How much of today&apos;s shared allowance you have used.
+              {usage?.byokActive
+                ? " You are running on your own key, so the shared allowance doesn't bind you — these are still your counts for today."
+                : " Bring your own key below if you hit the limit."}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
+            {!usage ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Usage is not available right now. Your chats still work —
+                this meter is best-effort.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {usage.meters.map((meter) => (
+                  <div key={meter.scope}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-xs font-medium text-zinc-200">
+                        {scopeLabels[meter.scope] ?? meter.scope}
+                      </span>
+                      <span className="text-xs text-zinc-500">
+                        {meter.used} of {meter.limit} used
+                        {meter.overLimit ? " — limit reached" : ""}
+                      </span>
+                    </div>
+                    <div
+                      className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]"
+                      role="progressbar"
+                      aria-valuenow={meter.used}
+                      aria-valuemin={0}
+                      aria-valuemax={meter.limit}
+                      aria-label={`${scopeLabels[meter.scope] ?? meter.scope} usage today`}
+                    >
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          meter.overLimit ? "bg-red-400" : "bg-[#D4AF37]"
+                        }`}
+                        style={{ width: `${meter.percentUsed}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[11px] leading-5 text-zinc-600">
+                  {usage.source === "db"
+                    ? "Counts from today's hourly totals (UTC day)."
+                    : "Counts from this server instance's rate limiter (last 24 hours) — the database totals aren't available on this deployment."}
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* YOUR API KEY (BYOK) */}
+        <section id="byok-settings" className="scroll-mt-24">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              API Keys
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Your own Gemini key
+            </h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              Optional. Get a free key from Google AI Studio (no card
+              needed) and your chats run on your own quota instead of the
+              shared one. The shared key stays the default — nothing
+              changes unless you turn this on.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
+            {loading ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Checking your account…
+              </p>
+            ) : !user ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Sign in to add your own key. Guests always use the shared
+                key.
+              </p>
+            ) : !byokLoaded ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Loading your key status…
+              </p>
+            ) : byokStatus && !byokStatus.encryptionConfigured ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Your own key can&apos;t be stored on this deployment yet —
+                the server&apos;s key encryption is not configured. The
+                shared key stays the default, and nothing you paste here
+                would be stored. (Deployment owner: set{" "}
+                <code className="text-zinc-300">BYOK_ENCRYPTION_KEY</code>{" "}
+                and run{" "}
+                <code className="text-zinc-300">
+                  supabase/byok-usage.sql
+                </code>
+                .)
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {byokStatus?.hasKey ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm leading-6 text-zinc-300">
+                      Key saved{" "}
+                      <span className="text-zinc-500">
+                        (…{byokStatus.keyLast4})
+                      </span>
+                      {byokStatus.verifiedAt
+                        ? ` — verified ${new Date(byokStatus.verifiedAt).toLocaleDateString()}`
+                        : ""}
+                      . Only the last 4 characters are shown; the full key
+                      is stored encrypted on the server and never leaves it.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={byokSaving}
+                      onClick={() => void handleRevokeKey()}
+                      className="inline-flex h-10 items-center rounded-lg border border-white/[0.1] px-4 text-xs font-medium text-zinc-300 transition hover:border-white/[0.2] hover:text-white disabled:opacity-50"
+                    >
+                      Remove key
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm leading-6 text-zinc-400">
+                    No key saved. Your key is verified with Google before
+                    it is stored, and stored encrypted — never in plain
+                    text.
+                  </p>
+                )}
+
+                <div>
+                  <label
+                    htmlFor="byok-key"
+                    className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500"
+                  >
+                    {byokStatus?.hasKey
+                      ? "Replace key (paste a new one to rotate)"
+                      : "Gemini API key"}
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    <input
+                      id="byok-key"
+                      type="password"
+                      autoComplete="off"
+                      value={byokKeyInput}
+                      onChange={(event) => setByokKeyInput(event.target.value)}
+                      placeholder="AIza…"
+                      className="h-10 min-w-56 flex-1 rounded-lg border border-white/[0.08] bg-[#0D0D0D] px-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-[#D4AF37]/40"
+                    />
+                    <button
+                      type="button"
+                      disabled={byokSaving}
+                      onClick={() => void handleSaveKey()}
+                      className="inline-flex h-10 items-center rounded-lg bg-[#D4AF37] px-4 text-xs font-semibold text-black transition hover:bg-[#E2C259] disabled:opacity-50"
+                    >
+                      {byokSaving ? "Verifying…" : "Save & verify"}
+                    </button>
+                  </div>
+                </div>
+
+                {byokStatus?.hasKey && (
+                  <label className="flex cursor-pointer items-start gap-3 text-sm text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={useOwnKey}
+                      onChange={(event) =>
+                        handleToggleUseOwnKey(event.target.checked)
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[#D4AF37]"
+                    />
+                    <span>
+                      Use my key for chats and agent edits
+                      <span className="block text-xs text-zinc-500">
+                        Off means the shared key, even with a key saved.
+                      </span>
+                    </span>
+                  </label>
+                )}
+
+                {byokMessage && (
+                  <p className="text-xs leading-5 text-zinc-500">{byokMessage}</p>
+                )}
               </div>
             )}
           </div>

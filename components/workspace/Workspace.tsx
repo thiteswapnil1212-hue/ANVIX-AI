@@ -30,6 +30,7 @@ import {
 } from "@/lib/agent/history";
 import { downloadProjectZip } from "@/lib/project/export-zip";
 import { getAuthHeaders } from "@/lib/api/auth-headers";
+import { shouldUseOwnKey } from "@/lib/byok/client";
 import {
   isGeneratedProject,
   type GeneratedProject,
@@ -280,6 +281,7 @@ export default function Workspace({
         body: JSON.stringify({
           prompt,
           project: currentProject,
+          useOwnKey: shouldUseOwnKey(),
         }),
         signal: controller.signal,
       });

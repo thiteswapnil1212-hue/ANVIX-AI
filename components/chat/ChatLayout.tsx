@@ -14,6 +14,7 @@ import { Menu, X } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getAuthHeaders } from "@/lib/api/auth-headers";
+import { shouldUseOwnKey } from "@/lib/byok/client";
 import {
   deleteCloudConversation,
   fetchConversations,
@@ -682,6 +683,7 @@ export default function ChatLayout() {
           thinking: options.thinking,
           web: options.web,
           events: true,
+          useOwnKey: shouldUseOwnKey(),
           attachments: options.attachments,
         }),
         signal: controller.signal,
