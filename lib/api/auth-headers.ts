@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase/client";
+import { supabase } from "../supabase/client.ts";
 
 /**
  * Authorization header for this app's own first-party AI routes, when
