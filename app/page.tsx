@@ -1,6 +1,4 @@
 
-"use client";
-
 import Navbar from "@/components/layout/Navbar";
 import Hero from "@/features/landing/Hero";
 import PromptEditor from "@/components/ai/PromptEditor";
