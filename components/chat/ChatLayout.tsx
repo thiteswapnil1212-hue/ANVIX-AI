@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
@@ -23,6 +24,11 @@ import {
   syncConversationMeta,
   type CloudConversation as CloudConversationShape,
 } from "@/lib/supabase/cloud";
+import {
+  readNudgeDismissed,
+  shouldShowSignInNudge,
+  writeNudgeDismissed,
+} from "@/lib/chat/guest-nudge";
 import {
   conversationMessagesKey,
   createTimestamp,
@@ -445,6 +451,35 @@ export default function ChatLayout() {
         : message
     );
   }, [activeConversation, streamingSnapshot]);
+
+  // Guest sign-in nudge: guests chat freely, but once they have sent
+  // 3 messages in this conversation a dismissible, non-blocking
+  // reminder appears above the composer to sign in so their chats are
+  // saved to their account. The banner stays until dismissed; the
+  // dismissal is remembered in localStorage. Ignoring it changes
+  // nothing — the guest keeps chatting as a guest.
+  // Read the dismissal flag lazily with the same typeof-window guard
+  // the guest-state read above uses (no effect: setting it in an
+  // effect trips the set-state-in-effect lint rule).
+  const [nudgeDismissed, setNudgeDismissed] = useState(
+    () =>
+      typeof window === "undefined"
+        ? false
+        : readNudgeDismissed(window.localStorage)
+  );
+  const guestUserMessageCount = useMemo(
+    () => messages.filter((message) => message.role === "user").length,
+    [messages]
+  );
+  const showSignInNudge = shouldShowSignInNudge({
+    isGuest: !user && !authLoading,
+    userMessageCount: guestUserMessageCount,
+    dismissed: nudgeDismissed,
+  });
+  const dismissSignInNudge = useCallback(() => {
+    writeNudgeDismissed(window.localStorage);
+    setNudgeDismissed(true);
+  }, []);
 
   // Persist guest chat history. Trailing-debounced 500 ms so a burst
   // of actions writes once, not per change; a stream commit sets
@@ -2075,6 +2110,34 @@ export default function ChatLayout() {
               "
             >
               <div className="mx-auto w-full max-w-3xl">
+                {showSignInNudge && (
+                  <div
+                    role="status"
+                    className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-2.5"
+                  >
+                    <p className="text-[13px] leading-5 text-zinc-200">
+                      Sign in to save your chats — your guest history
+                      moves to your account.
+                    </p>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <Link
+                        href="/auth"
+                        className="rounded-lg bg-[#D4AF37] px-3 py-1.5 text-[13px] font-semibold text-black transition-colors hover:bg-[#E5C65C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70"
+                      >
+                        Sign in
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={dismissSignInNudge}
+                        aria-label="Dismiss sign-in reminder"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </span>
+                  </div>
+                )}
+
                 <ChatInput
                   onSend={handleSend}
                   isGenerating={isTyping}
