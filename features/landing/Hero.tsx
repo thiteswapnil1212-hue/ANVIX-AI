@@ -57,7 +57,6 @@ export default function Hero() {
           rounded-full
           bg-[#D4AF37]/[0.09]
           blur-[150px]
-          animate-pulse
         "
       />
 
