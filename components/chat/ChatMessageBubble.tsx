@@ -22,6 +22,8 @@ import {
   UserRound,
 } from "lucide-react";
 import type { GroundingSource } from "@/lib/gemini/grounding";
+import type { GeneratedImage } from "@/lib/image-client";
+import GeneratedImageView from "./GeneratedImageView";
 
 interface ChatMessageBubbleProps {
   role: "assistant" | "user";
@@ -34,6 +36,8 @@ interface ChatMessageBubbleProps {
   attachments?: { name: string; mimeType: string }[];
   /** Branch/fork the chat at this message. Omit to hide the button. */
   onFork?: () => void;
+  /** A Pollinations image generated for this message (assistant only). */
+  generatedImage?: GeneratedImage;
 }
 
 function ThinkingBlock({ thinking }: { thinking: string }) {
@@ -402,10 +406,14 @@ function ChatMessageBubble({
   sources,
   attachments,
   onFork,
+  generatedImage,
 }: ChatMessageBubbleProps) {
   const isAssistant = role === "assistant";
   const isEmptyAssistant =
-    isAssistant && !content.trim() && !thinking?.trim();
+    isAssistant &&
+    !content.trim() &&
+    !thinking?.trim() &&
+    !generatedImage;
 
   if (isEmptyAssistant) return null;
 
@@ -499,6 +507,10 @@ function ChatMessageBubble({
           >
             {isAssistant && thinking?.trim() ? (
               <ThinkingBlock thinking={thinking} />
+            ) : null}
+
+            {isAssistant && generatedImage ? (
+              <GeneratedImageView image={generatedImage} />
             ) : null}
 
             {!isAssistant && attachments && attachments.length > 0 ? (

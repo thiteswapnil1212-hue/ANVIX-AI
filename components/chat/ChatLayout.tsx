@@ -35,6 +35,12 @@ import {
   normalizeFolderName,
   normalizeTags,
 } from "@/lib/chat-organization";
+import {
+  GeneratedImageError,
+  requestGeneratedImage,
+  toPersistableImage,
+  type GeneratedImage,
+} from "@/lib/image-client";
 
 type Message = {
   id: string;
@@ -47,6 +53,8 @@ type Message = {
   sources?: GroundingSource[];
   /** Files attached to this message (user only; name + type, no data). */
   attachments?: { name: string; mimeType: string }[];
+  /** A Pollinations image generated for this message (assistant only). */
+  generatedImage?: GeneratedImage;
 };
 
 type GuestChatConversation = {
@@ -169,6 +177,11 @@ const normalizeConversation = (
         : undefined,
     messages: messages.map((message) => ({
       ...message,
+      // A blob URL dies on reload — saved messages keep the
+      // Pollinations URL so the image still loads (see image-client).
+      ...(message.generatedImage
+        ? { generatedImage: toPersistableImage(message.generatedImage) }
+        : {}),
       createdAt:
         typeof message.createdAt === "string"
           ? message.createdAt
@@ -625,6 +638,104 @@ export default function ChatLayout() {
       setActiveConversationId(next.id);
     },
     [activeConversation, handleStop]
+  );
+
+  // Generate an image for a prompt and append it as an assistant
+  // message (rendered like an attachment). Failures become an honest
+  // assistant message, never a silent gap — the free lane is busy
+  // or down often enough that the user must see why.
+  const handleGenerateImage = useCallback(
+    async (prompt: string): Promise<boolean> => {
+      const trimmedPrompt = prompt.trim();
+      if (!trimmedPrompt || activeRequestRef.current) return false;
+
+      const timestamp = createTimestamp();
+      let workingConversationId = activeConversationId;
+
+      if (!workingConversationId) {
+        workingConversationId = crypto.randomUUID();
+        const newConversation: GuestChatConversation = {
+          id: workingConversationId,
+          title: generateChatTitle(trimmedPrompt),
+          preview: trimmedPrompt,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          pinned: false,
+          messages: [],
+        };
+        setConversations((prev) =>
+          sortConversations([newConversation, ...prev])
+        );
+        setActiveConversationId(workingConversationId);
+      }
+
+      const userMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: trimmedPrompt,
+        createdAt: timestamp,
+      };
+      const assistantMessageId = crypto.randomUUID();
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        createdAt: createTimestamp(),
+      };
+
+      setConversations((prev) =>
+        sortConversations(
+          prev.map((conversation) =>
+            conversation.id === workingConversationId
+              ? {
+                  ...conversation,
+                  preview: trimmedPrompt,
+                  updatedAt: timestamp,
+                  messages: [
+                    ...conversation.messages,
+                    userMessage,
+                    assistantMessage,
+                  ],
+                }
+              : conversation
+          )
+        )
+      );
+
+      const updateAssistantMessage = (patch: Partial<Message>) => {
+        setConversations((prev) =>
+          sortConversations(
+            prev.map((conversation) =>
+              conversation.id === workingConversationId
+                ? {
+                    ...conversation,
+                    updatedAt: createTimestamp(),
+                    messages: conversation.messages.map((message) =>
+                      message.id === assistantMessageId
+                        ? { ...message, ...patch }
+                        : message
+                    ),
+                  }
+                : conversation
+            )
+          )
+        );
+      };
+
+      try {
+        const image = await requestGeneratedImage(trimmedPrompt);
+        updateAssistantMessage({ generatedImage: image });
+        return true;
+      } catch (error) {
+        const message =
+          error instanceof GeneratedImageError
+            ? error.message
+            : "Image generation failed. Please try again.";
+        updateAssistantMessage({ content: message });
+        return true;
+      }
+    },
+    [activeConversationId]
   );
 
   // Send a message and stream the response.
@@ -1373,6 +1484,7 @@ export default function ChatLayout() {
                   isGenerating={isTyping}
                   onStop={handleStop}
                   seedPrompt={composerSeed}
+                  onGenerateImage={handleGenerateImage}
                 />
 
                 <p

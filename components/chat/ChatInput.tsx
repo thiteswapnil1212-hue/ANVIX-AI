@@ -19,6 +19,7 @@ import {
   ChevronDown,
   Check,
   Globe,
+  ImagePlus,
   Paperclip,
   Square,
   LoaderCircle,
@@ -68,6 +69,8 @@ type ChatInputProps = {
    * on the empty state). Changing `nonce` applies the text once.
    */
   seedPrompt?: { text: string; nonce: number } | null;
+  /** Generate an image for a prompt (Pollinations, 10/day). */
+  onGenerateImage?: (prompt: string) => Promise<boolean>;
 };
 
 export type TemplateCategoryFilter =
@@ -116,6 +119,7 @@ export default function ChatInput({
   isGenerating,
   onStop,
   seedPrompt = null,
+  onGenerateImage,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
@@ -136,6 +140,10 @@ export default function ChatInput({
   );
   const [attachError, setAttachError] = useState<string | null>(null);
   const [isPreparingFiles, setIsPreparingFiles] = useState(false);
+  const [imagePromptOpen, setImagePromptOpen] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
@@ -448,6 +456,34 @@ export default function ChatInput({
     setAttachError(null);
   }
 
+  async function handleGenerateImage() {
+    const prompt = imagePrompt.trim();
+
+    if (!prompt || !onGenerateImage || isGeneratingImage || isGenerating) {
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    setImageError(null);
+
+    try {
+      const accepted = await onGenerateImage(prompt);
+      if (accepted) {
+        setImagePrompt("");
+        setImagePromptOpen(false);
+      }
+    } catch (error) {
+      console.error("ANVIX image generation failed:", error);
+      setImageError(
+        error instanceof Error
+          ? error.message
+          : "Image generation failed. Please try again."
+      );
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  }
+
   return (
     <>
       <div className="relative mx-auto w-full">
@@ -520,6 +556,87 @@ export default function ChatInput({
               </p>
             )}
 
+            {/* Image generation row (Pollinations, free community model) */}
+            {imagePromptOpen && (
+              <div className="mb-2 px-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={imagePrompt}
+                    onChange={(event) =>
+                      setImagePrompt(event.target.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleGenerateImage();
+                      }
+                    }}
+                    disabled={isGeneratingImage || isGenerating}
+                    placeholder="Describe an image… (free model, 10/day)"
+                    aria-label="Image description"
+                    className="
+                      min-w-0 flex-1 rounded-lg border border-white/10
+                      bg-white/[0.04] px-2.5 py-2
+                      text-[13px] text-zinc-100 outline-none
+                      placeholder:text-zinc-600
+                      focus-visible:ring-2 focus-visible:ring-[#D4AF37]/60
+                      disabled:opacity-60
+                    "
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateImage()}
+                    disabled={
+                      !imagePrompt.trim() ||
+                      isGeneratingImage ||
+                      isGenerating
+                    }
+                    className="
+                      shrink-0 rounded-lg bg-[#D4AF37] px-3 py-2
+                      text-xs font-semibold text-black
+                      transition-colors hover:bg-[#E0BB4C]
+                      disabled:cursor-not-allowed disabled:opacity-40
+                      focus-visible:outline-none
+                      focus-visible:ring-2 focus-visible:ring-[#D4AF37]
+                    "
+                  >
+                    {isGeneratingImage ? "Making…" : "Generate"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImagePromptOpen(false);
+                      setImageError(null);
+                    }}
+                    aria-label="Close image generation"
+                    className="
+                      flex h-8 w-8 shrink-0 items-center justify-center
+                      rounded-lg text-zinc-500 transition-colors
+                      hover:bg-white/10 hover:text-zinc-200
+                      focus-visible:outline-none
+                      focus-visible:ring-2 focus-visible:ring-[#D4AF37]/60
+                    "
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+                {imageError ? (
+                  <p
+                    role="alert"
+                    className="mt-1.5 text-[11px] text-red-400"
+                  >
+                    {imageError}
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-[11px] leading-5 text-zinc-600">
+                    Generated by a free community model — quality
+                    varies, and it can be slow or briefly unavailable.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex w-full items-end gap-2 sm:gap-2.5">
               {/* Attachment button */}
               <input
@@ -570,6 +687,7 @@ export default function ChatInput({
                   onClick={() =>
                     setTemplateOpen((open) => !open)
                   }
+                  }
                   className="
                     mb-0.5 flex h-8 w-8 shrink-0
                     items-center justify-center rounded-xl
@@ -591,6 +709,7 @@ export default function ChatInput({
                     aria-hidden="true"
                   />
                 </button>
+<<<<<<< HEAD
 
                 {/* Template picker */}
                 {templateOpen && (
@@ -715,6 +834,37 @@ export default function ChatInput({
                   </div>
                 )}
               </div>
+
+              {/* Image generation button */}
+              {onGenerateImage && (
+                <button
+                  type="button"
+                  disabled={isSubmitting || isGenerating || isGeneratingImage}
+                  onClick={() =>
+                    setImagePromptOpen((open) => !open)
+                  }
+                  className="
+                    mb-0.5 flex h-8 w-8 shrink-0
+                    items-center justify-center rounded-xl
+                    text-zinc-400 transition-colors
+                    hover:bg-zinc-800/70 hover:text-zinc-200
+                    disabled:cursor-not-allowed
+                    disabled:opacity-40
+                    focus-visible:outline-none
+                    focus-visible:ring-2
+                    focus-visible:ring-[#D4AF37]/60
+                  "
+                  aria-label="Generate an image"
+                  aria-expanded={imagePromptOpen}
+                  title="Generate an image (free community model, 10/day)"
+                >
+                  <ImagePlus
+                    className="h-[17px] w-[17px]"
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                </button>
+              )}
 
               {/* Message textarea */}
               <textarea

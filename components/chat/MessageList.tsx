@@ -11,6 +11,7 @@ import {
 } from "react";
 import { ArrowDown, Sparkles } from "lucide-react";
 import type { GroundingSource } from "@/lib/gemini/grounding";
+import type { GeneratedImage } from "@/lib/image-client";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -25,6 +26,8 @@ interface Message {
   sources?: GroundingSource[];
   /** Files attached to this message (user only; local display data). */
   attachments?: { name: string; mimeType: string }[];
+  /** A Pollinations image generated for this message (assistant only). */
+  generatedImage?: GeneratedImage;
 }
 
 interface MessageListProps {
@@ -56,6 +59,7 @@ const MessageRow = memo(function MessageRow({
             ? () => onForkMessage(message.id)
             : undefined
         }
+        generatedImage={message.generatedImage}
       />
     </div>
   );
