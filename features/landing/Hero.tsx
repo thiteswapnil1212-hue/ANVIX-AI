@@ -71,7 +71,7 @@ export default function Hero() {
           w-[380px]
           rounded-full
           bg-[#D4AF37]/[0.045]
-          blur-[140px]
+          blur-[60px]
         "
       />
 
@@ -86,7 +86,7 @@ export default function Hero() {
           w-[320px]
           rounded-full
           bg-[#D4AF37]/[0.035]
-          blur-[120px]
+          blur-[60px]
         "
       />
 
