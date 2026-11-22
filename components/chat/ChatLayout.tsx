@@ -133,6 +133,41 @@ const sortConversations = (
       new Date(a.updatedAt).getTime()
   );
 
+// Build the guest-storage payload. The optional overlay folds the
+// in-flight streamed answer into its message so an interim persist
+// during a stream never loses the streamed tail.
+const buildPersistPayload = (
+  source: GuestChatConversation[],
+  activeId: string | null,
+  overlay?: StreamingState | null
+): StoredGuestChats => {
+  const conversations = overlay
+    ? sortConversations(
+        source.map((conversation) =>
+          conversation.id === overlay.conversationId
+            ? {
+                ...conversation,
+                preview: overlay.content.trim()
+                  ? overlay.content.slice(0, 120)
+                  : conversation.preview,
+                messages: conversation.messages.map((message) =>
+                  message.id === overlay.messageId
+                    ? {
+                        ...message,
+                        content: overlay.content,
+                        thinking: overlay.thinking,
+                        sources: overlay.sources,
+                      }
+                    : message
+                ),
+              }
+            : conversation
+        )
+      )
+    : sortConversations(source);
+  return { activeConversationId: activeId, conversations };
+};
+
 const isMessage = (value: unknown): value is Message => {
   if (!value || typeof value !== "object") {
     return false;
@@ -366,6 +401,14 @@ export default function ChatLayout() {
   const knownCloudIdsRef = useRef(new Set<string>());
   const conversationsRef = useRef<GuestChatConversation[]>([]);
   const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Persist bookkeeping: trailing-debounce timer + a flag for writes
+  // that must skip the debounce (stream commits), + the 1 s interim
+  // persist timer that bounds crash loss while a stream is active.
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistNowRef = useRef(false);
+  const interimPersistTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -516,29 +559,86 @@ export default function ChatLayout() {
     );
   }, [activeConversation, streamingSnapshot]);
 
-  // Persist guest chat history.
+  // Persist guest chat history. Trailing-debounced 500 ms so a burst
+  // of actions writes once, not per change; a stream commit sets
+  // persistNowRef and skips the debounce (it is a single write).
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    try {
-      const payload: StoredGuestChats = {
-        activeConversationId,
-        conversations: sortConversations(conversations),
-      };
+    const write = () => {
+      try {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(
+            buildPersistPayload(conversations, activeConversationId)
+          )
+        );
+      } catch (error) {
+        console.warn("Unable to persist guest chat history.", error);
+      }
+    };
 
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(payload)
-      );
-    } catch (error) {
-      console.warn(
-        "Unable to persist guest chat history.",
-        error
-      );
+    if (persistNowRef.current) {
+      persistNowRef.current = false;
+      write();
+      return;
     }
+
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+    persistTimerRef.current = setTimeout(write, 500);
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+    };
   }, [conversations, activeConversationId]);
+
+  // Flush any pending persist when the page is hidden or unloaded, so
+  // a crash or close never loses more than the debounce window. Reads
+  // from refs so the unmount-only effect always sees current values.
+  const activeConversationIdRef = useRef<string | null>(
+    initialGuestState.activeConversationId
+  );
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+  useEffect(() => {
+    const flush = () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+      try {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(
+            buildPersistPayload(
+              conversationsRef.current,
+              activeConversationIdRef.current,
+              streamingRef.current
+            )
+          )
+        );
+      } catch (error) {
+        console.warn("Unable to persist guest chat history.", error);
+      }
+    };
+    const onPageHide = () => flush();
+    const onVisibility = () => {
+      if (document.hidden) flush();
+    };
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush();
+    };
+  }, []);
 
   // Stop the current generation and cancel its reader.
   const handleStop = useCallback(() => {
@@ -1224,6 +1324,25 @@ export default function ChatLayout() {
       }
     }, 100);
 
+    // Interim persist (1 s) while streaming: bounds crash loss to ~1 s
+    // of streamed text, since the store is only written on commit.
+    interimPersistTimerRef.current = setInterval(() => {
+      try {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(
+            buildPersistPayload(
+              conversationsRef.current,
+              workingConversationId,
+              streamingRef.current
+            )
+          )
+        );
+      } catch (error) {
+        console.warn("Unable to persist guest chat history.", error);
+      }
+    }, 1000);
+
     // Write the finished answer to the store exactly once, on every
     // exit path. A second call is a no-op (the ref is cleared first).
     const commitStreaming = (finalContent: string) => {
@@ -1231,6 +1350,8 @@ export default function ChatLayout() {
       streamingRef.current = null;
       setStreamingSnapshot(null);
       if (!current) return;
+      // Skip the 500 ms persist debounce: a commit is a single write.
+      persistNowRef.current = true;
       setConversations((prev) =>
         sortConversations(
           prev.map((conversation) => {
@@ -1438,6 +1559,11 @@ export default function ChatLayout() {
       if (streamingFlushTimerRef.current) {
         clearInterval(streamingFlushTimerRef.current);
         streamingFlushTimerRef.current = null;
+      }
+
+      if (interimPersistTimerRef.current) {
+        clearInterval(interimPersistTimerRef.current);
+        interimPersistTimerRef.current = null;
       }
 
       // Backstop: commit whatever is still streaming (covers the stop
