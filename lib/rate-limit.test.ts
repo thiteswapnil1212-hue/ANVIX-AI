@@ -106,6 +106,43 @@ test("resolveRateLimitKey falls back to IP for guests with no token", async () =
   assert.equal(key, "chat:ip:203.0.113.1");
 });
 
+test("resolveRateLimitKey caches a verified token (verify called once)", async () => {
+  let calls = 0;
+  const options = {
+    verifyToken: async () => {
+      calls += 1;
+      return "user-cached";
+    },
+  };
+  const req = () =>
+    requestWith({
+      authorization: "Bearer cache-test-token-1",
+      "x-forwarded-for": "203.0.113.1",
+    });
+
+  assert.equal(
+    await resolveRateLimitKey(req(), "chat", options),
+    "chat:user:user-cached"
+  );
+  assert.equal(
+    await resolveRateLimitKey(req(), "chat", options),
+    "chat:user:user-cached"
+  );
+  assert.equal(calls, 1);
+
+  // A different token is a cache miss and verifies again.
+  const other = await resolveRateLimitKey(
+    requestWith({
+      authorization: "Bearer cache-test-token-2",
+      "x-forwarded-for": "203.0.113.1",
+    }),
+    "chat",
+    options
+  );
+  assert.equal(other, "chat:user:user-cached");
+  assert.equal(calls, 2);
+});
+
 test("enforceRateLimit returns null under the limit and JSON 429 with Retry-After over it", async () => {
   const scope = "t8";
   const guest = () =>
@@ -139,12 +176,12 @@ test("enforceRateLimit keys by user id across IPs when the token verifies", asyn
 
   const fromHome = () =>
     requestWith({
-      authorization: "Bearer valid-token",
+      authorization: "Bearer valid-token-t9",
       "x-forwarded-for": "203.0.113.1",
     });
   const fromCollege = () =>
     requestWith({
-      authorization: "Bearer valid-token",
+      authorization: "Bearer valid-token-t9",
       "x-forwarded-for": "198.51.100.5",
     });
 

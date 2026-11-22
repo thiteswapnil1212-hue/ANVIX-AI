@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -18,9 +19,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  *   Upstash/Redis behind this same interface.
  * - Signed-out users behind one shared IP (e.g. a college NAT) share
  *   one IP bucket. Signing in gives each user their own bucket.
- * - Token verification costs one Supabase Auth round-trip per request
- *   (capped at 2s, fail-open to IP keying). A short-lived verified-token
- *   cache is the obvious optimisation if that latency ever matters.
+ * - Token verification used to cost one Supabase Auth round-trip per
+ *   request (capped at 2s, fail-open to IP keying). A short-lived
+ *   verified-token cache (below) now removes that pre-flight latency
+ *   on warm instances — keyed by SHA-256 of the token, 60 s TTL, and
+ *   used only to pick the rate-limit bucket, never for an
+ *   authorization decision.
  */
 
 type Window = number[]; // request timestamps (ms) inside the window
@@ -112,6 +116,89 @@ function getServerSupabase(): SupabaseClient | null {
 // Never let token verification stall a request: fail open to IP keying.
 const VERIFY_TIMEOUT_MS = 2000;
 
+// Verified-token cache (perf): verifyAccessToken costs one Supabase
+// Auth round-trip per signed-in request (capped at 2 s). A short-lived
+// cache removes that pre-flight latency on warm instances. Keyed by
+// SHA-256 of the token — the raw token is never stored. Used ONLY to
+// pick the rate-limit bucket, never for an authorization decision;
+// worst case, a revoked token keeps its per-user bucket for <= 60 s
+// instead of falling back to the IP bucket. Per function instance,
+// like the `windows` map above. Only successful verifications are
+// cached; failures still fall back to IP keying every time.
+const TOKEN_CACHE_TTL_MS = 60_000;
+const TOKEN_CACHE_MAX_ENTRIES = 10_000;
+const verifiedTokenCache = new Map<
+  string,
+  { userId: string; expiresAt: number }
+>();
+
+function tokenCacheKey(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+// Read the JWT `exp` claim WITHOUT verifying the token — the verify
+// call still does the real verification on a cache miss. Returns the
+// expiry in ms, or null when the token is not a decodable JWT.
+function readTokenExpiryMs(token: string): number | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3 || !parts[1]) return null;
+    const payload = JSON.parse(
+      Buffer.from(
+        parts[1].replace(/-/g, "+").replace(/_/g, "/"),
+        "base64"
+      ).toString("utf8")
+    ) as unknown;
+    if (!payload || typeof payload !== "object") return null;
+    const exp = (payload as Record<string, unknown>).exp;
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheVerifiedToken(
+  token: string,
+  userId: string,
+  now: number
+): void {
+  const expMs = readTokenExpiryMs(token);
+  // TTL: 60 s, or the token's exp minus 30 s, whichever is sooner.
+  const ttl =
+    expMs === null
+      ? TOKEN_CACHE_TTL_MS
+      : Math.min(TOKEN_CACHE_TTL_MS, expMs - 30_000 - now);
+  if (ttl <= 0) return;
+  if (verifiedTokenCache.size >= TOKEN_CACHE_MAX_ENTRIES) {
+    for (const [key, entry] of verifiedTokenCache) {
+      if (entry.expiresAt <= now) verifiedTokenCache.delete(key);
+    }
+    if (verifiedTokenCache.size >= TOKEN_CACHE_MAX_ENTRIES) return;
+  }
+  verifiedTokenCache.set(tokenCacheKey(token), {
+    userId,
+    expiresAt: now + ttl,
+  });
+}
+
+// Verify with the short-lived cache in front: a hit skips the
+// network call; a miss verifies and stores the success.
+async function cachedVerifyToken(
+  token: string,
+  verify: (token: string) => Promise<string | null>
+): Promise<string | null> {
+  const key = tokenCacheKey(token);
+  const now = Date.now();
+  const cached = verifiedTokenCache.get(key);
+  if (cached) {
+    if (cached.expiresAt > now) return cached.userId;
+    verifiedTokenCache.delete(key);
+  }
+  const userId = await verify(token).catch(() => null);
+  if (userId) cacheVerifiedToken(token, userId, Date.now());
+  return userId;
+}
+
 /** Returns the Supabase user id for a valid access token, else null. */
 async function verifyAccessToken(token: string): Promise<string | null> {
   const client = getServerSupabase();
@@ -136,7 +223,10 @@ async function verifyAccessToken(token: string): Promise<string | null> {
 export interface RateLimitKeyOptions {
   /**
    * Test seam: override token verification. Routes omit this and use
-   * the real Supabase check above.
+   * the real Supabase check above. Verification results are cached
+   * briefly (60 s, keyed by token hash) whether the default or an
+   * override verifier runs, so tests sharing one token share one
+   * cached result — use a distinct token per test.
    */
   verifyToken?: (token: string) => Promise<string | null>;
 }
@@ -194,8 +284,8 @@ export async function resolveRateLimitKey(
 
   if (token) {
     const verify = options.verifyToken ?? verifyAccessToken;
-    const userId = await verify(token).catch(() => null);
-    if (userId) return callerRateLimitKey(scope, userId, getClientIp(request));
+    const userId = await cachedVerifyToken(token, verify);
+    if (userId) return `${scope}:user:${userId}`;
   }
 
   return callerRateLimitKey(scope, null, getClientIp(request));
