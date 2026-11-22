@@ -1,6 +1,6 @@
 # ANVIX AI
 
-**Turn ideas into working software.** Describe what you want in plain language, and ANVIX plans the architecture and generates the code — powered by Google's Gemini 3.5 Flash-Lite (Gemini 3.8 Flash as fallback).
+**Turn ideas into working software.** Describe what you want in plain language, and ANVIX plans the architecture and generates the code — powered by Google's Gemini, with Fast / Smart / Deep chat modes (3.5 Flash-Lite, 3.8 Flash, 4-hydrogen).
 
 **Live demo:** https://anvix-ai.vercel.app/
 
@@ -14,9 +14,9 @@ The core idea is **prompt engineering as the product**: natural-language intent 
 
 ## Features
 
-### 💬 Chat — one live model
+### 💬 Chat — Fast / Smart / Deep modes
 
-Chat runs on a single verified-live model, **Gemini 3.5 Flash-Lite**, via the Google Generative AI API. The model registry (`lib/chat-models.ts`) keeps other providers visible but locked until their API keys and route wiring exist:
+Chat offers named modes instead of raw model ids (`lib/chat-modes.ts`): **Fast** (Gemini 3.5 Flash-Lite, fallback 3.8 Flash), **Smart** (3.8 Flash, fallback 3.5 Flash-Lite), and **Deep** (Gemini 4-hydrogen, fallback 3.8 Flash) — all on the Gemini free tier, each mode falling back to its second model if the first fails before answering. A thinking toggle (Off / Fast / Deep) overrides the mode's default reasoning effort, and the model's thought summary shows in a collapsible "Thinking" block when thinking is on. Web grounding is on by default (Google Search + URL Context, with a sources list under grounded answers; free tier: 5,000 searches/month). You can also attach up to 3 images (downscaled to ~768px in the browser) or PDFs (up to 3 MB) per message. The model registry (`lib/chat-models.ts`) keeps other providers visible but locked until their API keys and route wiring exist:
 
 **Scaffolded in the UI** (visible but locked until their API keys are added):
 - OpenAI: GPT-5.5, GPT-4.1, GPT-6 (Astra), GPT-4o
@@ -24,7 +24,7 @@ Chat runs on a single verified-live model, **Gemini 3.5 Flash-Lite**, via the Go
 
 Retired models are not offered: Gemini 2.5 Flash shut down 1 Dec 2026 (Google auto-routes it to 3.5 Flash-Lite), and Gemini 2.5 Flash-Lite and Gemini 2.0 Flash return 404 ("no longer available"). The build/agent chains fall back from 3.5 Flash-Lite to Gemini 3.8 Flash — both on the Gemini free tier.
 
-Chat supports Markdown + GFM rendering and streaming responses (`/api/chat`).
+Chat supports Markdown + GFM rendering and streaming responses (`/api/chat`, plain text by default or opt-in NDJSON events with `events: true`). Thinking text and sources are local display data — they persist in browser storage but are not synced to Supabase.
 
 ### 🛠️ Generation workflows
 
@@ -111,6 +111,9 @@ lib/
 ├── agent/            # agent logic (plan validation, edit tools, undo history)
 ├── api/              # API helpers
 ├── chat-models.ts    # model registry (live vs locked) + tests
+├── chat-modes.ts     # Fast/Smart/Deep chat modes + thinking choices + tests
+├── chat-attachments.ts # attachment validation (server) + tests
+├── chat-events.ts    # NDJSON event protocol for /api/chat + tests
 ├── gemini/           # Gemini client, streaming generation, auto-fix
 ├── project/          # project domain logic (validation, JSON repair, ZIP export)
 ├── rate-limit.ts     # request rate limiting
@@ -124,7 +127,7 @@ hooks/                # React hooks
 ## Roadmap
 
 - [ ] Unlock OpenAI, DeepSeek, and xAI providers (UI already scaffolded — needs keys + route wiring)
-- [ ] A second verified-live Gemini model in the chains (only after it answers on this API)
+- [ ] A second verified-live Gemini model in the chains (chat modes already reference 3.8 Flash and 4-hydrogen, but neither has answered on the live API yet — needs a key to verify)
 - [ ] Runnable in-browser preview for generated projects (today the preview is a placeholder)
 - [ ] Side-by-side multi-model comparison view
 - [ ] Inspectable/editable prompt pipeline per generation stage
