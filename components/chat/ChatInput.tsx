@@ -154,15 +154,17 @@ export default function ChatInput({
     CHAT_MODES[1];
 
   // Apply a prompt seeded from outside the composer (template chip).
+  // Render-time state adjustment (the React-documented pattern for
+  // "adjust state when a prop changes"): no effect, so no
+  // set-state-in-effect, and the composer keeps its mode/attachments.
+  const [appliedSeedNonce, setAppliedSeedNonce] = useState(0);
   const seedNonce = seedPrompt?.nonce ?? 0;
-  useEffect(() => {
-    if (!seedPrompt || seedNonce === 0) return;
+  if (seedPrompt && seedNonce !== 0 && seedNonce !== appliedSeedNonce) {
+    setAppliedSeedNonce(seedNonce);
     setValue(seedPrompt.text);
     setTemplateOpen(false);
     setModelOpen(false);
-    textareaRef.current?.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seedNonce]);
+  }
 
   const visibleTemplates = useMemo(() => {
     const searched = searchPromptTemplates(templateQuery);
@@ -173,7 +175,7 @@ export default function ChatInput({
         );
   }, [templateQuery, templateCategory]);
 
-  const useTemplate = useCallback((prompt: string) => {
+  const applyTemplate = useCallback((prompt: string) => {
     setValue(prompt);
     setTemplateOpen(false);
     setModelOpen(false);
@@ -679,7 +681,7 @@ export default function ChatInput({
                           type="button"
                           role="option"
                           aria-selected={false}
-                          onClick={() => useTemplate(template.prompt)}
+                          onClick={() => applyTemplate(template.prompt)}
                           className="
                             flex w-full flex-col gap-0.5
                             rounded-lg px-2.5 py-2.5
