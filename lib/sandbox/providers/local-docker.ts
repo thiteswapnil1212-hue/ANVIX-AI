@@ -5,22 +5,9 @@ import path from "node:path";
 
 import type { GeneratedProject } from "@/lib/project/project-schema";
 import { validateSandboxProject } from "@/lib/sandbox/validation";
-import type { SandboxProvider, SandboxResult, SandboxStatus } from "@/lib/sandbox/types";
+import type { SandboxProvider, SandboxResult } from "@/lib/sandbox/types";
 
 const DEFAULT_TIMEOUT_MS = 120000;
-
-function normalizeDockerStatus(raw: string): SandboxStatus {
-  switch (raw) {
-    case "created":
-    case "running":
-    case "stopped":
-    case "failed":
-    case "unavailable":
-      return raw;
-    default:
-      return "failed";
-  }
-}
 
 function ensureWithinRoot(root: string, target: string) {
   const relative = path.relative(root, target);

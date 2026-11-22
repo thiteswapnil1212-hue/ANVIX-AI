@@ -9,7 +9,6 @@ import type {
   DeleteFileInput,
   DeleteFileOutput,
   EditFileInput,
-  ListFilesInput,
   ListFilesOutput,
   ReadFileInput,
   ReadFileOutput,
@@ -81,8 +80,7 @@ function buildProjectFile(path: string, content: string, language?: string): Pro
 }
 
 export function listFiles(
-  project: GeneratedProject,
-  _input: ListFilesInput
+  project: GeneratedProject
 ): AgentToolResult<ListFilesOutput> {
   const files = project.files
     .map((file) => file.path)
@@ -267,8 +265,7 @@ export const agentTools: Record<
   AgentToolName,
   (project: GeneratedProject, input: Record<string, unknown>) => AgentToolResult<unknown>
 > = {
-  list_files: (project, input) =>
-    listFiles(project, input as unknown as ListFilesInput),
+  list_files: (project) => listFiles(project),
   read_file: (project, input) =>
     readFile(project, input as unknown as ReadFileInput),
   write_file: (project, input) =>

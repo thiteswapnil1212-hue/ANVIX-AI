@@ -322,15 +322,20 @@ export default function CodePreview({
     };
   }, []);
 
+  // Focus the editor when the selected file changes. The effect keys
+  // off the file path (not the file object) so content edits do not
+  // yank focus back while the user works elsewhere.
+  const filePath = file?.path;
+
   useEffect(() => {
-    if (!file) {
+    if (!filePath) {
       return;
     }
 
     editorRef.current?.focus({
       preventScroll: true,
     });
-  }, [file?.path]);
+  }, [filePath]);
 
   const buttonClass =
     "inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-2 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/60 disabled:cursor-not-allowed disabled:opacity-35 motion-reduce:transition-none";

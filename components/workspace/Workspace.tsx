@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot,
@@ -168,13 +168,15 @@ export default function Workspace({
     setInitialAgentPrompt(storedPrompt);
   }, []);
 
-  function addAgentActivity(
-    text: string,
-    status: AgentActivity["status"]
-  ) {
-    const id = nextActivityId();
-    setAgentActivities((current) => [...current, { id, text, status }]);
-  }
+  // Stable callbacks: the agent-prompt effect depends on streamAgent,
+  // so these must not change identity every render.
+  const addAgentActivity = useCallback(
+    (text: string, status: AgentActivity["status"]) => {
+      const id = nextActivityId();
+      setAgentActivities((current) => [...current, { id, text, status }]);
+    },
+    []
+  );
 
   function getToolStartMessage(tool: string, filePath?: string) {
     const pathLabel = filePath ? ` ${filePath}` : "";
@@ -214,50 +216,54 @@ export default function Workspace({
     }
   }
 
-  function handleAgentEvent(event: AgentStreamEvent) {
-    switch (event.type) {
-      case "agent_start":
-        addAgentActivity("Agent started", "active");
-        return;
-      case "planning":
-        addAgentActivity(event.message, "active");
-        return;
-      case "tool_start":
-        addAgentActivity(
-          getToolStartMessage(event.tool, event.path),
-          "active"
-        );
-        return;
-      case "tool_complete":
-        addAgentActivity(
-          getToolCompleteMessage(event.tool, event.path),
-          "complete"
-        );
-        return;
-      case "agent_message":
-        addAgentActivity(event.message, "complete");
-        return;
-      case "agent_complete":
-        addAgentActivity("Generation complete", "complete");
-        // The edited project arrives with this event. Before this fix the
-        // event carried no payload, so every agent edit was computed
-        // server-side and then silently discarded by the UI.
-        if (event.project && isGeneratedProject(event.project)) {
-          setProject(cloneProject(event.project));
-        }
-        setIsAgentStreaming(false);
-        agentStreamingRef.current = false;
-        return;
-      case "error":
-        addAgentActivity(event.message, "error");
-        setIsAgentStreaming(false);
-        agentStreamingRef.current = false;
-        return;
-    }
-  }
+  const handleAgentEvent = useCallback(
+    (event: AgentStreamEvent) => {
+      switch (event.type) {
+        case "agent_start":
+          addAgentActivity("Agent started", "active");
+          return;
+        case "planning":
+          addAgentActivity(event.message, "active");
+          return;
+        case "tool_start":
+          addAgentActivity(
+            getToolStartMessage(event.tool, event.path),
+            "active"
+          );
+          return;
+        case "tool_complete":
+          addAgentActivity(
+            getToolCompleteMessage(event.tool, event.path),
+            "complete"
+          );
+          return;
+        case "agent_message":
+          addAgentActivity(event.message, "complete");
+          return;
+        case "agent_complete":
+          addAgentActivity("Generation complete", "complete");
+          // The edited project arrives with this event. Before this fix the
+          // event carried no payload, so every agent edit was computed
+          // server-side and then silently discarded by the UI.
+          if (event.project && isGeneratedProject(event.project)) {
+            setProject(cloneProject(event.project));
+          }
+          setIsAgentStreaming(false);
+          agentStreamingRef.current = false;
+          return;
+        case "error":
+          addAgentActivity(event.message, "error");
+          setIsAgentStreaming(false);
+          agentStreamingRef.current = false;
+          return;
+      }
+    },
+    [addAgentActivity]
+  );
 
-  async function streamAgent(prompt: string, currentProject: GeneratedProject) {
-    if (agentStreamingRef.current) return;
+  const streamAgent = useCallback(
+    async (prompt: string, currentProject: GeneratedProject) => {
+      if (agentStreamingRef.current) return;
 
     const controller = new AbortController();
     agentAbortControllerRef.current = controller;
@@ -346,7 +352,9 @@ export default function Workspace({
       agentStreamingRef.current = false;
       setIsAgentStreaming(false);
     }
-  }
+    },
+    [addAgentActivity, handleAgentEvent]
+  );
 
   useEffect(() => {
     return () => {
@@ -367,7 +375,7 @@ export default function Workspace({
       pushHistory(currentHistory, cloneProject(project))
     );
     void streamAgent(initialAgentPrompt, project);
-  }, [initialAgentPrompt, project]);
+  }, [initialAgentPrompt, project, streamAgent]);
 
   const selectedFile = useMemo(() => {
     if (!project || !selectedFilePath) {
