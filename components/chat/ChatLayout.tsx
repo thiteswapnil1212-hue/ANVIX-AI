@@ -27,6 +27,7 @@ import MessageList from "./MessageList";
 import ChatInput, { type ChatSendOptions } from "./ChatInput";
 import ShareButton from "@/components/share/ShareButton";
 import ArtifactViewer from "./ArtifactViewer";
+import ResearchPanel from "./ResearchPanel";
 import AppShell from "@/components/layout/AppShell";
 import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
 import type { GroundingSource } from "@/lib/gemini/grounding";
@@ -44,6 +45,10 @@ import {
 } from "@/lib/image-client";
 import { shouldExtractNow } from "@/lib/memory";
 import type { ChatArtifact } from "@/lib/artifacts";
+import {
+  isResearchTerminal,
+  type ResearchRun,
+} from "@/lib/research";
 
 type Message = {
   id: string;
@@ -302,6 +307,19 @@ export default function ChatLayout() {
   // Artifact open in the side panel (null = panel closed).
   const [openArtifact, setOpenArtifact] =
     useState<ChatArtifact | null>(null);
+
+  // Deep research run shown in the side panel. The panel slot is
+  // shared with artifacts: `sidePanel` says which one is visible;
+  // a research run keeps polling in the background while an artifact
+  // is on top, and its finished report also lands in chat history.
+  const [sidePanel, setSidePanel] = useState<
+    "artifact" | "research" | null
+  >(null);
+  const [researchRun, setResearchRun] =
+    useState<ResearchRun | null>(null);
+  const [researchBusy, setResearchBusy] = useState(false);
+  const researchConversationIdRef = useRef<string | null>(null);
+  const researchAdvanceFailuresRef = useRef(0);
 
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -611,6 +629,26 @@ export default function ChatLayout() {
     []
   );
 
+  // Append one message to a conversation (research flow helper).
+  const appendMessageToConversation = useCallback(
+    (conversationId: string, message: Message) => {
+      setConversations((prev) =>
+        sortConversations(
+          prev.map((conversation) =>
+            conversation.id === conversationId
+              ? {
+                  ...conversation,
+                  updatedAt: createTimestamp(),
+                  messages: [...conversation.messages, message],
+                }
+              : conversation
+          )
+        )
+      );
+    },
+    []
+  );
+
   // Replace a conversation's tags (normalized, de-duplicated).
   const handleSetTags = useCallback((id: string, tags: string[]) => {
     setConversations((prev) =>
@@ -784,6 +822,211 @@ export default function ChatLayout() {
     },
     [user]
   );
+  // Advance one research step (one short server call). On `done` the
+  // finished report is also appended to chat history, so it survives
+  // the panel being closed. After 3 consecutive failed advances the
+  // run is marked failed locally so polling stops instead of looping.
+  const advanceResearch = useCallback(async (runId: string) => {
+    setResearchBusy(true);
+    try {
+      const response = await fetch(`/api/research/${runId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({ action: "advance" }),
+      });
+
+      if (!response.ok) throw new Error("Advance failed");
+
+      const data = (await response.json()) as { run: ResearchRun };
+      researchAdvanceFailuresRef.current = 0;
+      const next = data.run;
+      setResearchRun(next);
+
+      if (next.status === "done" && next.reportMarkdown) {
+        const conversationId = researchConversationIdRef.current;
+        if (conversationId) {
+          appendMessageToConversation(conversationId, {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: next.reportMarkdown,
+            createdAt: createTimestamp(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Research advance failed:", error);
+      researchAdvanceFailuresRef.current += 1;
+      if (researchAdvanceFailuresRef.current >= 3) {
+        setResearchRun((prev) =>
+          prev && prev.id === runId
+            ? {
+                ...prev,
+                status: "failed",
+                error:
+                  "Could not reach the research service. Retry from the panel.",
+              }
+            : prev
+        );
+      }
+    } finally {
+      setResearchBusy(false);
+    }
+  }, [appendMessageToConversation]);
+
+  // Poll `advance` while the run is non-terminal (~2 s between steps).
+  // Each advance is one short Gemini call; polling is what chunks the
+  // run across requests instead of one long call.
+  useEffect(() => {
+    if (!researchRun || isResearchTerminal(researchRun.status)) return;
+    const timer = setTimeout(() => {
+      void advanceResearch(researchRun.id);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [researchRun, advanceResearch]);
+
+  const cancelResearch = useCallback(async () => {
+    if (!researchRun) return;
+    setResearchBusy(true);
+    try {
+      const response = await fetch(`/api/research/${researchRun.id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { run: ResearchRun };
+        setResearchRun(data.run);
+      }
+    } catch (error) {
+      console.error("Research cancel failed:", error);
+    } finally {
+      setResearchBusy(false);
+    }
+  }, [researchRun]);
+
+  const steerResearch = useCallback(
+    async (direction: string) => {
+      if (!researchRun) return;
+      setResearchBusy(true);
+      try {
+        const response = await fetch(`/api/research/${researchRun.id}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(await getAuthHeaders()),
+          },
+          body: JSON.stringify({ action: "steer", direction }),
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { run: ResearchRun };
+          setResearchRun(data.run);
+        }
+      } catch (error) {
+        console.error("Research steer failed:", error);
+      } finally {
+        setResearchBusy(false);
+      }
+    },
+    [researchRun]
+  );
+
+  // Closing the panel while a run is active cancels it — otherwise
+  // a hidden run would keep burning quota with nobody watching.
+  const handleCloseResearchPanel = useCallback(async () => {
+    if (researchRun && !isResearchTerminal(researchRun.status)) {
+      await cancelResearch();
+    }
+    setResearchRun(null);
+    setSidePanel(null);
+  }, [researchRun, cancelResearch]);
+
+  // Start a scoped deep-research run instead of a normal chat reply.
+  const handleStartResearch = async (
+    prompt: string
+  ): Promise<boolean> => {
+    if (researchRun && !isResearchTerminal(researchRun.status)) {
+      return false;
+    }
+
+    let workingConversationId = activeConversationId;
+    const timestamp = createTimestamp();
+
+    if (!workingConversationId) {
+      workingConversationId = crypto.randomUUID();
+
+      const newConversation: GuestChatConversation = {
+        id: workingConversationId,
+        title: generateChatTitle(prompt),
+        preview: prompt,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        pinned: false,
+        messages: [],
+      };
+
+      setConversations((prev) =>
+        sortConversations([newConversation, ...prev])
+      );
+      setActiveConversationId(workingConversationId);
+    }
+
+    researchConversationIdRef.current = workingConversationId;
+
+    appendMessageToConversation(workingConversationId, {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: prompt,
+      createdAt: timestamp,
+    });
+
+    try {
+      const response = await fetch("/api/research", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({ question: prompt }),
+      });
+
+      const data = (await response.json()) as {
+        run?: ResearchRun;
+        error?: string;
+      };
+
+      if (!response.ok || !data.run) {
+        appendMessageToConversation(workingConversationId, {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content:
+            data.error ??
+            "Could not start deep research. Please try again.",
+          createdAt: createTimestamp(),
+        });
+        return true;
+      }
+
+      setResearchRun(data.run);
+      setOpenArtifact(null);
+      setSidePanel("research");
+      return true;
+    } catch (error) {
+      console.error("Research start failed:", error);
+      appendMessageToConversation(workingConversationId, {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "Could not start deep research. Please try again.",
+        createdAt: createTimestamp(),
+      });
+      return true;
+    }
+  };
 
   // Send a message and stream the response.
   const handleSend = async (
@@ -792,7 +1035,17 @@ export default function ChatLayout() {
   ): Promise<boolean> => {
     const trimmedPrompt = prompt.trim();
 
-    if (!trimmedPrompt || activeRequestRef.current) {
+    if (!trimmedPrompt) {
+      return false;
+    }
+
+    // Deep research takes a different path: no chat stream, a run in
+    // the side panel instead.
+    if (options.research) {
+      return handleStartResearch(trimmedPrompt);
+    }
+
+    if (activeRequestRef.current) {
       return false;
     }
 
@@ -1530,7 +1783,10 @@ export default function ChatLayout() {
                   messages={messages}
                   isTyping={isTyping}
                   onForkMessage={handleForkMessage}
-                  onOpenArtifact={setOpenArtifact}
+                  onOpenArtifact={(artifact) => {
+                    setOpenArtifact(artifact);
+                    setSidePanel("artifact");
+                  }}
                 />
               )}
             </div>
@@ -1575,7 +1831,7 @@ export default function ChatLayout() {
               </div>
 
               {/* ARTIFACT SIDE PANEL (desktop) */}
-              {openArtifact && (
+              {sidePanel === "artifact" && openArtifact && (
                 <aside
                   className="
                     hidden
@@ -1592,18 +1848,65 @@ export default function ChatLayout() {
                 >
                   <ArtifactViewer
                     artifact={openArtifact}
-                    onClose={() => setOpenArtifact(null)}
+                    onClose={() => {
+                      setOpenArtifact(null);
+                      setSidePanel(null);
+                    }}
+                  />
+                </aside>
+              )}
+
+              {/* RESEARCH SIDE PANEL (desktop) */}
+              {sidePanel === "research" && researchRun && (
+                <aside
+                  className="
+                    hidden
+                    w-[440px]
+                    shrink-0
+                    flex-col
+                    overflow-hidden
+                    border-l
+                    border-white/[0.08]
+                    bg-[#0B0B0C]
+                    md:flex
+                  "
+                  aria-label="Deep research"
+                >
+                  <ResearchPanel
+                    run={researchRun}
+                    busy={researchBusy}
+                    onAdvance={() => void advanceResearch(researchRun.id)}
+                    onCancel={() => void cancelResearch()}
+                    onSteer={(direction) => void steerResearch(direction)}
+                    onClose={() => void handleCloseResearchPanel()}
                   />
                 </aside>
               )}
             </div>
 
             {/* ARTIFACT PANEL (mobile overlay) */}
-            {openArtifact && (
+            {sidePanel === "artifact" && openArtifact && (
               <div className="fixed inset-0 z-[60] md:hidden">
                 <ArtifactViewer
                   artifact={openArtifact}
-                  onClose={() => setOpenArtifact(null)}
+                  onClose={() => {
+                    setOpenArtifact(null);
+                    setSidePanel(null);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* RESEARCH PANEL (mobile overlay) */}
+            {sidePanel === "research" && researchRun && (
+              <div className="fixed inset-0 z-[60] md:hidden">
+                <ResearchPanel
+                  run={researchRun}
+                  busy={researchBusy}
+                  onAdvance={() => void advanceResearch(researchRun.id)}
+                  onCancel={() => void cancelResearch()}
+                  onSteer={(direction) => void steerResearch(direction)}
+                  onClose={() => void handleCloseResearchPanel()}
                 />
               </div>
             )}

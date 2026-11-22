@@ -21,6 +21,7 @@ import {
   Globe,
   ImagePlus,
   Paperclip,
+  Search,
   Square,
   LoaderCircle,
   BookOpen,
@@ -40,6 +41,7 @@ import {
   MAX_ATTACHMENTS,
   type ChatAttachmentInput,
 } from "@/lib/chat-attachments";
+import { RESEARCH_DAILY_LIMIT } from "@/lib/research";
 import { prepareAttachmentFiles } from "@/lib/chat-attachments-client";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -65,6 +67,8 @@ export type ChatSendOptions = {
   mode: ChatModeId;
   thinking: ThinkingChoice;
   web: boolean;
+  /** Start a scoped deep-research run instead of a normal chat reply. */
+  research: boolean;
   attachments: ChatAttachmentInput[];
   /** Saved assistant id, or null for a starter / inline assistant. */
   assistantId: string | null;
@@ -110,6 +114,7 @@ const THINKING_CHOICES: {
 const MODE_STORAGE_KEY = "anvix-chat-mode";
 const THINKING_STORAGE_KEY = "anvix-chat-thinking";
 const WEB_STORAGE_KEY = "anvix-chat-web";
+const RESEARCH_STORAGE_KEY = "anvix-chat-research";
 
 function readStoredMode(): ChatModeId {
   if (typeof window === "undefined") return DEFAULT_CHAT_MODE_ID;
@@ -132,6 +137,11 @@ function readStoredThinking(modeId: ChatModeId): ThinkingChoice {
 function readStoredWeb(): boolean {
   if (typeof window === "undefined") return true;
   return window.localStorage.getItem(WEB_STORAGE_KEY) !== "off";
+}
+
+function readStoredResearch(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(RESEARCH_STORAGE_KEY) === "on";
 }
 
 export default function ChatInput({
@@ -222,6 +232,8 @@ export default function ChatInput({
       storeAssistantSelection(selection);
     }
   }
+  const [researchEnabled, setResearchEnabled] =
+    useState<boolean>(readStoredResearch);
   const [attachments, setAttachments] = useState<ChatAttachmentInput[]>(
     []
   );
@@ -276,6 +288,7 @@ export default function ChatInput({
     setModelOpen(false);
     textareaRef.current?.focus();
   }, []);
+  // Remember the mode / thinking / web / research choices on this device.
   useEffect(() => {
     try {
       window.localStorage.setItem(MODE_STORAGE_KEY, selectedMode);
@@ -284,10 +297,14 @@ export default function ChatInput({
         WEB_STORAGE_KEY,
         webEnabled ? "on" : "off"
       );
+      window.localStorage.setItem(
+        RESEARCH_STORAGE_KEY,
+        researchEnabled ? "on" : "off"
+      );
     } catch {
       // Private mode / full storage: choices just don't persist.
     }
-  }, [selectedMode, thinking, webEnabled]);
+  }, [selectedMode, thinking, webEnabled, researchEnabled]);
 
   // Auto-resize textarea.
   useEffect(() => {
@@ -406,6 +423,7 @@ export default function ChatInput({
         mode: selectedMode,
         thinking,
         web: webEnabled,
+        research: researchEnabled,
         attachments,
         assistantId: assistantSelection?.id ?? null,
         assistant: assistantSelection
@@ -443,6 +461,7 @@ export default function ChatInput({
     selectedMode,
     thinking,
     webEnabled,
+    researchEnabled,
     attachments,
     assistantSelection,
   ]);
@@ -751,6 +770,7 @@ export default function ChatInput({
                   isSubmitting ||
                   isGenerating ||
                   isPreparingFiles ||
+                  researchEnabled ||
                   attachments.length >= MAX_ATTACHMENTS
                 }
                 onClick={() => fileInputRef.current?.click()}
@@ -981,7 +1001,9 @@ export default function ChatInput({
                 placeholder={
                   isGenerating
                     ? "Press Enter to stop..."
-                    : "Message ANVIX AI..."
+                    : researchEnabled
+                      ? "Ask a research question…"
+                      : "Message ANVIX AI..."
                 }
                 aria-label="Message ANVIX AI"
                 aria-describedby="chat-input-hint"
@@ -1310,6 +1332,61 @@ export default function ChatInput({
                               rounded-full p-0.5 transition-colors
                               ${
                                 webEnabled
+                                  ? "justify-end bg-[#D4AF37]"
+                                  : "justify-start bg-zinc-700"
+                              }
+                            `}
+                          >
+                            <span className="h-4 w-4 rounded-full bg-white shadow" />
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* Deep research toggle */}
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2.5">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={researchEnabled}
+                          disabled={isSubmitting || isGenerating}
+                          onClick={() => {
+                            setResearchEnabled((value) => {
+                              if (!value) setAttachments([]);
+                              return !value;
+                            });
+                          }}
+                          className="
+                            flex w-full items-center
+                            justify-between gap-3 rounded-lg
+                            px-1 py-1 text-left
+                            focus-visible:outline-none
+                            focus-visible:ring-2
+                            focus-visible:ring-[#D4AF37]/60
+                          "
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Search
+                              className="h-4 w-4 shrink-0 text-zinc-500"
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-zinc-300">
+                                Deep research
+                              </span>
+                              <span className="mt-0.5 block text-[11px] leading-4 text-zinc-600">
+                                Cited report, Markdown export ·{" "}
+                                {RESEARCH_DAILY_LIMIT} run/day · Flash-Lite
+                                only · sign-in required.
+                              </span>
+                            </span>
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className={`
+                              flex h-5 w-9 shrink-0 items-center
+                              rounded-full p-0.5 transition-colors
+                              ${
+                                researchEnabled
                                   ? "justify-end bg-[#D4AF37]"
                                   : "justify-start bg-zinc-700"
                               }
