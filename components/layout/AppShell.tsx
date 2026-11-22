@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Navbar from "@/components/layout/Navbar";
 
 interface AppShellProps {
@@ -20,6 +20,7 @@ export default function AppShell({
   hideVideo = false,
 }: AppShellProps) {
   const [reduceMotion, setReduceMotion] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(
@@ -38,6 +39,21 @@ export default function AppShell({
     };
   }, []);
 
+  // Pause the background video while the tab is hidden — it decodes
+  // forever otherwise, burning GPU/battery in background tabs.
+  useEffect(() => {
+    const onVisibility = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (document.hidden) video.pause();
+      else video.play().catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   return (
     <div className="relative isolate flex min-h-screen w-full flex-col overflow-x-clip bg-[#09090B] text-white">
       {/* Cinematic background */}
@@ -47,6 +63,7 @@ export default function AppShell({
       >
         {!reduceMotion && !hideVideo && (
           <video
+            ref={videoRef}
             autoPlay
             loop
             muted
