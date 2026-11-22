@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import PushSettings from "@/components/notifications/PushSettings";
@@ -21,12 +22,22 @@ import {
   type UsageStatus,
 } from "@/lib/byok/client";
 import {
+  deleteMemory,
+  fetchCustomInstructions,
+  fetchMemories,
+  saveCustomInstructions,
+  updateMemory,
+} from "@/lib/supabase/assistants-memory";
+import type { MemoryRecord } from "@/lib/memory";
+import {
   User,
   KeyRound,
   ShieldCheck,
   Keyboard,
   ChevronRight,
   SlidersHorizontal,
+  Bot,
+  Brain,
 } from "lucide-react";
 
 const settingsSections = [
@@ -34,6 +45,27 @@ const settingsSections = [
     title: "Profile",
     description: "Manage your identity and workspace preferences.",
     icon: User,
+    status: "Quick settings",
+  },
+  {
+    title: "Custom instructions",
+    description:
+      "Tell ANVIX how to answer you in every chat — tone, language, defaults.",
+    icon: SlidersHorizontal,
+    status: "Quick settings",
+  },
+  {
+    title: "Assistants",
+    description:
+      "Reusable assistants with their own instructions — the skills pattern.",
+    icon: Bot,
+    status: "Quick settings",
+  },
+  {
+    title: "Memory",
+    description:
+      "Facts ANVIX remembers about you from chats. View, edit or delete any of them.",
+    icon: Brain,
     status: "Quick settings",
   },
   {
@@ -64,9 +96,18 @@ const shortcuts = [
 ];
 
 export default function SettingsPage() {
+  const router = useRouter();
   const { configured, user, loading, signOut } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [profileStatus, setProfileStatus] = useState("");
+  // Minimal global custom instructions (v1 base layer for memory v2).
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [customStatus, setCustomStatus] = useState("");
+  // Memory v2: user-visible, editable, deletable.
+  const [memories, setMemories] = useState<MemoryRecord[] | null>(null);
+  const [memoriesStatus, setMemoriesStatus] = useState("");
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [editingMemoryText, setEditingMemoryText] = useState("");
 
   // BYOK + quota meter state.
   const [byokStatus, setByokStatus] = useState<ByokStatus | null>(null);
@@ -151,6 +192,67 @@ export default function SettingsPage() {
       cancelled = true;
     };
   }, [user]);
+
+  // Custom instructions + memories load with the account (signed-in
+  // only — guests have no stored profile to read from).
+  useEffect(() => {
+    if (!user) {
+      setMemories(null);
+      return;
+    }
+    let cancelled = false;
+
+    void (async () => {
+      const [instructions, rows] = await Promise.all([
+        fetchCustomInstructions(user.id),
+        fetchMemories(user.id),
+      ]);
+      if (cancelled) return;
+      if (instructions !== null) setCustomInstructions(instructions);
+      setMemories(rows);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const saveCustomInstructionsForm = async () => {
+    if (!user) return;
+    setCustomStatus("Saving…");
+    const ok = await saveCustomInstructions(user.id, customInstructions);
+    setCustomStatus(
+      ok
+        ? "Custom instructions saved. They apply to every new chat."
+        : "Could not save. The setting may not be available on this deployment yet."
+    );
+  };
+
+  const reloadMemories = async () => {
+    if (!user) return;
+    setMemories(await fetchMemories(user.id));
+  };
+
+  const saveMemoryEdit = async (id: string) => {
+    if (!user) return;
+    const ok = await updateMemory(user.id, id, editingMemoryText);
+    setMemoriesStatus(
+      ok ? "Memory updated." : "Could not update that memory."
+    );
+    if (ok) {
+      setEditingMemoryId(null);
+      await reloadMemories();
+    }
+  };
+
+  const removeMemory = async (id: string) => {
+    if (!user) return;
+    const ok = await deleteMemory(user.id, id);
+    setMemoriesStatus(
+      ok ? "Memory deleted." : "Could not delete that memory."
+    );
+    if (ok) await reloadMemories();
+  };
 
   const saveProfile = async () => {
     if (!user) return;
@@ -250,6 +352,16 @@ export default function SettingsPage() {
                     if (section.title === "Profile") {
                       document
                         .getElementById("account-settings")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    } else if (section.title === "Custom instructions") {
+                      document
+                        .getElementById("custom-instructions")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    } else if (section.title === "Assistants") {
+                      router.push("/assistants");
+                    } else if (section.title === "Memory") {
+                      document
+                        .getElementById("memory-settings")
                         ?.scrollIntoView({ behavior: "smooth" });
                     }
                     if (section.title === "API Keys") {
@@ -583,6 +695,176 @@ export default function SettingsPage() {
                   <p className="text-xs leading-5 text-zinc-500">{byokMessage}</p>
                 )}
               </div>
+            )}
+          </div>
+        </section>
+
+        {/* CUSTOM INSTRUCTIONS (v1 base layer) */}
+        <section id="custom-instructions" className="mb-10 scroll-mt-24">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              Personalization
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Custom instructions
+            </h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              Applied to every chat, underneath any assistant you pick.
+              Keep it short — these words are sent with every message.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
+            {!user ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Sign in to set custom instructions. Guests can still use
+                assistants in chat — pick one from the menu above the
+                message box.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <textarea
+                  id="custom-instructions-input"
+                  value={customInstructions}
+                  onChange={(event) =>
+                    setCustomInstructions(event.target.value)
+                  }
+                  placeholder="e.g. Always reply in Hinglish. Prefer short answers with code examples. I am a second-year AI & DS student."
+                  rows={4}
+                  maxLength={4000}
+                  className="w-full rounded-lg border border-white/[0.08] bg-[#0D0D0D] px-3 py-2 text-sm leading-6 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-[#D4AF37]/40"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void saveCustomInstructionsForm()}
+                    className="inline-flex h-10 items-center rounded-lg bg-[#D4AF37] px-4 text-xs font-semibold text-black transition hover:bg-[#E2C259]"
+                  >
+                    Save instructions
+                  </button>
+                  <span className="text-[11px] text-zinc-600">
+                    {customInstructions.length}/4000 characters
+                  </span>
+                </div>
+                {customStatus && (
+                  <p className="text-xs text-zinc-500">{customStatus}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* MEMORY v2 */}
+        <section id="memory-settings" className="mb-10 scroll-mt-24">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              Memory
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              What ANVIX remembers about you
+            </h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              After every few turns, ANVIX quietly notes durable facts
+              from your chats — preferences, goals, projects — and uses
+              the relevant ones in later chats.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
+            <p className="text-xs leading-5 text-zinc-500">
+              Memories are stored per user, only you can see them, and
+              every one can be edited or deleted here. Deleting is
+              permanent. Nothing is extracted from guest chats.
+            </p>
+
+            {!user ? (
+              <p className="mt-4 text-sm leading-6 text-zinc-400">
+                Sign in to see your memories.
+              </p>
+            ) : memories === null ? (
+              <p className="mt-4 text-sm leading-6 text-zinc-400">
+                Could not load memories. The memories table may not be
+                applied on this deployment yet.
+              </p>
+            ) : memories.length === 0 ? (
+              <p className="mt-4 text-sm leading-6 text-zinc-400">
+                No memories yet. Chat a little — after every 6th message
+                in a chat, ANVIX may save a fact worth remembering.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {memories.map((memory) => (
+                  <li
+                    key={memory.id}
+                    className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2.5"
+                  >
+                    {editingMemoryId === memory.id ? (
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          value={editingMemoryText}
+                          onChange={(event) =>
+                            setEditingMemoryText(event.target.value)
+                          }
+                          maxLength={280}
+                          className="h-9 min-w-56 flex-1 rounded-lg border border-white/[0.08] bg-[#0D0D0D] px-3 text-sm text-zinc-100 outline-none focus:border-[#D4AF37]/40"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void saveMemoryEdit(memory.id)}
+                          className="inline-flex h-9 items-center rounded-lg bg-[#D4AF37] px-3.5 text-xs font-semibold text-black transition hover:bg-[#E2C259]"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMemoryId(null)}
+                          className="inline-flex h-9 items-center rounded-lg border border-white/[0.1] px-3.5 text-xs font-medium text-zinc-300 transition hover:border-white/[0.2] hover:text-white"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm leading-6 text-zinc-200">
+                            {memory.fact}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-zinc-600">
+                            Saved{" "}
+                            {new Date(memory.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMemoryId(memory.id);
+                              setEditingMemoryText(memory.fact);
+                            }}
+                            className="inline-flex h-8 items-center rounded-lg border border-white/[0.1] px-3 text-xs font-medium text-zinc-300 transition hover:border-white/[0.2] hover:text-white"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void removeMemory(memory.id)}
+                            className="inline-flex h-8 items-center rounded-lg border border-red-500/20 px-3 text-xs font-medium text-red-400 transition hover:border-red-500/40"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {memoriesStatus && (
+              <p className="mt-3 text-xs text-zinc-500">{memoriesStatus}</p>
             )}
           </div>
         </section>
