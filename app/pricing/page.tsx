@@ -6,7 +6,6 @@ import AppShell from "@/components/layout/AppShell";
 import {
   ArrowRight,
   Check,
-  CheckCircle2,
   ChevronDown,
   Crown,
   Globe2,
@@ -27,9 +26,8 @@ const tiers = [
     icon: Zap,
     eyebrow: "For individuals",
     features: [
-      "Unlimited projects",
       "AI chat",
-      "Basic analytics",
+      "AI-generated projects",
       "Core AI models",
       "Community support",
     ],
@@ -49,10 +47,8 @@ const tiers = [
     features: [
       "Everything in Launch",
       "Advanced AI agents",
-      "Priority generation",
-      "Workspace collaboration",
-      "Advanced analytics",
-      "Higher usage limits",
+      "Workspace agent",
+      "Project export (ZIP)",
     ],
     button: "Start Building",
     popular: true,
@@ -69,11 +65,7 @@ const tiers = [
     eyebrow: "For organizations",
     features: [
       "Everything in Accelerate",
-      "Dedicated onboarding",
-      "Custom deployments",
-      "Enterprise controls",
-      "Priority support",
-      "Custom usage limits",
+      "Account cloud sync",
     ],
     button: "Start Building",
     popular: false,
@@ -84,19 +76,19 @@ const tiers = [
 
 const faqs = [
   {
-    question: "Can I upgrade later?",
+    question: "Is anything paid right now?",
     answer:
-      "Yes. Start with the plan that fits your workflow today and move to a higher tier when your usage grows.",
+      "No. Early access is free — every plan opens the same product and there is no checkout. Paid tiers will arrive later, and this page will be updated when they do.",
   },
   {
-    question: "Which plan is best for most users?",
+    question: "Do the plans change what I can use?",
     answer:
-      "Accelerate is the best fit for users who actively build with AI and want advanced agents, collaboration, analytics, and higher limits.",
+      "Not during early access. Every plan includes the same features today; the tiers describe where paid plans will sit once they exist.",
   },
   {
     question: "Do I get all future ANVIX improvements?",
     answer:
-      "Your plan continues to determine which capabilities and limits are available as the platform evolves.",
+      "ANVIX is under active development, so features may change, be added, or be removed. This page will be updated when paid plans or new limits arrive.",
   },
 ];
 
@@ -266,7 +258,7 @@ export default function PricingPage() {
                   className="h-3.5 w-3.5 text-[#D4AF37]"
                   strokeWidth={2.2}
                 />
-                Upgrade when you need more
+                Free during early access
               </div>
 
               <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -355,11 +347,11 @@ export default function PricingPage() {
 
               <div>
                 <p className="text-xs font-medium text-zinc-300">
-                  Built for collaboration
+                  Your work, anywhere
                 </p>
 
                 <p className="mt-0.5 text-[10px] text-zinc-600">
-                  Share and build together
+                  Sign in to sync projects to your account
                 </p>
               </div>
             </div>
@@ -393,11 +385,11 @@ export default function PricingPage() {
 
               <div>
                 <p className="text-xs font-medium text-zinc-300">
-                  Ready to scale
+                  Export anytime
                 </p>
 
                 <p className="mt-0.5 text-[10px] text-zinc-600">
-                  From solo to enterprise
+                  Download any project as a ZIP
                 </p>
               </div>
             </div>
@@ -839,25 +831,6 @@ export default function PricingPage() {
               >
                 <Lock className="h-3 w-3" />
                 Secure workspace
-              </span>
-
-              <span
-                className="
-                  inline-flex
-                  items-center
-                  gap-2
-                  rounded-full
-                  border
-                  border-zinc-800
-                  bg-[#0D0D0F]
-                  px-3
-                  py-1.5
-                  text-[10px]
-                  text-zinc-500
-                "
-              >
-                <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                AI online
               </span>
             </div>
           </div>
