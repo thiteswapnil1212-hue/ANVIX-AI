@@ -28,6 +28,7 @@ import ChatInput, { type ChatSendOptions } from "./ChatInput";
 import AppShell from "@/components/layout/AppShell";
 import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
 import type { GroundingSource } from "@/lib/gemini/grounding";
+import { getPromptTemplate } from "@/lib/prompt-templates";
 
 type Message = {
   id: string;
@@ -246,6 +247,21 @@ export default function ChatLayout() {
     );
 
   const [isTyping, setIsTyping] = useState(false);
+
+  // A template picked on the empty state, seeded into the composer.
+  const [composerSeed, setComposerSeed] = useState<{
+    text: string;
+    nonce: number;
+  } | null>(null);
+
+  const handleUseTemplate = useCallback((templateId: string) => {
+    const template = getPromptTemplate(templateId);
+    if (!template) return;
+    setComposerSeed({
+      text: template.prompt,
+      nonce: Date.now(),
+    });
+  }, []);
 
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -1187,6 +1203,48 @@ export default function ChatLayout() {
                     >
                       Built for thinking. Designed for building.
                     </p>
+
+                    {/* Starter templates — one tap fills the composer. */}
+                    <div className="mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-center gap-2">
+                      {[
+                        "cold-email",
+                        "explain-code",
+                        "dsa-practice",
+                        "explain-topic",
+                      ].map((templateId) => {
+                        const template = getPromptTemplate(templateId);
+                        if (!template) return null;
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() =>
+                              handleUseTemplate(template.id)
+                            }
+                            className="
+                              rounded-full border border-white/10
+                              bg-white/[0.04] px-3.5 py-2
+                              text-xs font-medium text-zinc-300
+                              transition-colors
+                              hover:border-[#D4AF37]/40
+                              hover:bg-[#D4AF37]/[0.08]
+                              hover:text-[#E9C96B]
+                              focus-visible:outline-none
+                              focus-visible:ring-2
+                              focus-visible:ring-[#D4AF37]/60
+                            "
+                          >
+                            {template.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-3 text-[11px] text-zinc-600">
+                      Or tap the template icon in the composer to browse
+                      all templates — fill in the{" "}
+                      <span className="font-mono">{"{{…}}"}</span>{" "}
+                      parts before sending.
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -1217,6 +1275,7 @@ export default function ChatLayout() {
                   onSend={handleSend}
                   isGenerating={isTyping}
                   onStop={handleStop}
+                  seedPrompt={composerSeed}
                 />
 
                 <p

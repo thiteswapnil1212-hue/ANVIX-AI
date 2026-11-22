@@ -4,6 +4,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -22,6 +23,7 @@ import {
   Square,
   LoaderCircle,
   BookOpen,
+  LayoutTemplate,
   X,
 } from "lucide-react";
 
@@ -39,6 +41,12 @@ import {
 } from "@/lib/chat-attachments";
 import { prepareAttachmentFiles } from "@/lib/chat-attachments-client";
 
+import {
+  PROMPT_TEMPLATE_CATEGORIES,
+  searchPromptTemplates,
+  type PromptTemplateCategory,
+} from "@/lib/prompt-templates";
+
 import ModelGuide from "./ModelGuide";
 
 export type ChatSendOptions = {
@@ -55,7 +63,16 @@ type ChatInputProps = {
   ) => boolean | Promise<boolean>;
   isGenerating: boolean;
   onStop: () => void;
+  /**
+   * A prompt seeded from outside the composer (e.g. a template picked
+   * on the empty state). Changing `nonce` applies the text once.
+   */
+  seedPrompt?: { text: string; nonce: number } | null;
 };
+
+export type TemplateCategoryFilter =
+  | "all"
+  | PromptTemplateCategory;
 
 const THINKING_CHOICES: {
   id: ThinkingChoice;
@@ -98,10 +115,15 @@ export default function ChatInput({
   onSend,
   isGenerating,
   onStop,
+  seedPrompt = null,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [templateCategory, setTemplateCategory] =
+    useState<TemplateCategoryFilter>("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMode, setSelectedMode] =
     useState<ChatModeId>(readStoredMode);
@@ -117,6 +139,7 @@ export default function ChatInput({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
+  const templateRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
   const previousGeneratingRef = useRef(isGenerating);
@@ -130,7 +153,32 @@ export default function ChatInput({
     CHAT_MODES.find((mode) => mode.id === selectedMode) ??
     CHAT_MODES[1];
 
-  // Remember the mode / thinking / web choices on this device.
+  // Apply a prompt seeded from outside the composer (template chip).
+  const seedNonce = seedPrompt?.nonce ?? 0;
+  useEffect(() => {
+    if (!seedPrompt || seedNonce === 0) return;
+    setValue(seedPrompt.text);
+    setTemplateOpen(false);
+    setModelOpen(false);
+    textareaRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedNonce]);
+
+  const visibleTemplates = useMemo(() => {
+    const searched = searchPromptTemplates(templateQuery);
+    return templateCategory === "all"
+      ? searched
+      : searched.filter(
+          (template) => template.category === templateCategory
+        );
+  }, [templateQuery, templateCategory]);
+
+  const useTemplate = useCallback((prompt: string) => {
+    setValue(prompt);
+    setTemplateOpen(false);
+    setModelOpen(false);
+    textareaRef.current?.focus();
+  }, []);
   useEffect(() => {
     try {
       window.localStorage.setItem(MODE_STORAGE_KEY, selectedMode);
@@ -159,7 +207,7 @@ export default function ChatInput({
     textarea.style.height = `${nextHeight}px`;
   }, [value]);
 
-  // Close mode dropdown when clicking outside.
+  // Close mode dropdown / template picker when clicking outside.
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
@@ -170,6 +218,14 @@ export default function ChatInput({
         !modelRef.current.contains(target)
       ) {
         setModelOpen(false);
+      }
+
+      if (
+        target instanceof Node &&
+        templateRef.current &&
+        !templateRef.current.contains(target)
+      ) {
+        setTemplateOpen(false);
       }
     }
 
@@ -186,13 +242,19 @@ export default function ChatInput({
     };
   }, []);
 
-  // Escape closes the guide first, then the dropdown.
+  // Escape closes the guide first, then the template picker,
+  // then the dropdown.
   useEffect(() => {
     function handleEscape(event: globalThis.KeyboardEvent) {
       if (event.key !== "Escape") return;
 
       if (guideOpen) {
         setGuideOpen(false);
+        return;
+      }
+
+      if (templateOpen) {
+        setTemplateOpen(false);
         return;
       }
 
@@ -207,7 +269,7 @@ export default function ChatInput({
         handleEscape
       );
     };
-  }, [guideOpen]);
+  }, [guideOpen, templateOpen]);
 
   // Focus input when generation finishes.
   useEffect(() => {
@@ -255,6 +317,7 @@ export default function ChatInput({
         setAttachments([]);
         setAttachError(null);
         setModelOpen(false);
+        setTemplateOpen(false);
         setGuideOpen(false);
       }
     } catch (error) {
@@ -497,6 +560,160 @@ export default function ChatInput({
                 />
               </button>
 
+              {/* Templates button */}
+              <div ref={templateRef} className="relative mb-0.5 shrink-0">
+                <button
+                  type="button"
+                  disabled={isSubmitting || isGenerating}
+                  onClick={() =>
+                    setTemplateOpen((open) => !open)
+                  }
+                  className="
+                    mb-0.5 flex h-8 w-8 shrink-0
+                    items-center justify-center rounded-xl
+                    text-zinc-400 transition-colors
+                    hover:bg-zinc-800/70 hover:text-zinc-200
+                    disabled:cursor-not-allowed
+                    disabled:opacity-40
+                    focus-visible:outline-none
+                    focus-visible:ring-2
+                    focus-visible:ring-[#D4AF37]/60
+                  "
+                  aria-label="Browse prompt templates"
+                  aria-expanded={templateOpen}
+                  title="Prompt templates — start from a ready prompt"
+                >
+                  <LayoutTemplate
+                    className="h-[17px] w-[17px]"
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {/* Template picker */}
+                {templateOpen && (
+                  <div
+                    className="
+                      absolute bottom-[43px] left-0 z-[9999]
+                      max-h-[min(420px,60vh)]
+                      w-[min(340px,calc(100vw-32px))]
+                      overflow-y-auto overflow-x-hidden
+                      rounded-xl border border-zinc-800
+                      bg-[#18181B] p-1.5
+                      shadow-[0_16px_45px_rgba(0,0,0,0.55)]
+                    "
+                    aria-label="Prompt templates"
+                  >
+                    <div className="px-2.5 pb-2 pt-2">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-zinc-600">
+                        Start from a template
+                      </p>
+                      <input
+                        type="search"
+                        value={templateQuery}
+                        onChange={(event) =>
+                          setTemplateQuery(event.target.value)
+                        }
+                        placeholder="Search templates…"
+                        aria-label="Search prompt templates"
+                        className="
+                          mt-2 w-full rounded-lg border
+                          border-zinc-800 bg-[#151518]
+                          px-2.5 py-2 text-xs text-zinc-200
+                          outline-none placeholder:text-zinc-600
+                          focus:border-[#D4AF37]/40
+                        "
+                      />
+                      <div
+                        className="mt-2 flex flex-wrap gap-1"
+                        role="group"
+                        aria-label="Template category"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setTemplateCategory("all")}
+                          aria-pressed={templateCategory === "all"}
+                          className={`
+                            rounded-full border px-2.5 py-1
+                            text-[11px] font-medium transition-colors
+                            ${
+                              templateCategory === "all"
+                                ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                                : "border-zinc-800 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                            }
+                          `}
+                        >
+                          All
+                        </button>
+                        {PROMPT_TEMPLATE_CATEGORIES.map((category) => (
+                          <button
+                            key={category.id}
+                            type="button"
+                            onClick={() =>
+                              setTemplateCategory(category.id)
+                            }
+                            aria-pressed={
+                              templateCategory === category.id
+                            }
+                            title={category.hint}
+                            className={`
+                              rounded-full border px-2.5 py-1
+                              text-[11px] font-medium transition-colors
+                              ${
+                                templateCategory === category.id
+                                  ? "border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#E9C96B]"
+                                  : "border-zinc-800 text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                              }
+                            `}
+                          >
+                            {category.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-0.5" role="listbox" aria-label="Templates">
+                      {visibleTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          role="option"
+                          aria-selected={false}
+                          onClick={() => useTemplate(template.prompt)}
+                          className="
+                            flex w-full flex-col gap-0.5
+                            rounded-lg px-2.5 py-2.5
+                            text-left transition-colors
+                            hover:bg-zinc-800/70
+                          "
+                        >
+                          <span className="text-sm font-medium text-zinc-100">
+                            {template.title}
+                          </span>
+                          <span className="text-[11px] leading-4 text-zinc-600">
+                            {template.description}
+                          </span>
+                        </button>
+                      ))}
+
+                      {visibleTemplates.length === 0 && (
+                        <p className="px-2.5 py-4 text-center text-xs text-zinc-500">
+                          No templates match that search.
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="border-t border-zinc-800/80 px-2.5 pb-1 pt-2.5 text-[11px] leading-5 text-zinc-600">
+                      Tap a template to fill the composer — replace the{" "}
+                      <span className="font-mono text-zinc-400">
+                        {"{{…}}"}
+                      </span>{" "}
+                      parts with your details before sending.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Message textarea */}
               <textarea
                 id="chat-message"
@@ -509,6 +726,7 @@ export default function ChatInput({
 
                   if (nextValue.trim()) {
                     setModelOpen(false);
+                    setTemplateOpen(false);
                   }
                 }}
                 onKeyDown={handleKeyDown}
