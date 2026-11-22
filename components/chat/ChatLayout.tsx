@@ -155,6 +155,16 @@ export default function ChatLayout() {
   const researchConversationIdRef = useRef<string | null>(null);
   const researchAdvanceFailuresRef = useRef(0);
 
+  // Step 5 pagination: sidebar "show more" (the cloud list loads
+  // 20 conversations per page) and MessageList "load earlier
+  // messages" (cloud messages load 100 per conversation).
+  const [hasMoreConversations, setHasMoreConversations] = useState(false);
+  const [loadingMoreConversations, setLoadingMoreConversations] =
+    useState(false);
+  const [hasEarlierMessages, setHasEarlierMessages] = useState(false);
+  const [loadingEarlierMessages, setLoadingEarlierMessages] =
+    useState(false);
+
   // The chat video has no reduced-motion guard (unlike AppShell's):
   // respect the preference here too, and pause while the tab is hidden.
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -191,6 +201,10 @@ export default function ChatLayout() {
   const conversationListRef = useRef<GuestChatMeta[]>([]);
   const messagesByIdRef = useRef<Record<string, GuestChatMessage[]>>({});
   const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Per-conversation "load earlier" availability (a full 100-message
+  // page means older messages may exist). Guests always hold the
+  // whole conversation locally, so theirs is always false.
+  const earlierAvailableRef = useRef(new Map<string, boolean>());
   // Persist bookkeeping: trailing-debounce timer + a flag for writes
   // that must skip the debounce (stream commits), + the 1 s interim
   // persist timer that bounds crash loss while a stream is active.
@@ -235,6 +249,8 @@ export default function ChatLayout() {
           ...prev,
           [id]: messages ?? [],
         }));
+        earlierAvailableRef.current.set(id, false);
+        setHasEarlierMessages(false);
         return;
       }
 
@@ -244,6 +260,8 @@ export default function ChatLayout() {
         return;
       }
       setMessagesById((prev) => ({ ...prev, [id]: fetched }));
+      earlierAvailableRef.current.set(id, fetched.length === 100);
+      setHasEarlierMessages(fetched.length === 100);
       // These messages just came from the cloud, so the next sync
       // pass must not re-upload them as if they were local changes.
       const meta = conversationListRef.current.find(
@@ -300,6 +318,8 @@ export default function ChatLayout() {
         knownCloudIdsRef.current = new Set(
           local.map((meta) => meta.id)
         );
+        setHasMoreConversations(false);
+        setHasEarlierMessages(false);
         cloudReadyRef.current = true;
         return;
       }
@@ -307,6 +327,8 @@ export default function ChatLayout() {
       if (list.length === 0) {
         syncedSnapshotsRef.current = new Map();
         knownCloudIdsRef.current = new Set();
+        setHasMoreConversations(false);
+        setHasEarlierMessages(false);
         cloudReadyRef.current = true;
         return;
       }
@@ -322,7 +344,12 @@ export default function ChatLayout() {
       if (cancelled) return;
       if (activeId !== null) {
         setMessagesById((prev) => ({ ...prev, [activeId]: messages }));
+        earlierAvailableRef.current.set(activeId, messages.length === 100);
+        setHasEarlierMessages(messages.length === 100);
+      } else {
+        setHasEarlierMessages(false);
       }
+      setHasMoreConversations(list.length === 20);
       syncedSnapshotsRef.current = new Map(
         sortedList.map((meta) => [
           meta.id,
@@ -567,6 +594,7 @@ export default function ChatLayout() {
     setMessagesById((prev) => ({ ...prev, [id]: [] }));
 
     setActiveConversationId(id);
+    setHasEarlierMessages(false);
     setSidebarOpen(false);
   }, [handleStop]);
 
@@ -577,6 +605,7 @@ export default function ChatLayout() {
       handleStop();
       setActiveConversationId(id);
       setSidebarOpen(false);
+      setHasEarlierMessages(earlierAvailableRef.current.get(id) ?? false);
       void ensureMessagesLoaded(id);
     },
     [handleStop, ensureMessagesLoaded]
@@ -636,6 +665,9 @@ export default function ChatLayout() {
 
         if (activeConversationId === id) {
           setActiveConversationId(remaining[0].id);
+          setHasEarlierMessages(
+            earlierAvailableRef.current.get(remaining[0].id) ?? false
+          );
           void ensureMessagesLoaded(remaining[0].id);
         }
 
@@ -661,6 +693,68 @@ export default function ChatLayout() {
       )
     );
   }, []);
+
+  // Sidebar "show more": fetch the next 20-conversation page,
+  // cursoring on the oldest loaded conversation's updated_at.
+  // De-dupe by id: a conversation updated between pages can
+  // straddle the boundary.
+  const handleLoadMoreConversations = useCallback(async () => {
+    if (!user || loadingMoreConversations) return;
+    setLoadingMoreConversations(true);
+    try {
+      const oldest =
+        conversationListRef.current[
+          conversationListRef.current.length - 1
+        ];
+      const page = await fetchConversationList(user.id, {
+        before: oldest?.updatedAt,
+      });
+      if (!page) return;
+      const existingIds = new Set(
+        conversationListRef.current.map((meta) => meta.id)
+      );
+      const fresh = page.filter((meta) => !existingIds.has(meta.id));
+      if (fresh.length > 0) {
+        setConversationList((prev) =>
+          sortConversations([...prev, ...fresh])
+        );
+      }
+      setHasMoreConversations(page.length === 20);
+    } finally {
+      setLoadingMoreConversations(false);
+    }
+  }, [user, loadingMoreConversations]);
+
+  // MessageList "load earlier messages": fetch the next 100-message
+  // page older than the oldest loaded message and prepend it.
+  const handleLoadEarlierMessages = useCallback(async () => {
+    const id = activeConversationIdRef.current;
+    if (!id || !user || loadingEarlierMessages) return;
+    const current = messagesByIdRef.current[id] ?? [];
+    const oldest = current[0];
+    if (!oldest?.createdAt) return;
+    setLoadingEarlierMessages(true);
+    try {
+      const page = await fetchConversationMessages(user.id, id, {
+        before: oldest.createdAt,
+      });
+      if (!page || page.length === 0) {
+        earlierAvailableRef.current.set(id, false);
+        setHasEarlierMessages(false);
+        return;
+      }
+      const existingIds = new Set(current.map((message) => message.id));
+      const fresh = page.filter((message) => !existingIds.has(message.id));
+      setMessagesById((prev) => ({
+        ...prev,
+        [id]: [...fresh, ...(prev[id] ?? [])],
+      }));
+      earlierAvailableRef.current.set(id, page.length === 100);
+      setHasEarlierMessages(page.length === 100);
+    } finally {
+      setLoadingEarlierMessages(false);
+    }
+  }, [user, loadingEarlierMessages]);
 
   // Open the account area: settings for a signed-in user (sign-out
   // lives there, with failure messaging), /auth for a guest. This
@@ -1569,6 +1663,9 @@ export default function ChatLayout() {
           >
             <ChatSidebar
               threads={sidebarThreads}
+              hasMoreThreads={user !== null && hasMoreConversations}
+              loadingMoreThreads={loadingMoreConversations}
+              onLoadMoreThreads={handleLoadMoreConversations}
               activeThread={activeConversationId ?? ""}
               onSelectThread={handleSelectConversation}
               onNewThread={handleNewConversation}
@@ -1680,6 +1777,9 @@ export default function ChatLayout() {
               >
                 <ChatSidebar
                   threads={sidebarThreads}
+                  hasMoreThreads={user !== null && hasMoreConversations}
+                  loadingMoreThreads={loadingMoreConversations}
+                  onLoadMoreThreads={handleLoadMoreConversations}
                   activeThread={activeConversationId ?? ""}
                   onSelectThread={handleSelectConversation}
                   onNewThread={handleNewConversation}
@@ -1961,6 +2061,9 @@ export default function ChatLayout() {
                     setOpenArtifact(artifact);
                     setSidePanel("artifact");
                   }}
+                  hasEarlierMessages={hasEarlierMessages}
+                  loadingEarlierMessages={loadingEarlierMessages}
+                  onLoadEarlierMessages={handleLoadEarlierMessages}
                 />
               )}
             </div>

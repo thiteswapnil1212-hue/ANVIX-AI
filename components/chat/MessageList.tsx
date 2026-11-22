@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowDown, Sparkles } from "lucide-react";
+import { ArrowDown, ChevronUp, Sparkles } from "lucide-react";
 import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import type { ChatArtifact } from "@/lib/artifacts";
@@ -40,6 +40,9 @@ interface MessageListProps {
   onForkMessage?: (messageId: string) => void;
   /** Open an artifact from a message in the side panel. */
   onOpenArtifact?: (artifact: ChatArtifact) => void;
+  hasEarlierMessages?: boolean;
+  loadingEarlierMessages?: boolean;
+  onLoadEarlierMessages?: () => void;
 }
 
 const BOTTOM_THRESHOLD = 120;
@@ -114,6 +117,9 @@ export default function MessageList({
   isTyping = false,
   onForkMessage,
   onOpenArtifact,
+  hasEarlierMessages = false,
+  loadingEarlierMessages = false,
+  onLoadEarlierMessages,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -125,12 +131,21 @@ export default function MessageList({
     messages[messages.length - 1]?.id ?? ""
   );
   const previousTypingRef = useRef(isTyping);
+  const previousFirstIdRef = useRef(messages[0]?.id ?? "");
+  // Scroll anchor recorded when "load earlier messages" is clicked:
+  // the layout effect restores the viewport after the prepend so
+  // the reader stays on the same message instead of jumping.
+  const prependAnchorRef = useRef<{
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
   const firstRenderRef = useRef(true);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const latestMessage = messages[messages.length - 1];
+  const firstMessageId = messages[0]?.id ?? "";
   const showingAssistant = latestMessage?.role === "assistant";
 
   const shouldShowTypingIndicator =
@@ -188,6 +203,17 @@ export default function MessageList({
     [scrollToBottom]
   );
 
+  const handleLoadEarlier = useCallback(() => {
+    const container = scrollRef.current;
+    if (container) {
+      prependAnchorRef.current = {
+        scrollHeight: container.scrollHeight,
+        scrollTop: container.scrollTop,
+      };
+    }
+    onLoadEarlierMessages?.();
+  }, [onLoadEarlierMessages]);
+
   const handleScroll = useCallback(() => {
     const nearBottom = isNearBottom();
 
@@ -205,15 +231,41 @@ export default function MessageList({
     const previousCount = previousCountRef.current;
     const previousLastId = previousLastIdRef.current;
     const wasTyping = previousTypingRef.current;
+    const previousFirstId = previousFirstIdRef.current;
 
     const newMessageAdded = messages.length > previousCount;
     const latestMessageChanged =
       (latestMessage?.id ?? "") !== previousLastId;
     const typingStarted = isTyping && !wasTyping;
 
+    // Older messages prepended by "load earlier": keep the viewport
+    // steady (scrollHeight grows by the prepended content) and do
+    // not count them as unread new messages. The last message must
+    // be unchanged — that distinguishes a prepend from switching to
+    // another conversation (whose first id also changes).
+    const anchor = prependAnchorRef.current;
+    prependAnchorRef.current = null;
+    const prepended =
+      anchor !== null &&
+      previousFirstId !== "" &&
+      firstMessageId !== previousFirstId &&
+      messages.length > previousCount &&
+      (latestMessage?.id ?? "") === previousLastId;
+
     previousCountRef.current = messages.length;
     previousLastIdRef.current = latestMessage?.id ?? "";
+    previousFirstIdRef.current = firstMessageId;
     previousTypingRef.current = isTyping;
+
+    if (prepended && anchor) {
+      const container = scrollRef.current;
+      if (container) {
+        container.scrollTop =
+          anchor.scrollTop +
+          (container.scrollHeight - anchor.scrollHeight);
+      }
+      return;
+    }
 
     if (firstRenderRef.current) {
       firstRenderRef.current = false;
@@ -242,10 +294,20 @@ export default function MessageList({
   }, [
     messages.length,
     latestMessage?.id,
+    firstMessageId,
     isTyping,
     scheduleScroll,
     updateScrollButton,
   ]);
+
+  // A "load earlier" click that returned no older messages
+  // leaves the anchor set with nothing to restore; clear it so a
+  // later conversation switch cannot mistake it for a prepend.
+  useEffect(() => {
+    if (!hasEarlierMessages) {
+      prependAnchorRef.current = null;
+    }
+  }, [hasEarlierMessages]);
 
   // Observe actual content size changes. This catches streamed
   // text, images, and other layout changes without relying on
@@ -325,6 +387,30 @@ export default function MessageList({
           ref={contentRef}
           className="mx-auto flex w-full max-w-5xl flex-col gap-7 pb-4 sm:gap-9"
         >
+          {hasEarlierMessages && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleLoadEarlier}
+                disabled={loadingEarlierMessages}
+                className="
+                  inline-flex items-center gap-1.5
+                  rounded-full border border-white/[0.12]
+                  bg-[#19191D]/95 px-3.5 py-2
+                  text-xs font-medium text-zinc-300
+                  transition hover:border-[#D4AF37]/40
+                  hover:text-[#D4AF37]
+                  disabled:opacity-50
+                "
+              >
+                <ChevronUp className="h-3.5 w-3.5" strokeWidth={2} />
+                {loadingEarlierMessages
+                  ? "Loading earlier messages…"
+                  : "Load earlier messages"}
+              </button>
+            </div>
+          )}
+
           {messages.map((message) => (
             <MessageRow
               key={message.id}

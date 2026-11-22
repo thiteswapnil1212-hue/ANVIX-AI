@@ -57,6 +57,9 @@ interface ChatSidebarProps {
   onTogglePin?: (id: string) => void;
   onSetFolder?: (id: string, folder: string | null) => void;
   onSetTags?: (id: string, tags: string[]) => void;
+  hasMoreThreads?: boolean;
+  loadingMoreThreads?: boolean;
+  onLoadMoreThreads?: () => void;
   onCollapse?: (collapsed: boolean) => void;
   onOpenSettings?: () => void;
   onOpenAccount?: () => void;
@@ -110,6 +113,9 @@ function ChatSidebar({
   onTogglePin = () => {},
   onSetFolder = () => {},
   onSetTags = () => {},
+  hasMoreThreads = false,
+  loadingMoreThreads = false,
+  onLoadMoreThreads = () => {},
   onCollapse = () => {},
   onOpenSettings = () => {},
   onOpenAccount = () => {},
@@ -1062,6 +1068,25 @@ function ChatSidebar({
                   </div>
                 </section>
               ))}
+
+              {hasMoreThreads && (
+                <button
+                  type="button"
+                  onClick={onLoadMoreThreads}
+                  disabled={loadingMoreThreads}
+                  className="
+                    w-full rounded-xl border border-[#2A2A2E]
+                    bg-[#151518] px-3 py-2.5 text-xs font-medium
+                    text-zinc-400 transition
+                    hover:border-[#D4AF37]/30 hover:text-zinc-200
+                    disabled:opacity-50
+                  "
+                >
+                  {loadingMoreThreads
+                    ? "Loading more chats…"
+                    : "Show more chats"}
+                </button>
+              )}
             </div>
           ) : hasThreads ? (
             <div className="px-2 py-12 text-center">
