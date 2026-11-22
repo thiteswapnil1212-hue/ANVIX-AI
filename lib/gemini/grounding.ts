@@ -38,18 +38,25 @@ export function groundingTools(webEnabled: boolean): Tool[] {
 }
 
 /**
- * True when a failed attempt is worth retrying without grounding
- * tools: the API rejected the request (HTTP 400) while tools were
- * attached. A 400 with tools attached means the tools were the
- * problem, not the prompt — the live API rejects `{ googleSearch,
- * urlContext }` on these models, while the same model answers fine
- * without them. The SDK attaches the numeric status to fetch
- * errors (`GoogleGenerativeAIFetchError.status`), so the check is
- * exact; anything else (429, 5xx, no status) is not a tool
- * rejection and keeps the existing fallback behaviour.
+ * True when a failed grounded attempt is worth retrying without
+ * grounding tools: any failure before output while tools were
+ * attached — except auth/config errors (401/403/404), which can
+ * never succeed without tools either.
+ *
+ * Evidence (live, 2026-11-22): a grounded call fails with 429
+ * quota errors while the SAME model answers fine without tools,
+ * deterministically — web:true 0/8, web:false 8/8 across both
+ * modes, minutes apart, on the live deployment. No 400 was ever
+ * observed in the runtime logs, so the earlier 400-only rule
+ * never fired. The retry must therefore not depend on the
+ * failure's status: the plain call succeeds where the grounded
+ * one fails. The SDK attaches the numeric status to fetch errors
+ * (`GoogleGenerativeAIFetchError.status`), so the auth/config
+ * exclusion is exact.
  */
-export function isGroundingToolRejection(error: unknown): boolean {
-  return classifyGeminiFailure(error).status === 400;
+export function shouldDegradeGrounding(error: unknown): boolean {
+  const status = classifyGeminiFailure(error).status;
+  return status !== 401 && status !== 403 && status !== 404;
 }
 
 type RawGroundingChunk = {

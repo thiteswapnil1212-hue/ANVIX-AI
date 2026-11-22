@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   extractGroundingSources,
   groundingTools,
-  isGroundingToolRejection,
+  shouldDegradeGrounding,
   mergeGroundingSources,
 } from "./grounding.ts";
 
@@ -75,32 +75,43 @@ test("mergeGroundingSources dedupes by uri, first title wins", () => {
   ]);
 });
 
-test("isGroundingToolRejection flags only a 400 (tools rejected)", () => {
+test("shouldDegradeGrounding retries any pre-emit failure except auth/config errors", () => {
   // Shape of the SDK's fetch error: numeric status on the error.
-  const err400 = Object.assign(
-    new Error(
-      "Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent: [400 Bad Request] Invalid argument"
-    ),
-    { status: 400 }
-  );
-  assert.equal(isGroundingToolRejection(err400), true);
+  const withStatus = (message: string, status: number) =>
+    Object.assign(new Error(message), { status });
 
-  const err429 = Object.assign(new Error("429 RESOURCE_EXHAUSTED"), {
-    status: 429,
-  });
-  assert.equal(isGroundingToolRejection(err429), false);
-
-  const err500 = Object.assign(new Error("500 Internal error"), {
-    status: 500,
-  });
-  assert.equal(isGroundingToolRejection(err500), false);
-
-  // A 400 in the message alone, without a numeric status, is not
-  // trusted — the SDK always attaches the status to fetch errors.
+  // 400 tool rejection, 429 quota, 5xx — all degrade: the plain
+  // call succeeds where the grounded one fails (live, 2026-11-22).
   assert.equal(
-    isGroundingToolRejection(new Error("[400 Bad Request] nope")),
+    shouldDegradeGrounding(withStatus("400 Bad Request", 400)),
+    true
+  );
+  assert.equal(
+    shouldDegradeGrounding(withStatus("429 RESOURCE_EXHAUSTED", 429)),
+    true
+  );
+  assert.equal(
+    shouldDegradeGrounding(withStatus("500 Internal error", 500)),
+    true
+  );
+
+  // No numeric status at all still degrades — nothing about the
+  // error says the request can never succeed without tools.
+  assert.equal(shouldDegradeGrounding(new Error("boom")), true);
+  assert.equal(shouldDegradeGrounding(undefined), true);
+
+  // Auth/config errors can never succeed without tools either, so
+  // no retry: the fallback / final error handles them as before.
+  assert.equal(
+    shouldDegradeGrounding(withStatus("401 Unauthorized", 401)),
     false
   );
-  assert.equal(isGroundingToolRejection(new Error("boom")), false);
-  assert.equal(isGroundingToolRejection(undefined), false);
+  assert.equal(
+    shouldDegradeGrounding(withStatus("403 Forbidden", 403)),
+    false
+  );
+  assert.equal(
+    shouldDegradeGrounding(withStatus("404 Not Found", 404)),
+    false
+  );
 });

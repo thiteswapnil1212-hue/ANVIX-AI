@@ -19,8 +19,8 @@ import { splitChunkParts } from "@/lib/gemini/chat-stream";
 import {
   extractGroundingSources,
   groundingTools,
-  isGroundingToolRejection,
   mergeGroundingSources,
+  shouldDegradeGrounding,
   type GroundingSource,
 } from "@/lib/gemini/grounding";
 import {
@@ -482,12 +482,13 @@ export async function POST(request: Request) {
       // controller ONLY while it is the race winner. The first chunk
       // claims the win; the loser returns "aborted" without emitting
       // anything, so the client never sees duplicated output.
-      // A grounded attempt the API rejects with a 400 retries the
+      // A grounded attempt that fails before emitting retries the
       // SAME model once without grounding tools before reporting
-      // failure — the live API rejects the googleSearch/urlContext
-      // tools on these models while plain chat works. The retry only
-      // happens before any output (a retry after partial output
-      // would duplicate the answer).
+      // failure — live (2026-11-22) a grounded call fails with 429
+      // quota errors while the same model answers fine without
+      // tools, deterministically. The retry only happens before any
+      // output (a retry after partial output would duplicate the
+      // answer).
       const runAttempt = async (
         modelId: string,
         signal: AbortSignal,
@@ -585,17 +586,23 @@ export async function POST(request: Request) {
             return { kind: "aborted" };
           }
 
-          // Grounding degrade: the API rejected the request while
-          // tools were attached — retry the same model without
-          // them. Only before any output has been emitted.
+          // Grounding degrade: the grounded attempt failed before
+          // emitting — retry the same model without tools. Any
+          // pre-emit failure qualifies (400 tool rejection, 429
+          // quota, 5xx): the plain call succeeds where the
+          // grounded one fails. Only before any output has been
+          // emitted.
           if (
             attemptTools &&
             !emittedAnything &&
-            isGroundingToolRejection(error)
+            shouldDegradeGrounding(error)
           ) {
             console.warn(
-              "[ANVIX CHAT] Grounding tools rejected (400), retrying without tools",
-              { model: modelId }
+              "[ANVIX CHAT] Grounded attempt failed, retrying without tools",
+              {
+                model: modelId,
+                status: classifyGeminiFailure(error).status,
+              }
             );
             return runAttempt(modelId, signal, false);
           }
