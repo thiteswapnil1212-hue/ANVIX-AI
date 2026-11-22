@@ -24,27 +24,11 @@ export default function Hero() {
         lg:py-24
       "
     >
-      {/* ================= BACKGROUND VIDEO ================= */}
-
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="metadata"
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          h-full
-          w-full
-          object-cover
-          opacity-[0.12]
-        "
-      >
-        <source src="/anvix-bg.mp4" type="video/mp4" />
-      </video>
+      {/* ================= BACKGROUND VIDEO (removed) ================= */}
+      {/* The hero video played at 12% opacity under an 80% dark overlay —
+          effectively invisible — while costing a full ~12 MB download and
+          1080p decode on every landing-page visit. The gold glows and
+          dark overlay below reproduce the same visible look. */}
 
       {/* Dark overlay */}
 
