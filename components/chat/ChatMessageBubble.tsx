@@ -18,6 +18,7 @@ import {
   FileText,
   GitFork,
   Image as ImageIcon,
+  Scale,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import GeneratedImageView from "./GeneratedImageView";
 import ListenButton from "./ListenButton";
+import ComparePanel from "./ComparePanel";
 
 interface ChatMessageBubbleProps {
   role: "assistant" | "user";
@@ -39,6 +41,8 @@ interface ChatMessageBubbleProps {
   onFork?: () => void;
   /** A Pollinations image generated for this message (assistant only). */
   generatedImage?: GeneratedImage;
+  /** The user prompt this answer replies to (assistant only). */
+  comparePrompt?: string;
 }
 
 function ThinkingBlock({ thinking }: { thinking: string }) {
@@ -408,8 +412,10 @@ function ChatMessageBubble({
   attachments,
   onFork,
   generatedImage,
+  comparePrompt,
 }: ChatMessageBubbleProps) {
   const isAssistant = role === "assistant";
+  const [compareOpen, setCompareOpen] = useState(false);
   const isEmptyAssistant =
     isAssistant &&
     !content.trim() &&
@@ -599,6 +605,27 @@ function ChatMessageBubble({
             {isAssistant && content.trim() ? (
               <ListenButton text={content} />
             ) : null}
+            {isAssistant && comparePrompt?.trim() ? (
+              <button
+                type="button"
+                onClick={() => setCompareOpen((open) => !open)}
+                aria-expanded={compareOpen}
+                aria-label="Compare with a second model"
+                title="Compare with a second model (your own OpenRouter key)"
+                className="
+                  inline-flex min-h-8 items-center justify-center gap-1.5
+                  rounded-lg border border-white/10 bg-white/[0.04]
+                  px-2.5 text-xs font-medium text-zinc-400
+                  transition-colors hover:border-[#D4AF37]/30
+                  hover:bg-[#D4AF37]/[0.08] hover:text-[#E9C96B]
+                  focus-visible:outline-none focus-visible:ring-2
+                  focus-visible:ring-[#D4AF37]/60
+                "
+              >
+                <Scale className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Compare</span>
+              </button>
+            ) : null}
             <CopyButton
               text={content}
               label="Copy message"
@@ -609,6 +636,10 @@ function ChatMessageBubble({
               "
             />
           </div>
+
+          {isAssistant && compareOpen && comparePrompt?.trim() ? (
+            <ComparePanel prompt={comparePrompt} />
+          ) : null}
         </div>
       </div>
 

@@ -28,6 +28,8 @@ interface Message {
   attachments?: { name: string; mimeType: string }[];
   /** A Pollinations image generated for this message (assistant only). */
   generatedImage?: GeneratedImage;
+  /** The user prompt this answer replies to (assistant only). */
+  comparePrompt?: string;
 }
 
 interface MessageListProps {
@@ -60,6 +62,7 @@ const MessageRow = memo(function MessageRow({
             : undefined
         }
         generatedImage={message.generatedImage}
+        comparePrompt={message.comparePrompt}
       />
     </div>
   );

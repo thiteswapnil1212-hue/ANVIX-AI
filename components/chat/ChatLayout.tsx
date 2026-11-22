@@ -55,6 +55,8 @@ type Message = {
   attachments?: { name: string; mimeType: string }[];
   /** A Pollinations image generated for this message (assistant only). */
   generatedImage?: GeneratedImage;
+  /** The user prompt this answer replies to (assistant only). */
+  comparePrompt?: string;
 };
 
 type GuestChatConversation = {
@@ -806,6 +808,7 @@ export default function ChatLayout() {
       role: "assistant",
       content: "",
       createdAt: createTimestamp(),
+      comparePrompt: trimmedPrompt,
     };
 
     setConversations((prev) =>
