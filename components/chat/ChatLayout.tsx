@@ -1031,6 +1031,14 @@ export default function ChatLayout() {
             <source src="/anvix-bg.mp4" type="video/mp4" />
           </video>
 
+          {/* Dark scrim: the raw video is bright and busy, and without
+              this the empty-state text washed out over the bright
+              circuit-board frames. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[#09090B]/70"
+          />
+
           <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
             {/* MOBILE HEADER */}
             <header
