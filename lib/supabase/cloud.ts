@@ -161,6 +161,124 @@ export async function fetchConversations(
   }));
 }
 
+export interface CloudConversationMeta {
+  id: string;
+  title: string;
+  preview: string;
+  pinned?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// List-first loading (perf): fetch conversation metadata only, newest
+// first, paginated. Messages load on demand per conversation via
+// fetchConversationMessages, so sign-in no longer downloads the whole
+// history (messages included) up front.
+export async function fetchConversationList(
+  userId: string,
+  options?: { limit?: number; before?: string }
+): Promise<CloudConversationMeta[] | null> {
+  if (!supabase) return null;
+
+  const limit = options?.limit ?? 20;
+
+  let query = supabase
+    .from("conversations")
+    .select("id, title, preview, pinned, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (options?.before) {
+    query = query.lt("updated_at", options.before);
+  }
+
+  const { data, error } = await query.range(0, limit - 1);
+
+  if (error || !data) {
+    console.warn("Unable to load cloud conversation list.", error);
+    return null;
+  }
+
+  return (data as ConversationRow[]).map((row) => ({
+    id: row.id,
+    title: row.title,
+    preview: row.preview,
+    pinned: row.pinned,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+// Messages for one conversation, latest `limit` first (fetched newest
+// first, then reversed to chronological order). Pass `before` (the
+// createdAt of the oldest loaded message) to page older messages.
+export async function fetchConversationMessages(
+  userId: string,
+  conversationId: string,
+  options?: { limit?: number; before?: string }
+): Promise<CloudMessage[] | null> {
+  if (!supabase) return null;
+
+  const limit = options?.limit ?? 100;
+
+  let query = supabase
+    .from("messages")
+    .select("id, conversation_id, role, content, created_at")
+    .eq("user_id", userId)
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false });
+
+  if (options?.before) {
+    query = query.lt("created_at", options.before);
+  }
+
+  const { data, error } = await query.range(0, limit - 1);
+
+  if (error || !data) {
+    console.warn("Unable to load cloud messages.", error);
+    return null;
+  }
+
+  return ((data as MessageRow[]) ?? [])
+    .map((row) => ({
+      id: row.id,
+      role: row.role,
+      content: row.content,
+      createdAt: row.created_at,
+    }))
+    .reverse();
+}
+
+// Upsert the conversation row only (no message rewrite). Use for
+// title/pin changes; a rename used to rewrite all of that
+// conversation's messages through syncConversation.
+export async function syncConversationMeta(
+  userId: string,
+  conversation: CloudConversationMeta
+): Promise<boolean> {
+  if (!supabase) return false;
+
+  const { error } = await supabase.from("conversations").upsert(
+    {
+      id: conversation.id,
+      user_id: userId,
+      title: conversation.title,
+      preview: conversation.preview,
+      pinned: Boolean(conversation.pinned),
+      created_at: conversation.createdAt,
+      updated_at: conversation.updatedAt,
+    },
+    { onConflict: "id" }
+  );
+
+  if (error) {
+    console.warn("Unable to sync conversation metadata.", error);
+    return false;
+  }
+
+  return true;
+}
+
 export async function upsertConversation(
   userId: string,
   conversation: CloudConversation
