@@ -166,10 +166,7 @@ export default function ChatInput({
   );
 
   useEffect(() => {
-    if (!user) {
-      setSavedAssistants([]);
-      return;
-    }
+    if (!user) return;
     let cancelled = false;
     void (async () => {
       const rows = await fetchAssistants(user.id);
@@ -1023,7 +1020,7 @@ export default function ChatInput({
                   "
                 >
                   <option value="none">No assistant</option>
-                  {savedAssistants.length > 0 && (
+                  {user && savedAssistants.length > 0 && (
                     <optgroup label="Your assistants">
                       {savedAssistants.map((assistant) => (
                         <option

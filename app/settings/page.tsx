@@ -196,10 +196,7 @@ export default function SettingsPage() {
   // Custom instructions + memories load with the account (signed-in
   // only — guests have no stored profile to read from).
   useEffect(() => {
-    if (!user) {
-      setMemories(null);
-      return;
-    }
+    if (!user) return;
     let cancelled = false;
 
     void (async () => {

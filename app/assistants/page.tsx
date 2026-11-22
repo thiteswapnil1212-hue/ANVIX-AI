@@ -83,9 +83,29 @@ function AssistantsPageContent() {
     setAssistants(rows);
   }, [user]);
 
+  // Load once per account (the effect inlines the fetch instead of
+  // calling `load` — calling a state-setting callback from an effect
+  // trips the set-state-in-effect lint rule).
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      const rows = await fetchAssistants(user.id);
+      if (cancelled) return;
+      if (rows === null) {
+        setLoadError(
+          "Could not load your assistants. If the new database tables have not been applied yet, saving is unavailable."
+        );
+        setAssistants([]);
+        return;
+      }
+      setLoadError("");
+      setAssistants(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!shareToken) return;
@@ -99,7 +119,7 @@ function AssistantsPageContent() {
     };
   }, [shareToken]);
 
-  const useInChat = (selection: StoredAssistantSelection) => {
+  const pickForChat = (selection: StoredAssistantSelection) => {
     storeAssistantSelection(selection);
   };
 
@@ -281,7 +301,7 @@ function AssistantsPageContent() {
                   <Link
                     href="/chat"
                     onClick={() =>
-                      useInChat({
+                      pickForChat({
                         id: null,
                         name: starter.name,
                         instructions: starter.instructions,
@@ -376,7 +396,7 @@ function AssistantsPageContent() {
                     <Link
                       href="/chat"
                       onClick={() =>
-                        useInChat({
+                        pickForChat({
                           id: assistant.id,
                           name: assistant.name,
                           instructions: assistant.instructions,
