@@ -27,8 +27,11 @@ const slugifyProjectName = (name: string) =>
     .replace(/(^-|-$)/g, "");
 
 type StoredProject = {
+  id?: string;
   name?: string;
   framework?: string;
+  createdAt?: string;
+  updatedAt?: string;
   files?: Array<{
     path: string;
     content: string;
@@ -98,7 +101,27 @@ export default function DashboardPage() {
 
   const projectFileCount = project?.files?.length ?? 0;
   const projectName = project?.name || "Your project";
-  const framework = project?.framework || "Next.js";
+
+  // A cloud project opened from the dashboard is stored locally under
+  // the same id, so the same project would otherwise appear twice
+  // (local card + cloud row). Hide the cloud copy.
+  const visibleCloudProjects = cloudProjects.filter(
+    (cloudProject) => cloudProject.id !== project?.id
+  );
+
+  // The local copy carries a real timestamp when it was stored; when
+  // it has none, say where it lives instead of a fake date.
+  const projectUpdatedAt = (() => {
+    const raw = project?.updatedAt ?? project?.createdAt;
+    if (!raw) return "Saved in this browser";
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return "Saved in this browser";
+    return `Updated ${date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })}`;
+  })();
 
   return (
     <AppShell>
@@ -112,7 +135,7 @@ export default function DashboardPage() {
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight text-white">
-              Welcome back
+              {user ? "Welcome back" : "Your workspace"}
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
@@ -196,49 +219,28 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {(project || cloudProjects.length > 0) && (
+              {(project || visibleCloudProjects.length > 0) && (
                 <span className="hidden rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-zinc-500 sm:inline-flex">
-                  {cloudProjects.length > 0
-                    ? `${cloudProjects.length} saved project${cloudProjects.length === 1 ? "" : "s"}`
+                  {visibleCloudProjects.length > 0
+                    ? `${visibleCloudProjects.length} saved project${visibleCloudProjects.length === 1 ? "" : "s"}`
                     : `${projectFileCount} files`}
                 </span>
               )}
             </div>
 
-            {project || cloudProjects.length > 0 ? (
+            {project || visibleCloudProjects.length > 0 ? (
               <div className="grid gap-4">
                 {project && (
-                  <>
-                <ProjectCard
-                  title={projectName}
-                  description="AI-generated project in your ANVIX workspace."
-                  updatedAt="Available in workspace"
-                  href={`/workspace/${slugifyProjectName(projectName)}`}
-                  accent="Active"
-                />
-
-                <Link
-                  href={`/workspace/${slugifyProjectName(projectName)}`}
-                  className="group flex items-center justify-between rounded-2xl border border-zinc-800/70 bg-[#0D0D0D] px-4 py-3 transition hover:border-zinc-700"
-                >
-                  <div className="flex items-center gap-3">
-                    <Code2 className="h-4 w-4 text-zinc-500" />
-                    <div>
-                      <p className="text-sm font-medium text-zinc-200">
-                        {projectName}
-                      </p>
-                      <p className="mt-0.5 text-xs text-zinc-600">
-                        {framework} · {projectFileCount} files
-                      </p>
-                    </div>
-                  </div>
-
-                  <ArrowRight className="h-4 w-4 text-zinc-600 transition group-hover:translate-x-1 group-hover:text-[#D4AF37]" />
-                </Link>
-                  </>
+                  <ProjectCard
+                    title={projectName}
+                    description="AI-generated project in your ANVIX workspace."
+                    updatedAt={projectUpdatedAt}
+                    href={`/workspace/${slugifyProjectName(projectName)}`}
+                    accent="Active"
+                  />
                 )}
 
-                {cloudProjects.map((cloudProject) => (
+                {visibleCloudProjects.map((cloudProject) => (
                   <button
                     key={cloudProject.id}
                     type="button"
@@ -359,7 +361,7 @@ export default function DashboardPage() {
               >
                 <span className="flex items-center gap-2">
                   <Terminal className="h-3.5 w-3.5" />
-                  Start an agent session
+                  Start a new build
                 </span>
 
                 <ArrowRight className="h-3.5 w-3.5 text-[#D4AF37]" />
