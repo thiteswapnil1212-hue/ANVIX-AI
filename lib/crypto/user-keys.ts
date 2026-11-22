@@ -1,17 +1,18 @@
 /**
  * AES-256-GCM encryption for per-user API keys (BYOK).
  *
- * MERGE POINT — read this when the BYOK builder lands: the BYOK work
- * owns the `user_api_keys` table (encrypted key per user, server-side
- * only). This helper is the shared crypto both lanes must use — the
- * BYOK builder should import these same functions instead of writing
- * its own, so a key encrypted by one lane decrypts in the other.
- * Until that table exists, `/api/compare` accepts a caller-supplied
- * key per request (used once, never stored or logged) or an
- * `encryptedKey` blob produced by `encryptUserKey` — the route
- * decrypts it with the same server key the BYOK table will use.
+ * MERGE NOTE (2026-11-22): the BYOK lane landed with its own crypto
+ * module (lib/byok/crypto.ts) instead of importing these functions,
+ * so the two helpers stay separate — but they now read the SAME env
+ * var (`BYOK_ENCRYPTION_KEY`), so one server secret encrypts keys
+ * for both lanes and a key encrypted by one lane decrypts in the
+ * other. Until the `user_api_keys` table exists, `/api/compare`
+ * accepts a caller-supplied key per request (used once, never stored
+ * or logged) or an `encryptedKey` blob produced by `encryptUserKey` —
+ * the route decrypts it with the same server key the BYOK table
+ * will use.
  *
- * The encryption key comes from `ANVIX_KEY_ENCRYPTION_KEY`: a
+ * The encryption key comes from `BYOK_ENCRYPTION_KEY`: a
  * base64-encoded 32-byte key. It must be a server-only env var —
  * never `NEXT_PUBLIC_*`, never shipped to the browser, never logged.
  * Without it, encryption/decryption refuse to run (fail closed).
@@ -32,10 +33,10 @@ function getCrypto(): Crypto {
 }
 
 function getEncryptionKeyBytes(): Uint8Array {
-  const raw = process.env.ANVIX_KEY_ENCRYPTION_KEY;
+  const raw = process.env.BYOK_ENCRYPTION_KEY;
   if (!raw) {
     throw new Error(
-      "ANVIX_KEY_ENCRYPTION_KEY is not configured."
+      "BYOK_ENCRYPTION_KEY is not configured."
     );
   }
 
@@ -43,12 +44,12 @@ function getEncryptionKeyBytes(): Uint8Array {
   try {
     bytes = Uint8Array.from(Buffer.from(raw, "base64"));
   } catch {
-    throw new Error("ANVIX_KEY_ENCRYPTION_KEY is not valid base64.");
+    throw new Error("BYOK_ENCRYPTION_KEY is not valid base64.");
   }
 
   if (bytes.length !== KEY_BYTES) {
     throw new Error(
-      "ANVIX_KEY_ENCRYPTION_KEY must be 32 bytes (base64)."
+      "BYOK_ENCRYPTION_KEY must be 32 bytes (base64)."
     );
   }
 
