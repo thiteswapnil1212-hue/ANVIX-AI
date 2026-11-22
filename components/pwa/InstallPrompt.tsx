@@ -44,7 +44,7 @@ export default function InstallPrompt() {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onAppInstalled);
     };
-  }, []);
+  }, [installed]);
 
   if (installed) {
     return (
