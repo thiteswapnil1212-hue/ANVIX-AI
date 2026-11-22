@@ -145,42 +145,28 @@ export async function generateProjectText(
   withTimeoutFn: <T>(promise: Promise<T>, timeoutMs: number) => Promise<T>,
   timeoutMs: number
 ) {
-  let lastError: unknown;
+  // Single attempt (perf): the caller owns the retry policy. Retrying
+  // the same model on a 429/503 is the lowest-yield move — that model
+  // is overloaded, so the caller tries the other model instead. Only
+  // a timeout is retried, by the caller.
+  try {
+    const result = await withTimeoutFn(
+      model.generateContent(`The user's prompt is:\n\n${prompt}`),
+      timeoutMs
+    );
 
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      const result = await withTimeoutFn(
-        model.generateContent(`The user's prompt is:\n\n${prompt}`),
-        timeoutMs
-      );
-
-      return await result.response.text();
-    } catch (error) {
-      lastError = error;
-      const failure = classifyGeminiFailure(error);
-      console.warn("[ANVIX BUILD] Model attempt failed", {
-        model: modelName,
-        attempt,
-        failureCategory: failure.category,
-        httpStatus: failure.status ?? null,
-        retryable: failure.retryable,
-        reason: failure.message,
-      });
-
-      if (!failure.retryable) {
-        throw error;
-      }
-
-      if (attempt < 2) {
-        await delay(MODEL_RETRY_DELAYS_MS[attempt - 1] ?? 500);
-        continue;
-      }
-
-      throw error;
-    }
+    return await result.response.text();
+  } catch (error) {
+    const failure = classifyGeminiFailure(error);
+    console.warn("[ANVIX BUILD] Model attempt failed", {
+      model: modelName,
+      failureCategory: failure.category,
+      httpStatus: failure.status ?? null,
+      retryable: failure.retryable,
+      reason: failure.message,
+    });
+    throw error;
   }
-
-  throw lastError ?? new Error("Gemini request failed");
 }
 
 export type GeminiModelFactory = (
@@ -267,13 +253,24 @@ export async function generateProjectTextWithFallback(
           reason: message,
         });
 
-        const shouldRetryModel = failure.retryable || /Gemini returned malformed JSON|Generated project|Gemini response/.test(message);
+        const shouldTryNextModel =
+          failure.retryable ||
+          /Gemini returned malformed JSON|Generated project|Gemini response/.test(
+            message
+          );
 
-        if (!shouldRetryModel) {
+        if (!shouldTryNextModel) {
           throw error;
         }
 
-        if (attempt < 2) {
+        // Retry the SAME model only on a timeout (the model was slow,
+        // not broken). Any other retryable failure moves to the next
+        // model — retrying the same overloaded model is the
+        // lowest-yield move. Worst case is now 2 models x 1 attempt
+        // (2 x 60 s + autofix ≈ 180 s); a timeout retry adds one more
+        // 60 s attempt per model at most, still inside the 300 s
+        // budget from step 3.7.
+        if (failure.category === "timeout" && attempt < 2) {
           await delay(MODEL_RETRY_DELAYS_MS[attempt - 1] ?? 500);
           continue;
         }

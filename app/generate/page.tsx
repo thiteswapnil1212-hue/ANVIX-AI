@@ -62,7 +62,7 @@ interface StreamBuildCallbacks {
 /**
  * Consume /api/build/stream (SSE). Resolves with the finished project
  * on the done event; throws on any error event or a stream that ends
- * early, so the caller can fall back to the classic endpoint.
+ * early, so the caller can retry the stream or show the error.
  */
 async function streamBuildProject(
   prompt: string,
@@ -148,6 +148,45 @@ async function streamBuildProject(
   );
 }
 
+/**
+ * Classic one-shot build (/api/build): full generation, then autofix,
+ * zero output until done. Kept alive server-side for non-browser
+ * clients and as a manual option in the error state — the UI no
+ * longer falls back to it silently (step 3.11).
+ */
+async function classicBuildProject(
+  prompt: string
+): Promise<BuildApiResponse> {
+  const response = await fetch("/api/build", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await getAuthHeaders()),
+    },
+    body: JSON.stringify({ prompt }),
+  });
+
+  let data: BuildApiResponse;
+  try {
+    data = (await response.json()) as BuildApiResponse;
+  } catch {
+    throw new Error(
+      "The server returned an invalid response. Please try again."
+    );
+  }
+
+  if (!response.ok || !data.success) {
+    const message =
+      data.success === false && data.error
+        ? data.error
+        : "Unable to generate your project. Please try again.";
+
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 export default function GeneratePage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -158,6 +197,11 @@ export default function GeneratePage() {
   const [streamedFiles, setStreamedFiles] = useState<string[]>([]);
   const [streamNote, setStreamNote] = useState("");
   const [streamAutoFix, setStreamAutoFix] = useState<string | null>(null);
+  // Offered in the error state after the stream fails twice: the
+  // classic one-shot build is a manual choice now, never a silent
+  // fallback (step 3.11).
+  const [showClassicBuildOption, setShowClassicBuildOption] =
+    useState(false);
 
   const submissionLock = useRef(false);
 
@@ -192,78 +236,15 @@ export default function GeneratePage() {
     []
   );
 
-  const handleGenerate = useCallback(async () => {
-    if (
-      submissionLock.current ||
-      isPromptEmpty ||
-      isPromptTooLong
-    ) {
-      return;
-    }
-
-    submissionLock.current = true;
-    setIsSubmitting(true);
-    setErrorMessage("");
-
-    try {
-      setStreamedFiles([]);
-      setStreamNote("");
-      setStreamAutoFix(null);
-
-      let data: BuildApiResponse | null = null;
-
-      try {
-        const streamed = await streamBuildProject(trimmedPrompt, {
-          onFile: (path) =>
-            setStreamedFiles((prev) =>
-              prev.includes(path) ? prev : [...prev, path]
-            ),
-          onStatus: (message) => setStreamNote(message),
-        });
-        data = streamed;
-        setStreamAutoFix(
-          (streamed as BuildProjectResponse & { autoFixNote?: string | null })
-            .autoFixNote ?? null
-        );
-      } catch {
-        // Stream unavailable or failed before producing a project —
-        // fall back to the classic one-shot endpoint below.
-        data = null;
-      }
-
-      if (!data) {
-        const response = await fetch("/api/build", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(await getAuthHeaders()),
-          },
-          body: JSON.stringify({
-            prompt: trimmedPrompt,
-          }),
-        });
-
-        try {
-          data = (await response.json()) as BuildApiResponse;
-        } catch {
-          throw new Error(
-            "The server returned an invalid response. Please try again."
-          );
-        }
-
-        if (!response.ok || !data.success) {
-          const message =
-            data.success === false && data.error
-              ? data.error
-              : "Unable to generate your project. Please try again.";
-
-          throw new Error(message);
-        }
-      }
-
-      if (!data.project?.name) {
+  // Shared completion for both build paths: validate, persist
+  // locally (+ cloud for signed-in users), then open the workspace.
+  const completeBuild = useCallback(
+    (data: BuildApiResponse) => {
+      if (!data.success || !data.project?.name) {
         throw new Error(
-          "The project response is incomplete. Please try again."
+          data.success === false && data.error
+            ? data.error
+            : "The project response is incomplete. Please try again."
         );
       }
 
@@ -272,10 +253,7 @@ export default function GeneratePage() {
         JSON.stringify(data.project)
       );
 
-      localStorage.setItem(
-        AGENT_PROMPT_STORAGE_KEY,
-        trimmedPrompt
-      );
+      localStorage.setItem(AGENT_PROMPT_STORAGE_KEY, trimmedPrompt);
 
       // Signed-in users also get the project in their account, so it
       // appears on the dashboard from any device. Fire-and-forget: the
@@ -301,9 +279,97 @@ export default function GeneratePage() {
         });
       }
 
-      router.push(
-        `/workspace/${createProjectSlug(data.project.name)}`
-      );
+      router.push(`/workspace/${createProjectSlug(data.project.name)}`);
+    },
+    [router, trimmedPrompt, user]
+  );
+
+  // Manual classic-build option from the error state: the classic
+  // one-shot endpoint is kept alive server-side for non-browser
+  // clients, and offered here as an explicit choice — never a silent
+  // fallback.
+  const handleClassicBuild = useCallback(async () => {
+    if (submissionLock.current || isPromptEmpty || isPromptTooLong) {
+      return;
+    }
+
+    submissionLock.current = true;
+    setIsSubmitting(true);
+    setErrorMessage("");
+    setShowClassicBuildOption(false);
+
+    try {
+      const data = await classicBuildProject(trimmedPrompt);
+      completeBuild(data);
+    } catch (error) {
+      console.error("ANVIX classic build failed:", error);
+
+      setErrorMessage(getErrorMessage(error));
+      submissionLock.current = false;
+      setIsSubmitting(false);
+    }
+  }, [completeBuild, isPromptEmpty, isPromptTooLong, trimmedPrompt]);
+
+  const handleGenerate = useCallback(async () => {
+    if (
+      submissionLock.current ||
+      isPromptEmpty ||
+      isPromptTooLong
+    ) {
+      return;
+    }
+
+    submissionLock.current = true;
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      setStreamedFiles([]);
+      setStreamNote("");
+      setStreamAutoFix(null);
+      setShowClassicBuildOption(false);
+
+      let data: BuildApiResponse | null = null;
+      let streamError: unknown = null;
+
+      // Stream is the only UI path now: retry it once on failure
+      // (transient failures often clear), then show the error. The
+      // classic one-shot endpoint is no longer a silent fallback —
+      // it is the slowest, most silent wait in the app (full
+      // generation, then autofix, zero output until done). It stays
+      // available server-side and as a manual option in the error
+      // state below.
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          const streamed = await streamBuildProject(trimmedPrompt, {
+            onFile: (path) =>
+              setStreamedFiles((prev) =>
+                prev.includes(path) ? prev : [...prev, path]
+              ),
+            onStatus: (message) => setStreamNote(message),
+          });
+          data = streamed;
+          setStreamAutoFix(
+            (streamed as BuildProjectResponse & { autoFixNote?: string | null })
+              .autoFixNote ?? null
+          );
+          break;
+        } catch (error) {
+          streamError = error;
+          if (attempt === 1) {
+            setStreamNote("Stream interrupted — retrying…");
+          }
+        }
+      }
+
+      if (!data) {
+        setShowClassicBuildOption(true);
+        throw streamError instanceof Error
+          ? streamError
+          : new Error("Stream unavailable");
+      }
+
+      completeBuild(data);
     } catch (error) {
       console.error("ANVIX build generation failed:", error);
 
@@ -312,11 +378,10 @@ export default function GeneratePage() {
       setIsSubmitting(false);
     }
   }, [
+    completeBuild,
     isPromptEmpty,
     isPromptTooLong,
     trimmedPrompt,
-    router,
-    user,
   ]);
 
   const handleKeyDown = useCallback(
@@ -489,6 +554,17 @@ export default function GeneratePage() {
                     Try again
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
+                  {showClassicBuildOption && (
+                    <button
+                      type="button"
+                      onClick={() => void handleClassicBuild()}
+                      disabled={!canGenerate}
+                      className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Try the classic build instead
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}

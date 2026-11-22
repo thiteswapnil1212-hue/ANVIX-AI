@@ -145,15 +145,21 @@ export async function streamProjectWithFallback(
 ): Promise<GeneratedProject> {
   let lastError: unknown;
 
-  for (const modelName of STREAM_MODELS) {
+  for (const [index, modelName] of STREAM_MODELS.entries()) {
     callbacks.onModel?.(modelName);
     let emittedCount = 0;
+    // Set by the timeout callback only: distinguishes a timeout abort
+    // from a fast provider failure (a 429 must still fall back).
+    let timedOut = false;
 
     try {
       const model = modelFactory(apiKey, modelName);
       const controller = new AbortController();
       const timeoutId = setTimeout(
-        () => controller.abort(),
+        () => {
+          timedOut = true;
+          controller.abort();
+        },
         STREAM_TIMEOUT_MS
       );
 
@@ -209,6 +215,18 @@ export async function streamProjectWithFallback(
       // the client keeps the partial list and offers a retry.
       if (emittedCount > 0) {
         throw error;
+      }
+
+      // Primary timeout: do NOT start the fallback model. A primary
+      // timeout usually means quota/overload, and the fallback shares
+      // the same quota — starting it would burn another 180 s toward
+      // the same 300 s ceiling. The message is the one the route maps
+      // to a clean "Generation timed out" error event; the client
+      // keeps its partial files and retries. Fast failures (429
+      // before any emit) still fall through to the fallback below —
+      // those are cheap.
+      if (index === 0 && timedOut) {
+        throw new Error("Gemini request timed out");
       }
     }
   }
