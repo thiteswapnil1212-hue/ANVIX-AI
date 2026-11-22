@@ -163,31 +163,6 @@ export default function ChatLayout() {
   const [loadingEarlierMessages, setLoadingEarlierMessages] =
     useState(false);
 
-  // The chat video has no reduced-motion guard (unlike AppShell's):
-  // respect the preference here too, and pause while the tab is hidden.
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const chatVideoRef = useRef<HTMLVideoElement | null>(null);
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    );
-    const update = () => setReduceMotion(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-  useEffect(() => {
-    const onVisibility = () => {
-      const video = chatVideoRef.current;
-      if (!video) return;
-      if (document.hidden) video.pause();
-      else video.play().catch(() => {});
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
@@ -1667,7 +1642,7 @@ export default function ChatLayout() {
   }, [activeConversationId, handleStartResearch, maybeExtractMemories]);
 
   return (
-    <AppShell hideVideo>
+    <AppShell>
       <div className="flex h-[calc(100vh-68px)] min-h-0 w-full overflow-hidden bg-transparent">
         {/* DESKTOP SIDEBAR */}
         <aside
@@ -1850,31 +1825,8 @@ export default function ChatLayout() {
             bg-transparent
           "
         >
-          {!reduceMotion && (
-            <video
-              ref={chatVideoRef}
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="auto"
-              className="
-                pointer-events-none
-                absolute
-                inset-0
-                h-full
-                w-full
-                object-cover
-                opacity-100
-              "
-            >
-              <source src="/anvix-bg.mp4" type="video/mp4" />
-            </video>
-          )}
-
-          {/* Dark scrim: the raw video is bright and busy, and without
-              this the empty-state text washed out over the bright
-              circuit-board frames. */}
+          {/* Dark scrim: keeps the empty-state text readable over the
+              background glow. */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-[#09090B]/70"
