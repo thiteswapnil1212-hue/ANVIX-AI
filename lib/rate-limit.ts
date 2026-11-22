@@ -142,6 +142,42 @@ export interface RateLimitKeyOptions {
 }
 
 /**
+ * The canonical limiter key for a caller: `scope:user:<id>` when
+ * signed in, else `scope:ip:<ip>`. The quota meter (/api/usage) builds
+ * the same keys so its counts line up with the limiter's buckets.
+ */
+export function callerRateLimitKey(
+  scope: string,
+  userId: string | null,
+  ip: string
+): string {
+  return userId ? `${scope}:user:${userId}` : `${scope}:ip:${ip}`;
+}
+
+/**
+ * How many requests a caller made recently, read straight from the
+ * limiter's own windows — the quota meter's fallback when the
+ * `usage_events` table is unavailable. `keyPrefix` is a full caller
+ * key (`chat:user:<id>`) or a scope prefix (`chat:`). Only timestamps
+ * inside the last `windowMs` count.
+ */
+export function countRecentRequests(
+  keyPrefix: string,
+  windowMs: number,
+  nowMs: number = Date.now()
+): number {
+  const cutoff = nowMs - windowMs;
+  let total = 0;
+  for (const [key, stamps] of windows) {
+    if (!key.startsWith(keyPrefix)) continue;
+    for (const stamp of stamps) {
+      if (stamp > cutoff) total += 1;
+    }
+  }
+  return total;
+}
+
+/**
  * The limiter key for this request: `scope:user:<id>` when the request
  * carries a verifiable Supabase access token, else `scope:ip:<ip>`.
  * Never throws — any verification failure falls back to IP keying.
@@ -159,10 +195,10 @@ export async function resolveRateLimitKey(
   if (token) {
     const verify = options.verifyToken ?? verifyAccessToken;
     const userId = await verify(token).catch(() => null);
-    if (userId) return `${scope}:user:${userId}`;
+    if (userId) return callerRateLimitKey(scope, userId, getClientIp(request));
   }
 
-  return `${scope}:ip:${getClientIp(request)}`;
+  return callerRateLimitKey(scope, null, getClientIp(request));
 }
 
 /**

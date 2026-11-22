@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  callerRateLimitKey,
+  countRecentRequests,
   enforceRateLimit,
   getClientIp,
   rateLimit,
@@ -161,4 +163,23 @@ test("enforceRateLimit keys by user id across IPs when the token verifies", asyn
   );
   assert.ok(limited, "same user from another IP must share one bucket");
   assert.equal(limited?.status, 429);
+});
+
+test("callerRateLimitKey builds user and IP keys in one place", () => {
+  assert.equal(callerRateLimitKey("chat", "user-1", "1.2.3.4"), "chat:user:user-1");
+  assert.equal(callerRateLimitKey("chat", null, "1.2.3.4"), "chat:ip:1.2.3.4");
+});
+
+test("countRecentRequests reads the limiter windows for the quota meter", () => {
+  const key = "meter-test:user:u9";
+  rateLimit(key, 100, 86_400_000, 1_000);
+  rateLimit(key, 100, 86_400_000, 2_000);
+  rateLimit("meter-test:user:other", 100, 86_400_000, 3_000);
+
+  // Both of u9's requests are inside a 24h window from t=5_000.
+  assert.equal(countRecentRequests(key, 86_400_000, 5_000), 2);
+  // A 1s window from t=5_000 sees neither.
+  assert.equal(countRecentRequests(key, 1_000, 5_000), 0);
+  // A scope prefix counts every caller in that scope.
+  assert.equal(countRecentRequests("meter-test:", 86_400_000, 5_000), 3);
 });
