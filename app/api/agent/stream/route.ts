@@ -116,6 +116,9 @@ export async function POST(request: Request) {
   if (!resolvedKey.key) {
     return jsonError("Gemini API key is not configured.", 500);
   }
+  // Narrowed to a string here; the stream closure below cannot narrow
+  // `resolvedKey.key` itself, so capture it in a local.
+  const agentApiKey = resolvedKey.key;
 
   // Quota meter: count this request (hourly-aggregated).
   recordUsage(
@@ -162,7 +165,7 @@ export async function POST(request: Request) {
             project,
             signal: request.signal,
             onEvent: emit,
-            apiKey: resolvedKey.key,
+            apiKey: agentApiKey,
           });
 
           if (streamClosed || request.signal.aborted) {
