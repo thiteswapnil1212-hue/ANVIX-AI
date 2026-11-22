@@ -5,6 +5,7 @@ import { flushUsageInBackground } from "@/lib/usage/server-flush";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { thinkingConfig } from "@/lib/gemini/model-config";
+import { classifyGeminiFailure } from "@/lib/gemini/fallback";
 import {
   parseChatMode,
   parseThinkingChoice,
@@ -59,6 +60,22 @@ export const ARTIFACT_SYSTEM_INSTRUCTION =
   "HTML document with inline CSS/JS only and no external URLs. Keep " +
   "the surrounding reply short. Do not use artifact blocks for plain " +
   "code, and never emit more than 3 artifact blocks in one reply.";
+
+// First-token deadline: if the primary has not emitted anything
+// within 8 s, the fallback starts in parallel and the first to emit
+// wins. Only a SLOW primary ever races — a 429 fails fast and takes
+// the serial fallback path instead, so two concurrent calls never
+// share one exhausted quota.
+const FIRST_TOKEN_DEADLINE_MS = 8_000;
+// Model-health short-circuit window: a model that 429'd within the
+// last 60 s is skipped in favour of the fallback-first order.
+const MODEL_429_COOLDOWN_MS = 60_000;
+
+const FALLBACK_WORTHY_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+// Per-instance last-429 timestamps (same limitation as the rate
+// limiter's maps: warm instances benefit, cold starts pay one check).
+const last429AtByModel = new Map<string, number>();
 
 function isAbortError(error: unknown) {
   return (
@@ -325,7 +342,21 @@ export async function POST(request: Request) {
 
   const client = new GoogleGenerativeAI(resolvedKey.key);
   const tools = groundingTools(webEnabled);
-  const modelChain = [resolved.modelId, resolved.fallbackModelId];
+
+  // De-dupe: a mode whose primary and fallback are the same model
+  // has no fallback to race or fall back to.
+  const chain =
+    resolved.modelId === resolved.fallbackModelId
+      ? [resolved.modelId]
+      : [resolved.modelId, resolved.fallbackModelId];
+  // Model-health short-circuit: a recently-429'd primary is skipped
+  // in favour of the fallback-first order.
+  const orderedChain =
+    chain.length === 2 &&
+    (last429AtByModel.get(chain[0]) ?? 0) >
+      Date.now() - MODEL_429_COOLDOWN_MS
+      ? [chain[1], chain[0]]
+      : chain;
 
   let cancelled = false;
 
@@ -359,12 +390,30 @@ export async function POST(request: Request) {
         // only requested when the client will display it.
       };
 
-      // Fallback chain: a model that fails BEFORE emitting anything
-      // falls through to the next model. Once output has started,
-      // restarting would duplicate it, so the error is surfaced
-      // instead (same rule as the build stream).
-      for (const modelId of modelChain) {
-        if (request.signal.aborted || cancelled) break;
+      const emitInterrupted = () => {
+        try {
+          if (eventsEnabled) {
+            controller.enqueue(
+              encoder.encode(
+                encodeChatEvent({
+                  t: "error",
+                  message:
+                    "The response was interrupted. Please try again.",
+                })
+              )
+            );
+          } else {
+            controller.enqueue(
+              encoder.encode(
+                "\n\n[An error occurred while generating the response.]"
+              )
+            );
+          }
+          controller.close();
+        } catch {
+          // Client may have disconnected.
+        }
+      };
 
         // System prompt: the artifact fence format first, then the
         // user's custom instructions + selected assistant + relevant
@@ -377,6 +426,65 @@ export async function POST(request: Request) {
           .filter(Boolean)
           .join("\n\n");
 
+      const emitFinalError = () => {
+        console.error("Gemini chat failed on all models:", lastError);
+        try {
+          if (eventsEnabled) {
+            controller.enqueue(
+              encoder.encode(
+                encodeChatEvent({
+                  t: "error",
+                  message: "Failed to generate response. Please try again.",
+                })
+              )
+            );
+          } else {
+            controller.enqueue(
+              encoder.encode(
+                "[An error occurred while generating the response.]"
+              )
+            );
+          }
+          controller.close();
+        } catch {
+          // Client may have disconnected.
+        }
+      };
+
+      const closeQuietly = () => {
+        try {
+          controller.close();
+        } catch {
+          // Stream may already be closed.
+        }
+      };
+
+      // First-emit race: resolves the first time any attempt emits.
+      let resolveFirstEmit: () => void = () => {};
+      const firstEmitPromise = new Promise<void>((resolve) => {
+        resolveFirstEmit = resolve;
+      });
+      let winnerId: string | null = null;
+      const claimWin = (modelId: string): boolean => {
+        if (winnerId !== null) return winnerId === modelId;
+        winnerId = modelId;
+        resolveFirstEmit();
+        return true;
+      };
+
+      type AttemptResult =
+        | { kind: "done" }
+        | { kind: "failed"; error: unknown }
+        | { kind: "aborted" };
+
+      // One model attempt: streams its chunks into the shared
+      // controller ONLY while it is the race winner. The first chunk
+      // claims the win; the loser returns "aborted" without emitting
+      // anything, so the client never sees duplicated output.
+      const runAttempt = async (
+        modelId: string,
+        signal: AbortSignal
+      ): Promise<AttemptResult> => {
         const model = client.getGenerativeModel({
           model: modelId,
           ...(systemInstruction ? { systemInstruction } : {}),
@@ -390,29 +498,39 @@ export async function POST(request: Request) {
         });
 
         try {
-          if (request.signal.aborted || cancelled) break;
-
           const result =
             attachments.length > 0
-              ? await model.generateContentStream({
-                  contents: [
-                    {
-                      role: "user",
-                      parts: [
-                        ...attachmentsToInlineDataParts(attachments),
-                        { text: prompt },
-                      ],
-                    },
-                  ],
-                })
-              : await model.generateContentStream(prompt);
+              ? await model.generateContentStream(
+                  {
+                    contents: [
+                      {
+                        role: "user",
+                        parts: [
+                          ...attachmentsToInlineDataParts(attachments),
+                          { text: prompt },
+                        ],
+                      },
+                    ],
+                  },
+                  { signal } as never
+                )
+              : await model.generateContentStream(prompt, {
+                  signal,
+                } as never);
 
-          if (request.signal.aborted || cancelled) break;
+          if (signal.aborted || request.signal.aborted || cancelled) {
+            return { kind: "aborted" };
+          }
 
           let sources: GroundingSource[] = [];
 
           for await (const chunk of result.stream) {
-            if (request.signal.aborted || cancelled) break;
+            if (signal.aborted || request.signal.aborted || cancelled) {
+              return { kind: "aborted" };
+            }
+            if (!claimWin(modelId)) {
+              return { kind: "aborted" };
+            }
 
             // NEVER chunk.text() here: it concatenates thought parts
             // into the visible answer. Split the raw parts instead.
@@ -428,7 +546,9 @@ export async function POST(request: Request) {
             }
           }
 
-          if (request.signal.aborted || cancelled) break;
+          if (signal.aborted || request.signal.aborted || cancelled) {
+            return { kind: "aborted" };
+          }
 
           // Stream finished cleanly on this model — no fallback.
           if (eventsEnabled) {
@@ -445,92 +565,181 @@ export async function POST(request: Request) {
           }
 
           controller.close();
-          return;
+          return { kind: "done" };
         } catch (error) {
-          if (cancelled || request.signal.aborted || isAbortError(error)) {
-            try {
-              controller.close();
-            } catch {
-              // Stream may already be closed.
-            }
-            return;
+          if (
+            signal.aborted ||
+            request.signal.aborted ||
+            cancelled ||
+            isAbortError(error)
+          ) {
+            return { kind: "aborted" };
           }
 
-          lastError = error;
-          console.error("Gemini stream error:", error);
-
-          // Output already started: surface the failure, don't retry
-          // (a retry would duplicate the partial answer).
-          if (emittedAnything) {
-            try {
-              if (eventsEnabled) {
-                controller.enqueue(
-                  encoder.encode(
-                    encodeChatEvent({
-                      t: "error",
-                      message:
-                        "The response was interrupted. Please try again.",
-                    })
-                  )
-                );
-              } else {
-                controller.enqueue(
-                  encoder.encode(
-                    "\n\n[An error occurred while generating the response.]"
-                  )
-                );
-              }
-              controller.close();
-            } catch {
-              // Client may have disconnected.
-            }
-            return;
-          }
-
-          // Nothing emitted yet: fall through to the next model.
-          console.warn(
-            "[ANVIX CHAT] Model failed before emitting, trying fallback",
-            { model: modelId }
-          );
+          return { kind: "failed", error };
         }
-      }
+      };
 
-      // Every model failed before emitting anything (or aborted).
-      if (cancelled || request.signal.aborted) {
-        try {
-          controller.close();
-        } catch {
-          // Stream may already be closed.
+      const startAttempt = (modelId: string) => {
+        const ac = new AbortController();
+        // Client disconnect aborts the in-flight attempt (the SDK
+        // accepts the signal; without this a disconnect would leave
+        // the attempt hanging until the model responds).
+        request.signal.addEventListener("abort", () => ac.abort(), {
+          once: true,
+        });
+        if (request.signal.aborted || cancelled) ac.abort();
+        return {
+          controller: ac,
+          promise: runAttempt(modelId, ac.signal),
+        };
+      };
+
+      // Handle one attempt's outcome. Returns true when the stream
+      // is finished (done, aborted, or a terminal failure) and false
+      // when the caller should try the next model in the chain.
+      const handleResult = (
+        modelId: string,
+        result: AttemptResult
+      ): boolean => {
+        if (result.kind === "done") return true;
+        if (result.kind === "aborted") {
+          closeQuietly();
+          return true;
+        }
+
+        lastError = result.error;
+        console.error("Gemini stream error:", result.error);
+
+        const classification = classifyGeminiFailure(result.error);
+        if (classification.status === 429) {
+          last429AtByModel.set(modelId, Date.now());
+        }
+
+        // Output already started: surface the failure, don't retry
+        // (a retry would duplicate the partial answer).
+        if (emittedAnything) {
+          emitInterrupted();
+          return true;
+        }
+
+        // Only provider/transient failures are fallback-worthy. A
+        // 400 / 401 / 404 / invalid-request fails immediately — no
+        // second round-trip for a request that can never succeed.
+        const fallbackWorthy =
+          (classification.status !== undefined &&
+            FALLBACK_WORTHY_STATUSES.has(classification.status)) ||
+          classification.category === "timeout";
+        if (!fallbackWorthy) {
+          console.warn(
+            "[ANVIX CHAT] Model failed with a non-retryable error, not falling back",
+            {
+              model: modelId,
+              status: classification.status,
+              category: classification.category,
+            }
+          );
+          emitFinalError();
+          return true;
+        }
+
+        console.warn(
+          "[ANVIX CHAT] Model failed before emitting, trying fallback",
+          { model: modelId }
+        );
+        return false;
+      };
+
+      const first = startAttempt(orderedChain[0]);
+
+      // Wait for the first attempt to emit, finish, or hit the 8 s
+      // first-token deadline.
+      const firstPhase = await Promise.race([
+        firstEmitPromise.then(() => "emitted" as const),
+        first.promise.then(() => "finished" as const),
+        new Promise<"timeout">((resolve) =>
+          setTimeout(() => resolve("timeout"), FIRST_TOKEN_DEADLINE_MS)
+        ),
+      ]);
+
+      if (firstPhase === "timeout" && orderedChain.length === 2) {
+        // Primary is slow (not failed — a failure would have ended
+        // the race above): start the fallback in parallel and race
+        // on the first chunk.
+        const second = startAttempt(orderedChain[1]);
+
+        // Wait until someone emits or both finish.
+        await Promise.race([
+          firstEmitPromise,
+          Promise.allSettled([first.promise, second.promise]).then(
+            () => undefined
+          ),
+        ]);
+
+        // Abort the loser (whoever did not win the race).
+        if (winnerId !== null) {
+          const loser =
+            winnerId === orderedChain[0] ? second : first;
+          loser.controller.abort();
+        }
+
+        const [firstResult, secondResult] = await Promise.all([
+          first.promise,
+          second.promise,
+        ]);
+
+        // Nobody emitted: both failed before emitting and there is
+        // nothing left to try.
+        if (winnerId === null) {
+          const failed =
+            firstResult.kind === "failed"
+              ? firstResult
+              : secondResult.kind === "failed"
+                ? secondResult
+                : null;
+          if (failed) lastError = failed.error;
+          emitFinalError();
+          return;
+        }
+
+        const winnerResult =
+          winnerId === orderedChain[0] ? firstResult : secondResult;
+        if (winnerResult.kind === "done") return;
+        if (winnerResult.kind === "aborted") {
+          closeQuietly();
+          return;
+        }
+        // The winner failed after emitting (it emitted, so it is the
+        // winner): surface it. No further fallback — the other model
+        // already ran in parallel.
+        lastError = winnerResult.error;
+        console.error("Gemini stream error:", winnerResult.error);
+        if (emittedAnything) {
+          emitInterrupted();
+        } else {
+          emitFinalError();
         }
         return;
       }
 
-      console.error(
-        "Gemini chat failed on all models:",
-        lastError
-      );
+      // First attempt emitted or finished before the deadline.
+      const firstResult = await first.promise;
+      if (handleResult(orderedChain[0], firstResult)) return;
 
-      try {
-        if (eventsEnabled) {
-          controller.enqueue(
-            encoder.encode(
-              encodeChatEvent({
-                t: "error",
-                message: "Failed to generate response. Please try again.",
-              })
-            )
-          );
-        } else {
-          controller.enqueue(
-            encoder.encode(
-              "[An error occurred while generating the response.]"
-            )
-          );
-        }
-        controller.close();
-      } catch {
-        // Client may have disconnected.
+      // Fallback-worthy failure before any emit: try the second
+      // model serially (it has not run yet).
+      if (orderedChain.length === 2) {
+        const second = startAttempt(orderedChain[1]);
+        const secondResult = await second.promise;
+        if (handleResult(orderedChain[1], secondResult)) return;
       }
+
+      // Every model failed before emitting anything (or aborted).
+      if (cancelled || request.signal.aborted) {
+        closeQuietly();
+        return;
+      }
+      emitFinalError();
     },
 
     async cancel() {
