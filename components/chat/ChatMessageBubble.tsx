@@ -16,6 +16,7 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  GitFork,
   Image as ImageIcon,
   Sparkles,
   UserRound,
@@ -31,6 +32,8 @@ interface ChatMessageBubbleProps {
   sources?: GroundingSource[];
   /** Files the user attached to this message (user only). */
   attachments?: { name: string; mimeType: string }[];
+  /** Branch/fork the chat at this message. Omit to hide the button. */
+  onFork?: () => void;
 }
 
 function ThinkingBlock({ thinking }: { thinking: string }) {
@@ -398,6 +401,7 @@ function ChatMessageBubble({
   thinking,
   sources,
   attachments,
+  onFork,
 }: ChatMessageBubbleProps) {
   const isAssistant = role === "assistant";
   const isEmptyAssistant =
@@ -552,10 +556,33 @@ function ChatMessageBubble({
 
           <div
             className={`
-              mt-3 flex
+              mt-3 flex gap-2
               ${isAssistant ? "justify-end" : "justify-start"}
             `}
           >
+            {onFork && (
+              <button
+                type="button"
+                onClick={onFork}
+                aria-label="Branch chat from this message"
+                title="Branch chat from here — copies this chat up to this message into a new chat"
+                className="
+                  inline-flex min-h-8 items-center justify-center gap-1.5
+                  rounded-lg border border-white/10 bg-white/[0.04]
+                  px-2.5 text-xs font-medium text-zinc-400
+                  transition-colors hover:border-[#D4AF37]/30
+                  hover:bg-[#D4AF37]/[0.08] hover:text-[#E9C96B]
+                  focus-visible:outline-none focus-visible:ring-2
+                  focus-visible:ring-[#D4AF37]/60
+                  opacity-100 sm:opacity-0
+                  sm:group-hover/message:opacity-100
+                  sm:group-focus-within/message:opacity-100
+                "
+              >
+                <GitFork className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Branch</span>
+              </button>
+            )}
             <CopyButton
               text={content}
               label="Copy message"

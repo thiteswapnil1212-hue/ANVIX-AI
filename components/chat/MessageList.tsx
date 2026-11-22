@@ -30,14 +30,18 @@ interface Message {
 interface MessageListProps {
   messages?: Message[];
   isTyping?: boolean;
+  /** Branch/fork the active chat at this message. Omit to hide. */
+  onForkMessage?: (messageId: string) => void;
 }
 
 const BOTTOM_THRESHOLD = 120;
 
 const MessageRow = memo(function MessageRow({
   message,
+  onForkMessage,
 }: {
   message: Message;
+  onForkMessage?: (messageId: string) => void;
 }) {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
@@ -47,6 +51,11 @@ const MessageRow = memo(function MessageRow({
         thinking={message.thinking}
         sources={message.sources}
         attachments={message.attachments}
+        onFork={
+          onForkMessage
+            ? () => onForkMessage(message.id)
+            : undefined
+        }
       />
     </div>
   );
@@ -87,6 +96,7 @@ function TypingIndicator() {
 export default function MessageList({
   messages = [],
   isTyping = false,
+  onForkMessage,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -302,6 +312,7 @@ export default function MessageList({
             <MessageRow
               key={message.id}
               message={message}
+              onForkMessage={onForkMessage}
             />
           ))}
 

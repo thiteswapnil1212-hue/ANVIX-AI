@@ -29,6 +29,11 @@ import AppShell from "@/components/layout/AppShell";
 import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
 import type { GroundingSource } from "@/lib/gemini/grounding";
 import { getPromptTemplate } from "@/lib/prompt-templates";
+import {
+  forkConversation,
+  normalizeFolderName,
+  normalizeTags,
+} from "@/lib/chat-organization";
 
 type Message = {
   id: string;
@@ -50,6 +55,12 @@ type GuestChatConversation = {
   updatedAt: string;
   createdAt: string;
   pinned?: boolean;
+  /** Organization folder (null = no folder). */
+  folder?: string | null;
+  /** Lowercase tags. */
+  tags?: string[];
+  /** Id of the chat this one was branched from, if any. */
+  forkedFrom?: string;
   messages: Message[];
 };
 
@@ -149,6 +160,12 @@ const normalizeConversation = (
         ? conversation.createdAt
         : updatedAt,
     pinned: Boolean(conversation.pinned),
+    folder: normalizeFolderName(conversation.folder),
+    tags: normalizeTags(conversation.tags),
+    forkedFrom:
+      typeof conversation.forkedFrom === "string"
+        ? conversation.forkedFrom
+        : undefined,
     messages: messages.map((message) => ({
       ...message,
       createdAt:
@@ -448,6 +465,8 @@ export default function ChatLayout() {
       createdAt: now,
       updatedAt: now,
       pinned: false,
+      folder: null,
+      tags: [],
       messages: [],
     };
 
@@ -551,6 +570,62 @@ export default function ChatLayout() {
     }
   }, [user, router]);
 
+  // Move a conversation into a folder (null = no folder).
+  const handleSetFolder = useCallback(
+    (id: string, folder: string | null) => {
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === id
+            ? {
+                ...conversation,
+                folder: normalizeFolderName(folder),
+                updatedAt: createTimestamp(),
+              }
+            : conversation
+        )
+      );
+    },
+    []
+  );
+
+  // Replace a conversation's tags (normalized, de-duplicated).
+  const handleSetTags = useCallback((id: string, tags: string[]) => {
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === id
+          ? {
+              ...conversation,
+              tags: normalizeTags(tags),
+              updatedAt: createTimestamp(),
+            }
+          : conversation
+      )
+    );
+  }, []);
+
+  // Branch/fork the active chat at one message: copy the messages up
+  // to and including it into a new chat and switch to it.
+  const handleForkMessage = useCallback(
+    (messageId: string) => {
+      if (!activeConversation) return;
+      handleStop();
+      const forked = forkConversation(
+        activeConversation,
+        messageId,
+        crypto.randomUUID(),
+        createTimestamp()
+      );
+      if (!forked) return;
+      // forkedAtMessageId rides along as fork bookkeeping; it is not
+      // part of the stored conversation shape and is dropped by the
+      // cloud sync (which upserts explicit columns only).
+      const next: GuestChatConversation = forked;
+      setConversations((prev) => sortConversations([next, ...prev]));
+      setActiveConversationId(next.id);
+    },
+    [activeConversation, handleStop]
+  );
+
   // Send a message and stream the response.
   const handleSend = async (
     prompt: string,
@@ -585,6 +660,8 @@ export default function ChatLayout() {
         createdAt: timestamp,
         updatedAt: timestamp,
         pinned: false,
+        folder: null,
+        tags: [],
         messages: [],
       };
 
@@ -899,6 +976,8 @@ export default function ChatLayout() {
               onDeleteThread={handleDeleteConversation}
               onTogglePin={handleTogglePin}
               onCollapse={setSidebarCollapsed}
+              onSetFolder={handleSetFolder}
+              onSetTags={handleSetTags}
               onOpenSettings={() => router.push("/settings")}
               onOpenAccount={handleOpenAccount}
               userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
@@ -1007,6 +1086,8 @@ export default function ChatLayout() {
                   onRenameThread={handleRenameConversation}
                   onDeleteThread={handleDeleteConversation}
                   onTogglePin={handleTogglePin}
+              onSetFolder={handleSetFolder}
+              onSetTags={handleSetTags}
                   onOpenSettings={() => router.push("/settings")}
                   onOpenAccount={handleOpenAccount}
                   userName={authLoading ? "Loading…" : user?.email ?? "Guest"}
@@ -1251,6 +1332,7 @@ export default function ChatLayout() {
                 <MessageList
                   messages={messages}
                   isTyping={isTyping}
+                  onForkMessage={handleForkMessage}
                 />
               )}
             </div>
