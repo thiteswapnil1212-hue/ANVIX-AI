@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { getAuthedCaller } from "@/lib/supabase/server-user";
+import { extractApiKey, verifyApiKey } from "@/lib/api-keys";
 import { getGoogleOAuthConfig } from "@/lib/google/oauth";
 import { getValidAccessToken } from "@/lib/google/connections";
 import { createAnvixMcpServer } from "@/lib/mcp/server";
@@ -14,9 +15,11 @@ export const maxDuration = 60;
  * ANVIX as an MCP server — POST /api/mcp (Streamable HTTP, stateless).
  *
  * Auth (per user, required): a Supabase Bearer token for the caller's
- * ANVIX account. API-key auth (`X-API-Key`) is added by the public API
- * step; until then a Bearer token is the only way in. Unauthenticated
- * requests get 401, never a protocol error.
+ * ANVIX account, or an ANVIX API key (`X-API-Key`). API-key callers can
+ * use `anvix_chat`; the calendar tools need a signed-in session (their
+ * Google connection lives under the user's Supabase login) and report
+ * honestly that Calendar is not connected for key-based calls.
+ * Unauthenticated requests get 401, never a protocol error.
  *
  * A GET returns a plain-JSON description for humans (clients must POST).
  * Each POST creates a fresh server + stateless transport, handles the
@@ -34,17 +37,29 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const caller = await getAuthedCaller(request);
-  if (!caller) {
+  const bearerCaller = await getAuthedCaller(request);
+  let userId: string | null = bearerCaller?.userId ?? null;
+  if (!userId) {
+    const candidate = extractApiKey(request);
+    if (candidate) {
+      const verified = await verifyApiKey(candidate);
+      if (verified?.scopes.includes("chat")) userId = verified.userId;
+    }
+  }
+  if (!userId) {
     return NextResponse.json(
-      { error: "Unauthorized: send a Supabase Bearer token." },
+      {
+        error:
+          "Unauthorized: send a Supabase Bearer token or an ANVIX API key (X-API-Key).",
+      },
       { status: 401 }
     );
   }
+  const caller = bearerCaller ?? null;
 
   // Shared-quota guard: MCP calls burn the same Gemini key as chat.
   const { ok, retryAfterSeconds } = rateLimit(
-    `mcp:user:${caller.userId}`,
+    `mcp:user:${userId}`,
     20,
     60_000
   );
@@ -60,9 +75,11 @@ export async function POST(request: Request) {
 
   const config = getGoogleOAuthConfig();
   const server = createAnvixMcpServer({
-    userId: caller.userId,
+    userId,
     getCalendarAccessToken: async () => {
-      if (!config) return null;
+      // Calendar needs the user's Supabase session; API-key callers
+      // have none, so the calendar tools report "not connected".
+      if (!config || !caller) return null;
       return getValidAccessToken(caller.client, caller.userId, config);
     },
   });

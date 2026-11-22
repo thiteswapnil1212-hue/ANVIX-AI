@@ -369,3 +369,42 @@ alter table public.api_keys enable row level security;
 drop policy if exists "api_keys: own rows" on public.api_keys;
 create policy "api_keys: own rows" on public.api_keys
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ============================ public API key verification (2026-11-22) ===
+-- API keys are verified by hash, but no caller is signed in when a key
+-- arrives — so RLS ("own rows") cannot see the row. These SECURITY
+-- DEFINER functions are the narrow exception: they take a SHA-256 hash
+-- and return only the owner id + limits, never the hash itself, and they
+-- update last_used_at. Revoked keys return no row.
+alter table if exists public.api_keys
+  add column if not exists key_prefix text not null default '';
+
+create or replace function public.verify_api_key(p_key_hash text)
+returns table (
+  key_id uuid,
+  owner_id uuid,
+  scopes text[],
+  rate_limit_per_min integer,
+  daily_cap integer
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select id, user_id, scopes, rate_limit_per_min, daily_cap
+  from public.api_keys
+  where key_hash = p_key_hash
+    and revoked_at is null;
+$$;
+
+create or replace function public.touch_api_key(p_key_hash text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.api_keys
+  set last_used_at = now()
+  where key_hash = p_key_hash
+    and revoked_at is null;
+$$;
