@@ -10,13 +10,13 @@ const sections: { heading: string; body: string[] }[] = [
   {
     heading: "1. The short version",
     body: [
-      "ANVIX AI has no user accounts today. We do not run a database of your chats or projects, we do not sell data, and we do not use advertising or analytics trackers. Your work is stored in your own browser, and your prompts are processed by an AI provider to generate the response you asked for.",
+      "ANVIX AI offers optional accounts. As a guest, you can use the app without signing in: your work is stored in your own browser, and we do not run a database of your chats or projects. If you sign in, your account and the projects you choose to sync are stored in our database (Supabase) so they are available on your devices. We do not sell data, and we do not use advertising or analytics trackers. Your prompts are processed by an AI provider to generate the response you asked for.",
     ],
   },
   {
     heading: "2. Data stored in your browser",
     body: [
-      "Chats, generated projects, and workspace settings are saved in your browser's local storage and session storage so the app can show them back to you. This data stays on your device. It is removed when you clear your browser storage, and session-storage items (including generated projects) are removed when the browser session ends. Anyone with access to your device and browser profile can see this data, so use the export and delete controls in the app on shared machines.",
+      "When you use ANVIX as a guest, chats, generated projects, and workspace settings are saved in your browser's local storage and session storage so the app can show them back to you. This data stays on your device. It is removed when you clear your browser storage, and session-storage items are removed when the browser session ends. Anyone with access to your device and browser profile can see this data, so use the delete controls in the app on shared machines.",
     ],
   },
   {
@@ -28,7 +28,7 @@ const sections: { heading: string; body: string[] }[] = [
   {
     heading: "4. Hosting and server logs",
     body: [
-      "ANVIX is hosted on Vercel. Like any web host, Vercel processes standard request information (such as IP address, browser type, and timestamps) in server logs to operate and secure the service. ANVIX does not combine this with any profile, because no accounts exist.",
+      "ANVIX is hosted on Vercel. Like any web host, Vercel processes standard request information (such as IP address, browser type, and timestamps) in server logs to operate and secure the service. Guest traffic is not tied to a profile; for signed-in users, a request may be associated with the account that made it.",
     ],
   },
   {
@@ -40,13 +40,13 @@ const sections: { heading: string; body: string[] }[] = [
   {
     heading: "6. Your controls",
     body: [
-      "You can delete individual chats and projects inside the app, export your chats from the sidebar, and erase everything ANVIX stores by clearing site data for this domain in your browser settings.",
+      "You can delete individual chats and projects inside the app, export a project as a ZIP from the workspace, and erase everything ANVIX stores in your browser by clearing site data for this domain in your browser settings. Signing out does not delete your synced projects; delete them from the dashboard first if you want them removed from our database.",
     ],
   },
   {
     heading: "7. Changes to this policy",
     body: [
-      "If ANVIX introduces accounts, cloud storage, analytics, or payments, this policy will be updated before or alongside those features, and the changes will be posted on this page.",
+      "Accounts and cloud sync are now available. If ANVIX introduces analytics or payments, this policy will be updated before or alongside those features, and the changes will be posted on this page.",
     ],
   },
   {
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
           Privacy Policy
         </h1>
         <p className="mt-3 text-sm text-zinc-400">
-          Last updated: 21 October 2026
+          Last updated: 21 November 2026
         </p>
 
         <div className="mt-10 space-y-9">

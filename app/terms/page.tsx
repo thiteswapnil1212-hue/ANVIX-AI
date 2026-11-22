@@ -21,9 +21,9 @@ const sections: { heading: string; body: string[] }[] = [
     ],
   },
   {
-    heading: "3. Guest access and local data",
+    heading: "3. Accounts and your data",
     body: [
-      "ANVIX currently works without an account. Your chats and generated projects are stored in your own browser (local and session storage) on your device. They are not uploaded to an ANVIX account, and clearing your browser storage or closing the session can delete them permanently. You are responsible for exporting or downloading anything you want to keep.",
+      "You can use ANVIX as a guest without an account: your chats and generated projects are stored in your own browser (local and session storage) on your device, and clearing your browser storage or closing the session can delete them permanently. If you sign in, you can also save projects to your ANVIX account; those synced projects are stored in our database and available on your devices. You are responsible for exporting or downloading anything you want to keep.",
     ],
   },
   {
@@ -75,7 +75,7 @@ export default function TermsPage() {
           Terms of Service
         </h1>
         <p className="mt-3 text-sm text-zinc-400">
-          Last updated: 21 October 2026
+          Last updated: 21 November 2026
         </p>
 
         <div className="mt-10 space-y-9">
