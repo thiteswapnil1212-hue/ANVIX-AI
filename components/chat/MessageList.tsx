@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { ArrowDown, Sparkles } from "lucide-react";
+import type { GroundingSource } from "@/lib/gemini/grounding";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -18,6 +19,12 @@ interface Message {
   content: string;
   createdAt?: string | Date;
   status?: "sending" | "sent" | "error";
+  /** Thought-summary text (assistant only; local display data). */
+  thinking?: string;
+  /** Grounded web sources (assistant only; local display data). */
+  sources?: GroundingSource[];
+  /** Files attached to this message (user only; local display data). */
+  attachments?: { name: string; mimeType: string }[];
 }
 
 interface MessageListProps {
@@ -37,6 +44,9 @@ const MessageRow = memo(function MessageRow({
       <ChatMessageBubble
         role={message.role}
         content={message.content}
+        thinking={message.thinking}
+        sources={message.sources}
+        attachments={message.attachments}
       />
     </div>
   );
