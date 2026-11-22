@@ -23,14 +23,22 @@ import {
 
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
-import ChatInput from "./ChatInput";
+import ChatInput, { type ChatSendOptions } from "./ChatInput";
 import AppShell from "@/components/layout/AppShell";
+import { parseChatEvents, type ChatEvent } from "@/lib/chat-events";
+import type { GroundingSource } from "@/lib/gemini/grounding";
 
 type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt?: string;
+  /** Thought-summary text (assistant only; local display data). */
+  thinking?: string;
+  /** Grounded web sources (assistant only; local display data). */
+  sources?: GroundingSource[];
+  /** Files attached to this message (user only; name + type, no data). */
+  attachments?: { name: string; mimeType: string }[];
 };
 
 type GuestChatConversation = {
@@ -516,7 +524,7 @@ export default function ChatLayout() {
   // Send a message and stream the response.
   const handleSend = async (
     prompt: string,
-    model: string
+    options: ChatSendOptions
   ): Promise<boolean> => {
     const trimmedPrompt = prompt.trim();
 
@@ -562,6 +570,14 @@ export default function ChatLayout() {
       role: "user",
       content: trimmedPrompt,
       createdAt: timestamp,
+      ...(options.attachments.length > 0
+        ? {
+            attachments: options.attachments.map((attachment) => ({
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+            })),
+          }
+        : {}),
     };
 
     const assistantMessageId = crypto.randomUUID();
@@ -606,7 +622,18 @@ export default function ChatLayout() {
     let streamedText = "";
     const decoder = new TextDecoder();
 
-    const updateAssistantMessage = (content: string) => {
+    // Preview falls back to the prompt when the streamed answer is
+    // still empty (e.g. only thinking has arrived so far).
+    const contentPreview = (conversation: GuestChatConversation) =>
+      conversation.messages.find(
+        (message) => message.id === assistantMessageId
+      )?.content || trimmedPrompt;
+
+    const updateAssistantMessage = (patch: {
+      content?: string;
+      thinking?: string;
+      sources?: GroundingSource[];
+    }) => {
       setConversations((prev) =>
         sortConversations(
           prev.map((conversation) => {
@@ -616,11 +643,11 @@ export default function ChatLayout() {
 
             return {
               ...conversation,
-              preview: content || trimmedPrompt,
+              preview: patch.content ?? contentPreview(conversation),
               updatedAt: createTimestamp(),
               messages: conversation.messages.map((message) =>
                 message.id === assistantMessageId
-                  ? { ...message, content }
+                  ? { ...message, ...patch }
                   : message
               ),
             };
@@ -638,7 +665,11 @@ export default function ChatLayout() {
         },
         body: JSON.stringify({
           prompt: trimmedPrompt,
-          model,
+          mode: options.mode,
+          thinking: options.thinking,
+          web: options.web,
+          events: true,
+          attachments: options.attachments,
         }),
         signal: controller.signal,
       });
@@ -669,6 +700,38 @@ export default function ChatLayout() {
       const reader = response.body.getReader();
       request.reader = reader;
 
+      // The route sends NDJSON events when `events: true` (thinking /
+      // text / sources / error / done) and plain text otherwise. The
+      // Content-Type decides the parser — never guess per chunk, or a
+      // half-delivered event line would leak into the answer as text.
+      const isNdjson = (response.headers.get("content-type") ?? "")
+        .includes("ndjson");
+
+      let streamedThinking = "";
+      let streamedSources: GroundingSource[] = [];
+      let ndjsonRemainder = "";
+
+      const applyEvent = (event: ChatEvent) => {
+        switch (event.t) {
+          case "thinking":
+            streamedThinking += event.text;
+            updateAssistantMessage({ thinking: streamedThinking });
+            break;
+          case "text":
+            streamedText += event.text;
+            updateAssistantMessage({ content: streamedText });
+            break;
+          case "sources":
+            streamedSources = event.sources;
+            updateAssistantMessage({ sources: streamedSources });
+            break;
+          case "error":
+            throw new Error(event.message);
+          case "done":
+            break;
+        }
+      };
+
       while (!request.stopped) {
         const { value, done } = await reader.read();
 
@@ -677,20 +740,35 @@ export default function ChatLayout() {
         }
 
         if (value) {
-          streamedText += decoder.decode(value, {
-            stream: true,
-          });
+          const chunkText = decoder.decode(value, { stream: true });
 
-          updateAssistantMessage(streamedText);
+          if (isNdjson) {
+            const parsed = parseChatEvents(ndjsonRemainder + chunkText);
+            ndjsonRemainder = parsed.remainder;
+            for (const event of parsed.events) {
+              applyEvent(event);
+            }
+          } else {
+            streamedText += chunkText;
+            updateAssistantMessage({ content: streamedText });
+          }
         }
       }
 
       // Flush any remaining decoded text only if not stopped.
       if (!request.stopped) {
-        streamedText += decoder.decode();
+        const tail = decoder.decode();
 
-        if (streamedText) {
-          updateAssistantMessage(streamedText);
+        if (tail) {
+          if (isNdjson) {
+            const parsed = parseChatEvents(ndjsonRemainder + tail);
+            for (const event of parsed.events) {
+              applyEvent(event);
+            }
+          } else {
+            streamedText += tail;
+            updateAssistantMessage({ content: streamedText });
+          }
         }
       }
 
@@ -709,9 +787,9 @@ export default function ChatLayout() {
         (error instanceof Error && error.name === "AbortError")
       ) {
         if (streamedText.trim()) {
-          updateAssistantMessage(streamedText);
+          updateAssistantMessage({ content: streamedText });
         } else {
-          updateAssistantMessage("Response stopped.");
+          updateAssistantMessage({ content: "Response stopped." });
         }
 
         return true;
@@ -724,11 +802,11 @@ export default function ChatLayout() {
           ? error.message
           : "Something went wrong while generating the response.";
 
-      updateAssistantMessage(
-        streamedText.trim()
+      updateAssistantMessage({
+        content: streamedText.trim()
           ? `${streamedText}\n\n[Response interrupted. Please try again.]`
-          : errorMessage
-      );
+          : errorMessage,
+      });
 
       return false;
     } finally {
