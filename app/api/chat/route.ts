@@ -1,4 +1,7 @@
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
+import { resolveCallerApiKey } from "@/lib/byok/key-resolution";
+import { recordUsage } from "@/lib/usage/meter";
+import { flushUsageInBackground } from "@/lib/usage/server-flush";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { thinkingConfig } from "@/lib/gemini/model-config";
@@ -45,6 +48,8 @@ type ChatRequestBody = {
   web?: unknown;
   /** Opt in to the NDJSON event protocol; default streams plain text. */
   events?: unknown;
+  /** BYOK: use the caller's own stored Gemini key instead of shared. */
+  useOwnKey?: unknown;
   attachments?: unknown;
 };
 
@@ -113,16 +118,30 @@ export async function POST(request: Request) {
   }
   const attachments: ChatAttachmentInput[] = validatedAttachments.attachments;
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  // BYOK: the caller's own key when they asked for it and one is stored,
+  // else the shared server key. The client only ever sends the boolean
+  // flag — the key itself never leaves this route.
+  const resolvedKey = await resolveCallerApiKey(request, {
+    useOwnKey: body.useOwnKey === true,
+    sharedKey: process.env.GEMINI_API_KEY,
+  });
 
-  if (!apiKey) {
+  if (!resolvedKey.key) {
     return NextResponse.json(
       { error: "Gemini API key is not configured." },
       { status: 500 }
     );
   }
 
-  const client = new GoogleGenerativeAI(apiKey);
+  // Quota meter: count this request (hourly-aggregated, never per-request
+  // rows) and flush the staging buckets in the background.
+  const callerIdentity = resolvedKey.userId
+    ? `user:${resolvedKey.userId}`
+    : `ip:${getClientIp(request)}`;
+  recordUsage("chat", callerIdentity);
+  flushUsageInBackground(request);
+
+  const client = new GoogleGenerativeAI(resolvedKey.key);
   const tools = groundingTools(webEnabled);
   const modelChain = [resolved.modelId, resolved.fallbackModelId];
 
@@ -332,6 +351,9 @@ export async function POST(request: Request) {
         : "text/plain; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       "X-Content-Type-Options": "nosniff",
+      // Which key served this request ("byok" | "shared") — debugging aid,
+      // not a secret: it never reveals the key itself.
+      "X-ANVIX-Key-Source": resolvedKey.source,
     },
   });
 }
