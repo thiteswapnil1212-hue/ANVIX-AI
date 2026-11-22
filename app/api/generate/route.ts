@@ -11,6 +11,7 @@ import {
   DEFAULT_CHAT_MODEL_ID,
   getChatModel,
 } from "@/lib/chat-models";
+import { buildBlueprintResult } from "@/lib/api/generate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,43 +131,27 @@ export async function POST(req: Request) {
       },
     });
 
-    // Start the provider stream before returning the response.
+    // The client (lib/api/generate) expects a JSON blueprint, not a
+    // text stream — accumulate the reply and return it as JSON.
+    // Streaming here used to make every home-page generation fail in
+    // response.json() with a parse error.
     const result = await startGeminiStream(model, prompt);
 
-    const encoder = new TextEncoder();
+    let text = "";
+    for await (const chunk of result.stream) {
+      text += chunk.text();
+    }
 
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          for await (const chunk of result.stream) {
-            const text = chunk.text();
+    if (!text.trim()) {
+      return NextResponse.json(
+        { error: "Gemini returned an empty response." },
+        { status: 502 }
+      );
+    }
 
-            if (text) {
-              controller.enqueue(encoder.encode(text));
-            }
-          }
-
-          controller.close();
-        } catch (error) {
-          console.error("Gemini stream error:", error);
-
-          controller.error(
-            new Error(
-              "Gemini stream interrupted. Please try again."
-            )
-          );
-        }
-      },
-    });
-
-    // Successful responses contain streamed text, not a JSON object.
-    return new Response(stream, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        "X-Content-Type-Options": "nosniff",
-      },
+    return NextResponse.json({
+      success: true,
+      result: buildBlueprintResult(text, selectedModel.name),
     });
   } catch (error) {
     console.error("Gemini chat API error:", error);

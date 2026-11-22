@@ -22,6 +22,8 @@ export default function GenerationResultCard({
   prompt,
 }: GenerationResultCardProps) {
   const router = useRouter();
+  const hasStack = (result.stack?.length ?? 0) > 0;
+  const hasModules = (result.modules?.length ?? 0) > 0;
 
   function handleContinue() {
     // The blueprint itself has no project files — the actual build happens
@@ -61,17 +63,19 @@ export default function GenerationResultCard({
             </p>
           </div>
 
-          {/* Confidence */}
-          <div className="shrink-0 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 sm:min-w-[130px]">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-xs text-zinc-500">Confidence</span>
-              <Cpu className="h-3.5 w-3.5 text-[#D4AF37]" />
-            </div>
+          {/* Confidence — only when the source actually scored it. */}
+          {result.confidence && (
+            <div className="shrink-0 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 sm:min-w-[130px]">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-zinc-500">Confidence</span>
+                <Cpu className="h-3.5 w-3.5 text-[#D4AF37]" />
+              </div>
 
-            <p className="mt-1 text-lg font-semibold text-[#D4AF37]">
-              {result.confidence}
-            </p>
-          </div>
+              <p className="mt-1 text-lg font-semibold text-[#D4AF37]">
+                {result.confidence}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -94,25 +98,28 @@ export default function GenerationResultCard({
           </p>
         </div>
 
-        {/* Details */}
+        {/* Details — the stack only when the source listed one; the
+            model row is always there. */}
         <div className="space-y-px bg-white/[0.05]">
           {/* Stack */}
-          <div className="bg-[#0B0B0B] p-5 sm:p-6">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-              Technology Stack
-            </p>
+          {hasStack && (
+            <div className="bg-[#0B0B0B] p-5 sm:p-6">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+                Technology Stack
+              </p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {result.stack.map((item) => (
-                <span
-                  key={item}
-                  className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-[#D4AF37]/25 hover:text-[#D4AF37]"
-                >
-                  {item}
-                </span>
-              ))}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {result.stack!.map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-[#D4AF37]/25 hover:text-[#D4AF37]"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Delivery */}
           <div className="bg-[#0B0B0B] p-5 sm:p-6">
@@ -121,17 +128,19 @@ export default function GenerationResultCard({
             </p>
 
             <div className="mt-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <Clock3 className="h-4 w-4 shrink-0 text-[#D4AF37]" />
+              {result.estimatedTime && (
+                <div className="flex items-center gap-3">
+                  <Clock3 className="h-4 w-4 shrink-0 text-[#D4AF37]" />
 
-                <div className="min-w-0">
-                  <p className="text-xs text-zinc-500">Estimated build</p>
+                  <div className="min-w-0">
+                    <p className="text-xs text-zinc-500">Estimated build</p>
 
-                  <p className="mt-0.5 text-sm text-zinc-300">
-                    {result.estimatedTime}
-                  </p>
+                    <p className="mt-0.5 text-sm text-zinc-300">
+                      {result.estimatedTime}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-[#D4AF37]" />
@@ -149,33 +158,43 @@ export default function GenerationResultCard({
         </div>
       </div>
 
-      {/* Modules */}
+      {/* Modules + CTA — the module list only when the source listed it;
+          the Continue button always shows. */}
       <div className="border-t border-white/[0.06] p-5 sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Layers3 className="h-4 w-4 text-[#D4AF37]" />
+          {hasModules ? (
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Layers3 className="h-4 w-4 text-[#D4AF37]" />
 
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
-                Modules
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+                  Modules
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {result.modules!.map((module, index) => (
+                  <div
+                    key={module}
+                    className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2"
+                  >
+                    <span className="text-[10px] font-semibold text-[#D4AF37]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+
+                    <span className="text-sm text-zinc-300">{module}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <p className="text-sm text-zinc-500">
+                Review the blueprint, then continue to build it in the
+                workspace.
               </p>
             </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {result.modules.map((module, index) => (
-                <div
-                  key={module}
-                  className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2"
-                >
-                  <span className="text-[10px] font-semibold text-[#D4AF37]">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-
-                  <span className="text-sm text-zinc-300">{module}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* CTA */}
           <button
