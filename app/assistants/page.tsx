@@ -8,8 +8,10 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { getAuthHeaders } from "@/lib/api/auth-headers";
 import {
   STARTER_ASSISTANTS,
+  storeAssistantSelection,
   type AssistantRecord,
   type StarterAssistant,
+  type StoredAssistantSelection,
 } from "@/lib/assistants";
 import {
   createAssistant,
@@ -33,29 +35,7 @@ import {
  * pretending files attach.
  */
 
-export const ASSISTANT_SELECTION_KEY = "anvix-chat-assistant";
-
-export interface StoredAssistantSelection {
-  id: string | null;
-  name: string;
-  instructions: string;
-  mode: "fast" | "smart" | "deep" | null;
-}
-
-function storeSelection(selection: StoredAssistantSelection | null) {
-  try {
-    if (selection) {
-      window.localStorage.setItem(
-        ASSISTANT_SELECTION_KEY,
-        JSON.stringify(selection)
-      );
-    } else {
-      window.localStorage.removeItem(ASSISTANT_SELECTION_KEY);
-    }
-  } catch {
-    // Private mode / full storage: the choice just doesn't persist.
-  }
-}
+export type { StoredAssistantSelection } from "@/lib/assistants";
 
 type EditorState = {
   id: string | null;
@@ -120,7 +100,7 @@ function AssistantsPageContent() {
   }, [shareToken]);
 
   const useInChat = (selection: StoredAssistantSelection) => {
-    storeSelection(selection);
+    storeAssistantSelection(selection);
   };
 
   const saveEditor = async () => {

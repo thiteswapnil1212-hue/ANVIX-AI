@@ -278,3 +278,55 @@ export function findStarterAssistant(name: string): StarterAssistant | null {
     ) ?? null
   );
 }
+
+// ------------------------------------------- chat selection (localStorage)
+
+/** localStorage key for the assistant picked in chat. */
+export const ASSISTANT_SELECTION_KEY = "anvix-chat-assistant";
+
+export interface StoredAssistantSelection {
+  /** Saved assistant id, or null for a starter / inline assistant. */
+  id: string | null;
+  name: string;
+  instructions: string;
+  mode: AssistantMode | null;
+}
+
+/** Read the chat's picked assistant, or null (plain chat). Never throws. */
+export function readStoredAssistantSelection(): StoredAssistantSelection | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(ASSISTANT_SELECTION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredAssistantSelection>;
+    if (typeof parsed.name !== "string") return null;
+    return {
+      id: typeof parsed.id === "string" ? parsed.id : null,
+      name: parsed.name,
+      instructions:
+        typeof parsed.instructions === "string" ? parsed.instructions : "",
+      mode: parseAssistantMode(parsed.mode),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the chat's picked assistant (null clears it). Never throws. */
+export function storeAssistantSelection(
+  selection: StoredAssistantSelection | null
+): void {
+  try {
+    if (typeof window === "undefined") return;
+    if (selection) {
+      window.localStorage.setItem(
+        ASSISTANT_SELECTION_KEY,
+        JSON.stringify(selection)
+      );
+    } else {
+      window.localStorage.removeItem(ASSISTANT_SELECTION_KEY);
+    }
+  } catch {
+    // Private mode / full storage: the choice just doesn't persist.
+  }
+}

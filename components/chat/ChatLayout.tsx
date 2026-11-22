@@ -41,6 +41,7 @@ import {
   toPersistableImage,
   type GeneratedImage,
 } from "@/lib/image-client";
+import { shouldExtractNow } from "@/lib/memory";
 
 type Message = {
   id: string;
@@ -740,6 +741,44 @@ export default function ChatLayout() {
     [activeConversationId]
   );
 
+  // Memory v2 extraction, batched: at most once per 6 user turns in a
+  // chat (never per message), fire-and-forget. Guests have no user to
+  // attach memories to, so this never runs for them. A failed call is
+  // invisible — a missing memory is never an error the user sees.
+  const extractedTurnsRef = useRef<Set<string>>(new Set());
+  const maybeExtractMemories = useCallback(
+    (
+      conversationId: string,
+      userTurnCount: number,
+      transcript: { role: "user" | "assistant"; content: string }[]
+    ) => {
+      if (!user) return;
+      if (!shouldExtractNow(userTurnCount, null)) return;
+      const key = `${conversationId}:${userTurnCount}`;
+      if (extractedTurnsRef.current.has(key)) return;
+      extractedTurnsRef.current.add(key);
+
+      void (async () => {
+        try {
+          await fetch("/api/memory/extract", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(await getAuthHeaders()),
+            },
+            body: JSON.stringify({
+              conversationId,
+              messages: transcript.slice(-10),
+            }),
+          });
+        } catch {
+          // Best-effort: extraction failing must never surface in chat.
+        }
+      })();
+    },
+    [user]
+  );
+
   // Send a message and stream the response.
   const handleSend = async (
     prompt: string,
@@ -893,6 +932,8 @@ export default function ChatLayout() {
           events: true,
           useOwnKey: shouldUseOwnKey(),
           attachments: options.attachments,
+          assistantId: options.assistantId ?? null,
+          assistant: options.assistant,
         }),
         signal: controller.signal,
       });
@@ -1002,6 +1043,24 @@ export default function ChatLayout() {
       if (!streamedText.trim()) {
         throw new Error("AI returned an empty response.");
       }
+
+      // Memory v2: this turn counts once the reply landed. The prior
+      // user-turn count comes from the pre-send message list.
+      const priorUserTurns = messages.filter(
+        (message) => message.role === "user"
+      ).length;
+      maybeExtractMemories(
+        workingConversationId,
+        priorUserTurns + 1,
+        [
+          ...messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+          })),
+          { role: "user" as const, content: trimmedPrompt },
+          { role: "assistant" as const, content: streamedText },
+        ]
+      );
 
       return true;
     } catch (error) {

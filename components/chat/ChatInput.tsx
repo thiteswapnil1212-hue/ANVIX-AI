@@ -41,6 +41,17 @@ import {
   type ChatAttachmentInput,
 } from "@/lib/chat-attachments";
 import { prepareAttachmentFiles } from "@/lib/chat-attachments-client";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  findStarterAssistant,
+  readStoredAssistantSelection,
+  STARTER_ASSISTANTS,
+  storeAssistantSelection,
+  type AssistantRecord,
+  type StoredAssistantSelection,
+} from "@/lib/assistants";
+import { fetchAssistants } from "@/lib/supabase/assistants-memory";
 
 import {
   PROMPT_TEMPLATE_CATEGORIES,
@@ -55,6 +66,15 @@ export type ChatSendOptions = {
   thinking: ThinkingChoice;
   web: boolean;
   attachments: ChatAttachmentInput[];
+  /** Saved assistant id, or null for a starter / inline assistant. */
+  assistantId: string | null;
+  /** Inline assistant (starters, guests) — a saved assistant loaded
+   *  by id on the server always wins over this. */
+  assistant: {
+    name: string;
+    instructions: string;
+    mode: ChatModeId | null;
+  } | null;
 };
 
 type ChatInputProps = {
@@ -121,6 +141,8 @@ export default function ChatInput({
   seedPrompt = null,
   onGenerateImage,
 }: ChatInputProps) {
+  const router = useRouter();
+  const { user } = useAuth();
   const [value, setValue] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -135,6 +157,74 @@ export default function ChatInput({
     readStoredThinking(readStoredMode())
   );
   const [webEnabled, setWebEnabled] = useState<boolean>(readStoredWeb);
+  // Custom assistant picked for this chat (skills pattern). Starters
+  // work for guests; saved assistants load once the user signs in.
+  const [assistantSelection, setAssistantSelection] =
+    useState<StoredAssistantSelection | null>(readStoredAssistantSelection);
+  const [savedAssistants, setSavedAssistants] = useState<AssistantRecord[]>(
+    []
+  );
+
+  useEffect(() => {
+    if (!user) {
+      setSavedAssistants([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const rows = await fetchAssistants(user.id);
+      if (!cancelled) setSavedAssistants(rows ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const assistantSelectValue = !assistantSelection
+    ? "none"
+    : assistantSelection.id
+      ? `saved:${assistantSelection.id}`
+      : `starter:${assistantSelection.name}`;
+
+  function handleAssistantSelect(value: string) {
+    if (value === "manage") {
+      router.push("/assistants");
+      return;
+    }
+    if (value === "none") {
+      setAssistantSelection(null);
+      storeAssistantSelection(null);
+      return;
+    }
+    if (value.startsWith("saved:")) {
+      const id = value.slice("saved:".length);
+      const found = savedAssistants.find(
+        (assistant) => assistant.id === id
+      );
+      if (!found) return;
+      const selection: StoredAssistantSelection = {
+        id: found.id,
+        name: found.name,
+        instructions: found.instructions,
+        mode: found.mode,
+      };
+      setAssistantSelection(selection);
+      storeAssistantSelection(selection);
+      return;
+    }
+    if (value.startsWith("starter:")) {
+      const starter = findStarterAssistant(value.slice("starter:".length));
+      if (!starter) return;
+      const selection: StoredAssistantSelection = {
+        id: null,
+        name: starter.name,
+        instructions: starter.instructions,
+        mode: starter.mode,
+      };
+      setAssistantSelection(selection);
+      storeAssistantSelection(selection);
+    }
+  }
   const [attachments, setAttachments] = useState<ChatAttachmentInput[]>(
     []
   );
@@ -320,6 +410,14 @@ export default function ChatInput({
         thinking,
         web: webEnabled,
         attachments,
+        assistantId: assistantSelection?.id ?? null,
+        assistant: assistantSelection
+          ? {
+              name: assistantSelection.name,
+              instructions: assistantSelection.instructions,
+              mode: assistantSelection.mode,
+            }
+          : null,
       });
 
       if (accepted) {
@@ -349,6 +447,7 @@ export default function ChatInput({
     thinking,
     webEnabled,
     attachments,
+    assistantSelection,
   ]);
 
   function handleKeyDown(
@@ -898,6 +997,57 @@ export default function ChatInput({
                   disabled:cursor-wait disabled:opacity-70
                 "
               />
+
+              {/* Assistant selector */}
+              {!hasMessage && !isGenerating && (
+                <select
+                  value={assistantSelectValue}
+                  onChange={(event) =>
+                    handleAssistantSelect(event.target.value)
+                  }
+                  disabled={isSubmitting}
+                  aria-label="Choose an assistant"
+                  title={
+                    assistantSelection
+                      ? `Assistant: ${assistantSelection.name} — its instructions shape every reply in this chat`
+                      : "Chat with a custom assistant (optional)"
+                  }
+                  className="
+                    mb-0.5 h-8 max-w-[150px] shrink-0
+                    truncate rounded-xl border border-transparent
+                    bg-transparent px-2 text-[11px] font-medium
+                    text-zinc-400 outline-none transition-colors
+                    hover:bg-zinc-800/70 hover:text-zinc-200
+                    focus:border-[#D4AF37]/40 disabled:opacity-40
+                    sm:text-xs
+                  "
+                >
+                  <option value="none">No assistant</option>
+                  {savedAssistants.length > 0 && (
+                    <optgroup label="Your assistants">
+                      {savedAssistants.map((assistant) => (
+                        <option
+                          key={assistant.id}
+                          value={`saved:${assistant.id}`}
+                        >
+                          {assistant.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Starters">
+                    {STARTER_ASSISTANTS.map((starter) => (
+                      <option
+                        key={starter.name}
+                        value={`starter:${starter.name}`}
+                      >
+                        {starter.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <option value="manage">Manage assistants…</option>
+                </select>
+              )}
 
               {/* Mode selector */}
               {!hasMessage && !isGenerating && (
