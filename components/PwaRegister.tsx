@@ -2,7 +2,11 @@
 
 import { useEffect } from "react";
 
-const SERVICE_WORKER_PATH = "/sw.js";
+// Serwist (Turbopack) serves the compiled worker from a route handler,
+// not from public/ — see app/serwist/[path]/route.ts. Registering this URL
+// with scope "/" replaces the old hand-written /sw.js registration on the
+// next visit (same scope), so no manual migration step is needed.
+const SERVICE_WORKER_PATH = "/serwist/sw.js";
 const SERVICE_WORKER_SCOPE = "/";
 
 export default function PwaRegister() {
