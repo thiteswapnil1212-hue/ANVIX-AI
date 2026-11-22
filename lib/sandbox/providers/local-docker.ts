@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -59,21 +59,21 @@ export class LocalDockerSandboxProvider implements SandboxProvider {
     }
   }
 
-  private createContainerName() {
-    return `anvix-sandbox-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-  }
-
-  private executeDocker(args: string[], logPrefix: string): { stdout: string; stderr: string; exitCode: number } {
-    const output = execFileSync(this.dockerBinary, args, {
+  // spawnSync, not execFileSync: a non-zero docker exit used to throw
+  // (losing the exit code) and stderr was always returned as "" — so
+  // every sandbox failure came back with no diagnostics at all.
+  private executeDocker(args: string[]): { stdout: string; stderr: string; exitCode: number } {
+    const result = spawnSync(this.dockerBinary, args, {
       encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
       timeout: DEFAULT_TIMEOUT_MS,
     });
 
     return {
-      stdout: String(output || ""),
-      stderr: "",
-      exitCode: 0,
+      stdout: result.stdout ?? "",
+      stderr: result.error
+        ? result.error.message
+        : (result.stderr ?? ""),
+      exitCode: result.status ?? 1,
     };
   }
 
@@ -115,7 +115,6 @@ export class LocalDockerSandboxProvider implements SandboxProvider {
         writeFileSync(safeTarget, file.content, "utf8");
       }
 
-      const containerName = this.createContainerName();
       const runArgs = [
         ...this.executionCommand,
         "-v",
@@ -128,7 +127,7 @@ export class LocalDockerSandboxProvider implements SandboxProvider {
         "node -p \"process.version\"",
       ];
 
-      const result = this.executeDocker(runArgs, "docker-run");
+      const result = this.executeDocker(runArgs);
 
       rmSync(tempRoot, { recursive: true, force: true });
 
