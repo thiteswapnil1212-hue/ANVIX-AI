@@ -99,6 +99,15 @@ type ActiveRequest = {
   stopped: boolean;
 };
 
+/** In-flight streamed answer (hot path): lives in a ref, never in the store. */
+type StreamingState = {
+  conversationId: string;
+  messageId: string;
+  content: string;
+  thinking: string;
+  sources: GroundingSource[];
+};
+
 const STORAGE_KEY = "anvix-guest-chats";
 
 const createTimestamp = () => new Date().toISOString();
@@ -462,6 +471,18 @@ export default function ChatLayout() {
 
   const activeRequestRef = useRef<ActiveRequest | null>(null);
 
+  // Streaming hot path (perf): streamed text accumulates in a ref and
+  // flushes to React state at most every 100 ms. The `conversations`
+  // store is written once per answer by commitStreaming(), never per
+  // token — per-token store updates used to re-sort all conversations
+  // and rewrite the whole history to localStorage on every chunk.
+  const streamingRef = useRef<StreamingState | null>(null);
+  const streamingFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
+  const [streamingSnapshot, setStreamingSnapshot] =
+    useState<StreamingState | null>(null);
+
   const activeConversation = useMemo(
     () =>
       conversations.find(
@@ -471,7 +492,29 @@ export default function ChatLayout() {
     [conversations, activeConversationId]
   );
 
-  const messages = activeConversation?.messages ?? [];
+  // Displayed messages: during a stream, the in-flight assistant
+  // message comes from the throttled snapshot, so only that row
+  // re-renders; every other row keeps its object identity and stays
+  // memo-skipped by MessageRow.
+  const messages = useMemo(() => {
+    const base = activeConversation?.messages ?? [];
+    if (
+      !streamingSnapshot ||
+      streamingSnapshot.conversationId !== activeConversation?.id
+    ) {
+      return base;
+    }
+    return base.map((message) =>
+      message.id === streamingSnapshot.messageId
+        ? {
+            ...message,
+            content: streamingSnapshot.content,
+            thinking: streamingSnapshot.thinking,
+            sources: streamingSnapshot.sources,
+          }
+        : message
+    );
+  }, [activeConversation, streamingSnapshot]);
 
   // Persist guest chat history.
   useEffect(() => {
@@ -1165,35 +1208,50 @@ export default function ChatLayout() {
 
     setIsTyping(true);
 
-    let streamedText = "";
-    const decoder = new TextDecoder();
+    // Streamed text lives in a ref; React state flushes at most every
+    // 100 ms and the store is written once by commitStreaming().
+    streamingRef.current = {
+      conversationId: workingConversationId,
+      messageId: assistantMessageId,
+      content: "",
+      thinking: "",
+      sources: [],
+    };
+    setStreamingSnapshot({ ...streamingRef.current });
+    streamingFlushTimerRef.current = setInterval(() => {
+      if (streamingRef.current) {
+        setStreamingSnapshot({ ...streamingRef.current });
+      }
+    }, 100);
 
-    // Preview falls back to the prompt when the streamed answer is
-    // still empty (e.g. only thinking has arrived so far).
-    const contentPreview = (conversation: GuestChatConversation) =>
-      conversation.messages.find(
-        (message) => message.id === assistantMessageId
-      )?.content || trimmedPrompt;
-
-    const updateAssistantMessage = (patch: {
-      content?: string;
-      thinking?: string;
-      sources?: GroundingSource[];
-    }) => {
+    // Write the finished answer to the store exactly once, on every
+    // exit path. A second call is a no-op (the ref is cleared first).
+    const commitStreaming = (finalContent: string) => {
+      const current = streamingRef.current;
+      streamingRef.current = null;
+      setStreamingSnapshot(null);
+      if (!current) return;
       setConversations((prev) =>
         sortConversations(
           prev.map((conversation) => {
-            if (conversation.id !== workingConversationId) {
+            if (conversation.id !== current.conversationId) {
               return conversation;
             }
 
             return {
               ...conversation,
-              preview: patch.content ?? contentPreview(conversation),
+              preview: finalContent.trim()
+                ? finalContent.slice(0, 120)
+                : trimmedPrompt,
               updatedAt: createTimestamp(),
               messages: conversation.messages.map((message) =>
-                message.id === assistantMessageId
-                  ? { ...message, ...patch }
+                message.id === current.messageId
+                  ? {
+                      ...message,
+                      content: finalContent,
+                      thinking: current.thinking,
+                      sources: current.sources,
+                    }
                   : message
               ),
             };
@@ -1201,6 +1259,8 @@ export default function ChatLayout() {
         )
       );
     };
+
+    const decoder = new TextDecoder();
 
     try {
       const response = await fetch("/api/chat", {
@@ -1256,23 +1316,22 @@ export default function ChatLayout() {
       const isNdjson = (response.headers.get("content-type") ?? "")
         .includes("ndjson");
 
-      let streamedThinking = "";
-      let streamedSources: GroundingSource[] = [];
       let ndjsonRemainder = "";
 
+      // Ref-only writes: no setConversations, no re-sort, no persist
+      // per event. The 100 ms flush renders the latest snapshot.
       const applyEvent = (event: ChatEvent) => {
+        const current = streamingRef.current;
+        if (!current) return;
         switch (event.t) {
           case "thinking":
-            streamedThinking += event.text;
-            updateAssistantMessage({ thinking: streamedThinking });
+            current.thinking += event.text;
             break;
           case "text":
-            streamedText += event.text;
-            updateAssistantMessage({ content: streamedText });
+            current.content += event.text;
             break;
           case "sources":
-            streamedSources = event.sources;
-            updateAssistantMessage({ sources: streamedSources });
+            current.sources = event.sources;
             break;
           case "error":
             throw new Error(event.message);
@@ -1297,9 +1356,8 @@ export default function ChatLayout() {
             for (const event of parsed.events) {
               applyEvent(event);
             }
-          } else {
-            streamedText += chunkText;
-            updateAssistantMessage({ content: streamedText });
+          } else if (streamingRef.current) {
+            streamingRef.current.content += chunkText;
           }
         }
       }
@@ -1314,9 +1372,8 @@ export default function ChatLayout() {
             for (const event of parsed.events) {
               applyEvent(event);
             }
-          } else {
-            streamedText += tail;
-            updateAssistantMessage({ content: streamedText });
+          } else if (streamingRef.current) {
+            streamingRef.current.content += tail;
           }
         }
       }
@@ -1325,9 +1382,12 @@ export default function ChatLayout() {
         return true;
       }
 
-      if (!streamedText.trim()) {
+      const finalText = streamingRef.current?.content ?? "";
+      if (!finalText.trim()) {
         throw new Error("AI returned an empty response.");
       }
+
+      commitStreaming(finalText);
 
       // Memory v2: this turn counts once the reply landed. The prior
       // user-turn count comes from the pre-send message list.
@@ -1343,7 +1403,7 @@ export default function ChatLayout() {
             content: message.content,
           })),
           { role: "user" as const, content: trimmedPrompt },
-          { role: "assistant" as const, content: streamedText },
+          { role: "assistant" as const, content: finalText },
         ]
       );
 
@@ -1353,11 +1413,8 @@ export default function ChatLayout() {
         request.stopped ||
         (error instanceof Error && error.name === "AbortError")
       ) {
-        if (streamedText.trim()) {
-          updateAssistantMessage({ content: streamedText });
-        } else {
-          updateAssistantMessage({ content: "Response stopped." });
-        }
+        const partial = streamingRef.current?.content ?? "";
+        commitStreaming(partial.trim() ? partial : "Response stopped.");
 
         return true;
       }
@@ -1369,14 +1426,28 @@ export default function ChatLayout() {
           ? error.message
           : "Something went wrong while generating the response.";
 
-      updateAssistantMessage({
-        content: streamedText.trim()
-          ? `${streamedText}\n\n[Response interrupted. Please try again.]`
-          : errorMessage,
-      });
+      const partial = streamingRef.current?.content ?? "";
+      commitStreaming(
+        partial.trim()
+          ? `${partial}\n\n[Response interrupted. Please try again.]`
+          : errorMessage
+      );
 
       return false;
     } finally {
+      if (streamingFlushTimerRef.current) {
+        clearInterval(streamingFlushTimerRef.current);
+        streamingFlushTimerRef.current = null;
+      }
+
+      // Backstop: commit whatever is still streaming (covers the stop
+      // path and any exit that skipped the explicit commit). The guard
+      // inside commitStreaming makes a second call a no-op.
+      const pending = streamingRef.current;
+      if (pending) {
+        commitStreaming(pending.content);
+      }
+
       if (request.reader) {
         try {
           request.reader.releaseLock();

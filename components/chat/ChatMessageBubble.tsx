@@ -51,6 +51,8 @@ interface ChatMessageBubbleProps {
   comparePrompt?: string;
   /** Open an artifact in the side panel (assistant only). */
   onOpenArtifact?: (artifact: ChatArtifact) => void;
+  /** True while this assistant message is still streaming in. */
+  isStreaming?: boolean;
 }
 
 function ThinkingBlock({ thinking }: { thinking: string }) {
@@ -465,6 +467,7 @@ function ChatMessageBubble({
   generatedImage,
   comparePrompt,
   onOpenArtifact,
+  isStreaming = false,
 }: ChatMessageBubbleProps) {
   const isAssistant = role === "assistant";
   const [compareOpen, setCompareOpen] = useState(false);
@@ -591,6 +594,12 @@ function ChatMessageBubble({
             ) : null}
 
             {isAssistant ? (
+              isStreaming ? (
+                // Plain text while streaming: re-parsing the whole
+                // growing markdown on every chunk is quadratic work.
+                // Full markdown renders once when the answer completes.
+                <p className="whitespace-pre-wrap">{content}</p>
+              ) : (
               <div
                 className="
                   markdown-content min-w-0
@@ -630,6 +639,7 @@ function ChatMessageBubble({
                   {displayText}
                 </ReactMarkdown>
               </div>
+              )
             ) : (
               content
             )}

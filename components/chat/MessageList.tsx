@@ -48,10 +48,12 @@ const MessageRow = memo(function MessageRow({
   message,
   onForkMessage,
   onOpenArtifact,
+  isStreaming = false,
 }: {
   message: Message;
   onForkMessage?: (messageId: string) => void;
   onOpenArtifact?: (artifact: ChatArtifact) => void;
+  isStreaming?: boolean;
 }) {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
@@ -69,6 +71,7 @@ const MessageRow = memo(function MessageRow({
         generatedImage={message.generatedImage}
         comparePrompt={message.comparePrompt}
         onOpenArtifact={onOpenArtifact}
+        isStreaming={isStreaming}
       />
     </div>
   );
@@ -328,6 +331,12 @@ export default function MessageList({
               message={message}
               onForkMessage={onForkMessage}
               onOpenArtifact={onOpenArtifact}
+              isStreaming={
+                isTyping &&
+                message.role === "assistant" &&
+                message.id ===
+                  messages[messages.length - 1]?.id
+              }
             />
           ))}
 
