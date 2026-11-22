@@ -7,10 +7,12 @@ import { usePathname } from "next/navigation";
 import {
   LogIn,
   Menu,
+  UserRound,
   X,
   ChevronRight,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 const links = [
   { href: "/generate", label: "Generate" },
@@ -22,6 +24,7 @@ const links = [
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, loading: authLoading } = useAuth();
 
   const isAuthPage = pathname === "/auth";
 
@@ -138,15 +141,33 @@ export default function Navbar() {
           </div>
         </nav>
 
-        {/* Desktop Sign In */}
-        <Link
-          href="/auth"
-          aria-current={isAuthPage ? "page" : undefined}
-          className="hidden items-center gap-2 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37] px-4 py-2 text-[13px] font-semibold text-black transition-colors hover:bg-[#E5C65C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex"
-        >
-          <LogIn className="h-4 w-4" aria-hidden="true" strokeWidth={1.8} />
-          <span>Sign In</span>
-        </Link>
+        {/* Desktop account action — "Account" for a signed-in user,
+            "Sign In" for a guest. Showing "Sign In" while signed in
+            just bounced /auth back to /chat. */}
+        {authLoading ? (
+          <span
+            aria-hidden="true"
+            className="hidden h-9 w-[118px] rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 md:flex"
+          />
+        ) : user ? (
+          <Link
+            href="/settings"
+            aria-label={`Account settings for ${user.email ?? "your account"}`}
+            className="hidden items-center gap-2 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-2 text-[13px] font-semibold text-[#E2C259] transition-colors hover:bg-[#D4AF37]/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex"
+          >
+            <UserRound className="h-4 w-4" aria-hidden="true" strokeWidth={1.8} />
+            <span>Account</span>
+          </Link>
+        ) : (
+          <Link
+            href="/auth"
+            aria-current={isAuthPage ? "page" : undefined}
+            className="hidden items-center gap-2 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37] px-4 py-2 text-[13px] font-semibold text-black transition-colors hover:bg-[#E5C65C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:flex"
+          >
+            <LogIn className="h-4 w-4" aria-hidden="true" strokeWidth={1.8} />
+            <span>Sign In</span>
+          </Link>
+        )}
 
         {/* Mobile Menu Toggle */}
         <button
@@ -220,30 +241,60 @@ export default function Navbar() {
                 })}
               </div>
 
-              {/* Mobile Sign In */}
+              {/* Mobile account action */}
               <div className="mt-2 border-t border-white/[0.07] pt-2">
-                <Link
-                  href="/auth"
-                  aria-current={isAuthPage ? "page" : undefined}
-                  tabIndex={mobileOpen ? 0 : -1}
-                  onClick={closeMenu}
-                  className="flex min-h-12 items-center justify-between rounded-xl bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <LogIn
+                {authLoading ? (
+                  <span
+                    aria-hidden="true"
+                    className="flex min-h-12 items-center rounded-xl bg-white/[0.03] px-4"
+                  />
+                ) : user ? (
+                  <Link
+                    href="/settings"
+                    aria-label={`Account settings for ${user.email ?? "your account"}`}
+                    tabIndex={mobileOpen ? 0 : -1}
+                    onClick={closeMenu}
+                    className="flex min-h-12 items-center justify-between rounded-xl bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <UserRound
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                        strokeWidth={1.8}
+                      />
+                      Account
+                    </span>
+
+                    <ChevronRight
                       aria-hidden="true"
-                      className="h-4 w-4"
+                      className="h-4 w-4 text-[#D4AF37]/70"
                       strokeWidth={1.8}
                     />
-                    Sign In
-                  </span>
+                  </Link>
+                ) : (
+                  <Link
+                    href="/auth"
+                    aria-current={isAuthPage ? "page" : undefined}
+                    tabIndex={mobileOpen ? 0 : -1}
+                    onClick={closeMenu}
+                    className="flex min-h-12 items-center justify-between rounded-xl bg-[#D4AF37]/10 px-4 text-sm font-semibold text-[#D4AF37] transition-colors hover:bg-[#D4AF37]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#D4AF37]/70"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <LogIn
+                        aria-hidden="true"
+                        className="h-4 w-4"
+                        strokeWidth={1.8}
+                      />
+                      Sign In
+                    </span>
 
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="h-4 w-4 text-[#D4AF37]/70"
-                    strokeWidth={1.8}
-                  />
-                </Link>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="h-4 w-4 text-[#D4AF37]/70"
+                      strokeWidth={1.8}
+                    />
+                  </Link>
+                )}
               </div>
             </div>
           </nav>
