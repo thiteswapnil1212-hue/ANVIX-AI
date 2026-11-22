@@ -17,10 +17,25 @@ import { getAuthHeaders } from "@/lib/api/auth-headers";
 import { shouldUseOwnKey } from "@/lib/byok/client";
 import {
   deleteCloudConversation,
-  fetchConversations,
+  fetchConversationList,
+  fetchConversationMessages,
   syncConversation,
+  syncConversationMeta,
   type CloudConversation as CloudConversationShape,
 } from "@/lib/supabase/cloud";
+import {
+  conversationMessagesKey,
+  createTimestamp,
+  persistGuestState,
+  readConversationMessages,
+  readGuestState,
+  sortConversations,
+  type GuestChatConversation,
+  type GuestChatMessage,
+  type GuestChatMeta,
+  type GuestChatState,
+  type StreamingOverlay,
+} from "@/lib/chat/guest-storage";
 
 import ChatSidebar from "./ChatSidebar";
 import MessageList from "./MessageList";
@@ -51,43 +66,7 @@ import {
   type ResearchRun,
 } from "@/lib/research";
 
-type Message = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt?: string;
-  /** Thought-summary text (assistant only; local display data). */
-  thinking?: string;
-  /** Grounded web sources (assistant only; local display data). */
-  sources?: GroundingSource[];
-  /** Files attached to this message (user only; name + type, no data). */
-  attachments?: { name: string; mimeType: string }[];
-  /** A Pollinations image generated for this message (assistant only). */
-  generatedImage?: GeneratedImage;
-  /** The user prompt this answer replies to (assistant only). */
-  comparePrompt?: string;
-};
-
-type GuestChatConversation = {
-  id: string;
-  title: string;
-  preview: string;
-  updatedAt: string;
-  createdAt: string;
-  pinned?: boolean;
-  /** Organization folder (null = no folder). */
-  folder?: string | null;
-  /** Lowercase tags. */
-  tags?: string[];
-  /** Id of the chat this one was branched from, if any. */
-  forkedFrom?: string;
-  messages: Message[];
-};
-
-type StoredGuestChats = {
-  activeConversationId: string | null;
-  conversations: GuestChatConversation[];
-};
+type Message = GuestChatMessage;
 
 type ChatApiError = {
   error?: string;
@@ -100,17 +79,7 @@ type ActiveRequest = {
 };
 
 /** In-flight streamed answer (hot path): lives in a ref, never in the store. */
-type StreamingState = {
-  conversationId: string;
-  messageId: string;
-  content: string;
-  thinking: string;
-  sources: GroundingSource[];
-};
-
-const STORAGE_KEY = "anvix-guest-chats";
-
-const createTimestamp = () => new Date().toISOString();
+type StreamingState = StreamingOverlay;
 
 const generateChatTitle = (value: string) => {
   const cleaned = value.replace(/\s+/g, " ").trim();
@@ -124,208 +93,28 @@ const generateChatTitle = (value: string) => {
     : cleaned;
 };
 
-const sortConversations = (
-  conversations: GuestChatConversation[]
-): GuestChatConversation[] =>
-  [...conversations].sort(
-    (a, b) =>
-      new Date(b.updatedAt).getTime() -
-      new Date(a.updatedAt).getTime()
-  );
-
-// Build the guest-storage payload. The optional overlay folds the
-// in-flight streamed answer into its message so an interim persist
-// during a stream never loses the streamed tail.
-const buildPersistPayload = (
-  source: GuestChatConversation[],
-  activeId: string | null,
-  overlay?: StreamingState | null
-): StoredGuestChats => {
-  const conversations = overlay
-    ? sortConversations(
-        source.map((conversation) =>
-          conversation.id === overlay.conversationId
-            ? {
-                ...conversation,
-                preview: overlay.content.trim()
-                  ? overlay.content.slice(0, 120)
-                  : conversation.preview,
-                messages: conversation.messages.map((message) =>
-                  message.id === overlay.messageId
-                    ? {
-                        ...message,
-                        content: overlay.content,
-                        thinking: overlay.thinking,
-                        sources: overlay.sources,
-                      }
-                    : message
-                ),
-              }
-            : conversation
-        )
-      )
-    : sortConversations(source);
-  return { activeConversationId: activeId, conversations };
-};
-
-const isMessage = (value: unknown): value is Message => {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const message = value as Record<string, unknown>;
-
-  return (
-    typeof message.id === "string" &&
-    (message.role === "user" ||
-      message.role === "assistant") &&
-    typeof message.content === "string"
-  );
-};
-
-const normalizeConversation = (
-  value: unknown
-): GuestChatConversation | null => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const conversation = value as Record<string, unknown>;
-
-  if (typeof conversation.id !== "string") {
-    return null;
-  }
-
-  const messages = Array.isArray(conversation.messages)
-    ? conversation.messages.filter(isMessage)
-    : [];
-
-  const now = createTimestamp();
-
-  const updatedAt =
-    typeof conversation.updatedAt === "string"
-      ? conversation.updatedAt
-      : now;
-
-  return {
-    id: conversation.id,
-    title:
-      typeof conversation.title === "string" &&
-      conversation.title.trim()
-        ? conversation.title
-        : "New chat",
-    preview:
-      typeof conversation.preview === "string"
-        ? conversation.preview
-        : messages[messages.length - 1]?.content ?? "",
-    updatedAt,
-    createdAt:
-      typeof conversation.createdAt === "string"
-        ? conversation.createdAt
-        : updatedAt,
-    pinned: Boolean(conversation.pinned),
-    folder: normalizeFolderName(conversation.folder),
-    tags: normalizeTags(conversation.tags),
-    forkedFrom:
-      typeof conversation.forkedFrom === "string"
-        ? conversation.forkedFrom
-        : undefined,
-    messages: messages.map((message) => ({
-      ...message,
-      // A blob URL dies on reload — saved messages keep the
-      // Pollinations URL so the image still loads (see image-client).
-      ...(message.generatedImage
-        ? { generatedImage: toPersistableImage(message.generatedImage) }
-        : {}),
-      createdAt:
-        typeof message.createdAt === "string"
-          ? message.createdAt
-          : now,
-    })),
-  };
-};
-
-const readGuestChats = (): StoredGuestChats => {
-  if (typeof window === "undefined") {
-    return {
-      activeConversationId: null,
-      conversations: [],
-    };
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-
-    if (!raw) {
-      return {
-        activeConversationId: null,
-        conversations: [],
-      };
-    }
-
-    const parsed: unknown = JSON.parse(raw);
-
-    if (!parsed || typeof parsed !== "object") {
-      return {
-        activeConversationId: null,
-        conversations: [],
-      };
-    }
-
-    const record = parsed as Record<string, unknown>;
-
-    const conversations = Array.isArray(record.conversations)
-      ? record.conversations
-          .map(normalizeConversation)
-          .filter(
-            (
-              conversation
-            ): conversation is GuestChatConversation =>
-              conversation !== null
-          )
-      : [];
-
-    const sorted = sortConversations(conversations);
-
-    const savedActiveId =
-      typeof record.activeConversationId === "string"
-        ? record.activeConversationId
-        : null;
-
-    const activeConversationId =
-      savedActiveId &&
-      sorted.some(
-        (conversation) => conversation.id === savedActiveId
-      )
-        ? savedActiveId
-        : sorted[0]?.id ?? null;
-
-    return {
-      activeConversationId,
-      conversations: sorted,
-    };
-  } catch (error) {
-    console.warn("Unable to read guest chat history.", error);
-
-    return {
-      activeConversationId: null,
-      conversations: [],
-    };
-  }
-};
-
 export default function ChatLayout() {
-  const initialGuestState = useMemo<StoredGuestChats>(
-    () => readGuestChats(),
+  const initialGuestState = useMemo<GuestChatState>(
+    () =>
+      readGuestState(
+        typeof window === "undefined" ? null : window.localStorage
+      ),
     []
   );
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const [conversations, setConversations] = useState<
-    GuestChatConversation[]
-  >(initialGuestState.conversations);
+  // Split state (perf): the metadata list + only the loaded messages.
+  // Mount parses the index + the active conversation only; other
+  // conversations load on demand when selected.
+  const [conversationList, setConversationList] = useState<
+    GuestChatMeta[]
+  >(initialGuestState.list);
+
+  const [messagesById, setMessagesById] = useState<
+    Record<string, GuestChatMessage[]>
+  >(initialGuestState.messagesById);
 
   const [activeConversationId, setActiveConversationId] =
     useState<string | null>(
@@ -399,7 +188,8 @@ export default function ChatLayout() {
   const cloudReadyRef = useRef(false);
   const syncedSnapshotsRef = useRef(new Map<string, string>());
   const knownCloudIdsRef = useRef(new Set<string>());
-  const conversationsRef = useRef<GuestChatConversation[]>([]);
+  const conversationListRef = useRef<GuestChatMeta[]>([]);
+  const messagesByIdRef = useRef<Record<string, GuestChatMessage[]>>({});
   const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Persist bookkeeping: trailing-debounce timer + a flag for writes
   // that must skip the debounce (stream commits), + the 1 s interim
@@ -411,8 +201,11 @@ export default function ChatLayout() {
   );
 
   useEffect(() => {
-    conversationsRef.current = conversations;
-  }, [conversations]);
+    conversationListRef.current = conversationList;
+  }, [conversationList]);
+  useEffect(() => {
+    messagesByIdRef.current = messagesById;
+  }, [messagesById]);
   // Cloud rows need a concrete timestamp on every message; local
   // messages may omit it, so fall back to the conversation's.
   const toCloudConversation = (
@@ -426,9 +219,50 @@ export default function ChatLayout() {
   });
 
 
-  // On sign-in: load the user's cloud conversations. If the cloud is
-  // empty but this browser holds guest chats, import them once so
-  // signing in never loses history.
+  // Load one conversation's messages on demand: a guest reads its
+  // per-conversation key, a signed-in user fetches the latest page
+  // from the cloud. Already-loaded conversations are a no-op.
+  const ensureMessagesLoaded = useCallback(
+    async (id: string) => {
+      if (messagesByIdRef.current[id] !== undefined) return;
+
+      if (!user) {
+        const messages = readConversationMessages(
+          window.localStorage,
+          id
+        );
+        setMessagesById((prev) => ({
+          ...prev,
+          [id]: messages ?? [],
+        }));
+        return;
+      }
+
+      const fetched = await fetchConversationMessages(user.id, id);
+      if (fetched === null) {
+        setMessagesById((prev) => ({ ...prev, [id]: [] }));
+        return;
+      }
+      setMessagesById((prev) => ({ ...prev, [id]: fetched }));
+      // These messages just came from the cloud, so the next sync
+      // pass must not re-upload them as if they were local changes.
+      const meta = conversationListRef.current.find(
+        (conversation) => conversation.id === id
+      );
+      if (meta) {
+        syncedSnapshotsRef.current.set(
+          id,
+          JSON.stringify({ ...meta, messages: fetched })
+        );
+      }
+    },
+    [user]
+  );
+
+  // On sign-in: load the conversation LIST first (metadata only,
+  // latest 20), then the active conversation's messages on demand.
+  // If the cloud is empty but this browser holds guest chats, import
+  // them once so signing in never loses history.
   useEffect(() => {
     if (!user) {
       cloudReadyRef.current = false;
@@ -439,31 +273,67 @@ export default function ChatLayout() {
     const userId = user.id;
 
     void (async () => {
-      const cloud = await fetchConversations(userId);
-      if (cancelled || !cloud) return;
+      const list = await fetchConversationList(userId);
+      if (cancelled || !list) return;
 
-      let effective: GuestChatConversation[] = [];
+      const sortedList = sortConversations(list);
 
-      if (cloud.length === 0 && conversationsRef.current.length > 0) {
-        const local = conversationsRef.current;
-        for (const conversation of local) {
-          await syncConversation(userId, toCloudConversation(conversation));
+      if (list.length === 0 && conversationListRef.current.length > 0) {
+        const local = conversationListRef.current;
+        for (const meta of local) {
+          const messages =
+            readConversationMessages(window.localStorage, meta.id) ?? [];
+          await syncConversation(
+            userId,
+            toCloudConversation({ ...meta, messages })
+          );
         }
-        effective = local;
-      } else if (cloud.length > 0) {
-        effective = cloud;
-        setConversations(sortConversations(cloud));
-        setActiveConversationId(cloud[0]?.id ?? null);
+        syncedSnapshotsRef.current = new Map(
+          local.map((meta) => {
+            const messages =
+              messagesByIdRef.current[meta.id] ??
+              readConversationMessages(window.localStorage, meta.id) ??
+              [];
+            return [meta.id, JSON.stringify({ ...meta, messages })];
+          })
+        );
+        knownCloudIdsRef.current = new Set(
+          local.map((meta) => meta.id)
+        );
+        cloudReadyRef.current = true;
+        return;
       }
 
+      if (list.length === 0) {
+        syncedSnapshotsRef.current = new Map();
+        knownCloudIdsRef.current = new Set();
+        cloudReadyRef.current = true;
+        return;
+      }
+
+      setConversationList(sortedList);
+      const activeId = sortedList[0]?.id ?? null;
+      setActiveConversationId(activeId);
+
+      const messages =
+        activeId === null
+          ? []
+          : ((await fetchConversationMessages(userId, activeId)) ?? []);
+      if (cancelled) return;
+      if (activeId !== null) {
+        setMessagesById((prev) => ({ ...prev, [activeId]: messages }));
+      }
       syncedSnapshotsRef.current = new Map(
-        effective.map((conversation) => [
-          conversation.id,
-          JSON.stringify(conversation),
+        sortedList.map((meta) => [
+          meta.id,
+          JSON.stringify({
+            ...meta,
+            messages: meta.id === activeId ? messages : [],
+          }),
         ])
       );
       knownCloudIdsRef.current = new Set(
-        effective.map((conversation) => conversation.id)
+        sortedList.map((meta) => meta.id)
       );
       cloudReadyRef.current = true;
     })();
@@ -483,20 +353,34 @@ export default function ChatLayout() {
     }
 
     const userId = user.id;
-    const snapshot = conversations;
+    const snapshotList = conversationList;
+    const snapshotMessages = messagesById;
 
     cloudSyncTimerRef.current = setTimeout(() => {
       void (async () => {
         const currentIds = new Set<string>();
 
-        for (const conversation of snapshot) {
-          currentIds.add(conversation.id);
-          const serialized = JSON.stringify(conversation);
-          if (syncedSnapshotsRef.current.get(conversation.id) !== serialized) {
-            const ok = await syncConversation(userId, toCloudConversation(conversation));
+        for (const meta of snapshotList) {
+          currentIds.add(meta.id);
+          const messages = snapshotMessages[meta.id];
+          const full: GuestChatConversation = {
+            ...meta,
+            messages: messages ?? [],
+          };
+          const serialized = JSON.stringify(full);
+          if (syncedSnapshotsRef.current.get(meta.id) !== serialized) {
+            // Loaded conversations sync fully; metadata-only ones
+            // (messages not loaded yet) sync just the row.
+            const ok =
+              messages !== undefined
+                ? await syncConversation(
+                    userId,
+                    toCloudConversation(full)
+                  )
+                : await syncConversationMeta(userId, meta);
             if (ok) {
-              syncedSnapshotsRef.current.set(conversation.id, serialized);
-              knownCloudIdsRef.current.add(conversation.id);
+              syncedSnapshotsRef.current.set(meta.id, serialized);
+              knownCloudIdsRef.current.add(meta.id);
             }
           }
         }
@@ -510,7 +394,7 @@ export default function ChatLayout() {
         }
       })();
     }, 900);
-  }, [conversations, user]);
+  }, [conversationList, messagesById, user]);
 
   const activeRequestRef = useRef<ActiveRequest | null>(null);
 
@@ -526,14 +410,17 @@ export default function ChatLayout() {
   const [streamingSnapshot, setStreamingSnapshot] =
     useState<StreamingState | null>(null);
 
-  const activeConversation = useMemo(
-    () =>
-      conversations.find(
-        (conversation) =>
-          conversation.id === activeConversationId
-      ) ?? null,
-    [conversations, activeConversationId]
-  );
+  const activeConversation = useMemo(() => {
+    const meta =
+      conversationList.find(
+        (conversation) => conversation.id === activeConversationId
+      ) ?? null;
+    if (!meta) return null;
+    return {
+      ...meta,
+      messages: messagesById[activeConversationId ?? ""] ?? [],
+    };
+  }, [conversationList, messagesById, activeConversationId]);
 
   // Displayed messages: during a stream, the in-flight assistant
   // message comes from the throttled snapshot, so only that row
@@ -569,11 +456,11 @@ export default function ChatLayout() {
 
     const write = () => {
       try {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(
-            buildPersistPayload(conversations, activeConversationId)
-          )
+        persistGuestState(
+          window.localStorage,
+          conversationList,
+          activeConversationId,
+          messagesById
         );
       } catch (error) {
         console.warn("Unable to persist guest chat history.", error);
@@ -595,7 +482,7 @@ export default function ChatLayout() {
         clearTimeout(persistTimerRef.current);
       }
     };
-  }, [conversations, activeConversationId]);
+  }, [conversationList, activeConversationId, messagesById]);
 
   // Flush any pending persist when the page is hidden or unloaded, so
   // a crash or close never loses more than the debounce window. Reads
@@ -613,15 +500,12 @@ export default function ChatLayout() {
         persistTimerRef.current = null;
       }
       try {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(
-            buildPersistPayload(
-              conversationsRef.current,
-              activeConversationIdRef.current,
-              streamingRef.current
-            )
-          )
+        persistGuestState(
+          window.localStorage,
+          conversationListRef.current,
+          activeConversationIdRef.current,
+          messagesByIdRef.current,
+          streamingRef.current
         );
       } catch (error) {
         console.warn("Unable to persist guest chat history.", error);
@@ -668,7 +552,7 @@ export default function ChatLayout() {
     const id = crypto.randomUUID();
     const now = createTimestamp();
 
-    const nextConversation: GuestChatConversation = {
+    const newMeta: GuestChatMeta = {
       id,
       title: "New chat",
       preview: "",
@@ -677,25 +561,25 @@ export default function ChatLayout() {
       pinned: false,
       folder: null,
       tags: [],
-      messages: [],
     };
 
-    setConversations((prev) =>
-      sortConversations([nextConversation, ...prev])
-    );
+    setConversationList((prev) => sortConversations([newMeta, ...prev]));
+    setMessagesById((prev) => ({ ...prev, [id]: [] }));
 
     setActiveConversationId(id);
     setSidebarOpen(false);
   }, [handleStop]);
 
-  // Select a conversation.
+  // Select a conversation. Messages load on demand (guest key or
+  // cloud page) the first time it is opened.
   const handleSelectConversation = useCallback(
     (id: string) => {
       handleStop();
       setActiveConversationId(id);
       setSidebarOpen(false);
+      void ensureMessagesLoaded(id);
     },
-    [handleStop]
+    [handleStop, ensureMessagesLoaded]
   );
 
   // Rename a conversation.
@@ -707,7 +591,7 @@ export default function ChatLayout() {
         return;
       }
 
-      setConversations((prev) =>
+      setConversationList((prev) =>
         sortConversations(
           prev.map((conversation) =>
             conversation.id === id
@@ -724,14 +608,23 @@ export default function ChatLayout() {
     []
   );
 
-  // Delete a conversation.
+  // Delete a conversation (also removes its messages key).
   const handleDeleteConversation = useCallback(
     (id: string) => {
       if (activeConversationId === id) {
         handleStop();
       }
 
-      setConversations((prev) => {
+      setMessagesById((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(conversationMessagesKey(id));
+      }
+
+      setConversationList((prev) => {
         const remaining = prev.filter(
           (conversation) => conversation.id !== id
         );
@@ -743,17 +636,18 @@ export default function ChatLayout() {
 
         if (activeConversationId === id) {
           setActiveConversationId(remaining[0].id);
+          void ensureMessagesLoaded(remaining[0].id);
         }
 
         return remaining;
       });
     },
-    [activeConversationId, handleStop]
+    [activeConversationId, handleStop, ensureMessagesLoaded]
   );
 
   // Pin or unpin a conversation.
   const handleTogglePin = useCallback((id: string) => {
-    setConversations((prev) =>
+    setConversationList((prev) =>
       sortConversations(
         prev.map((conversation) =>
           conversation.id === id
@@ -1209,17 +1103,17 @@ export default function ChatLayout() {
   // is rebuilt only when something visible changes.
   const sidebarSignature = useMemo(
     () =>
-      conversations
+      conversationList
         .map(
           (conversation) =>
             `${conversation.id}|${conversation.title}|${conversation.preview}|${conversation.pinned ? 1 : 0}|${conversation.updatedAt}`
         )
         .join(";"),
-    [conversations]
+    [conversationList]
   );
   const sidebarThreads = useMemo(
     () =>
-      conversations.map((conversation) => ({
+      conversationList.map((conversation) => ({
         id: conversation.id,
         title: conversation.title,
         preview: conversation.preview,
@@ -1269,8 +1163,11 @@ export default function ChatLayout() {
 
     if (!workingConversationId) {
       workingConversationId = crypto.randomUUID();
+      // Const capture: TS does not carry `let` narrowing into the
+      // updater closure below.
+      const newId = workingConversationId;
 
-      const newConversation: GuestChatConversation = {
+      const newMeta: GuestChatMeta = {
         id: workingConversationId,
         title: generateChatTitle(trimmedPrompt),
         preview: trimmedPrompt,
@@ -1279,15 +1176,22 @@ export default function ChatLayout() {
         pinned: false,
         folder: null,
         tags: [],
-        messages: [],
       };
 
-      setConversations((prev) =>
-        sortConversations([newConversation, ...prev])
+      setConversationList((prev) =>
+        sortConversations([newMeta, ...prev])
       );
+      setMessagesById((prev) => ({
+        ...prev,
+        [newId]: [],
+      }));
 
       setActiveConversationId(workingConversationId);
     }
+
+    // Narrowed once here: the updaters below are closures, and TS
+    // does not carry `let` narrowing into them.
+    const targetConversationId = workingConversationId;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -1314,16 +1218,26 @@ export default function ChatLayout() {
       comparePrompt: trimmedPrompt,
     };
 
-    setConversations((prev) =>
+    setMessagesById((prev) => ({
+      ...prev,
+      [targetConversationId]: [
+        ...(prev[targetConversationId] ?? []),
+        userMessage,
+        assistantMessage,
+      ],
+    }));
+
+    setConversationList((prev) =>
       sortConversations(
         prev.map((conversation) => {
-          if (conversation.id !== workingConversationId) {
+          if (conversation.id !== targetConversationId) {
             return conversation;
           }
 
           const nextTitle =
             conversation.title === "New chat" ||
-            conversation.messages.length === 0
+            (messagesByIdRef.current[targetConversationId]?.length ??
+              0) === 0
               ? generateChatTitle(trimmedPrompt)
               : conversation.title;
 
@@ -1332,11 +1246,6 @@ export default function ChatLayout() {
             title: nextTitle,
             preview: trimmedPrompt,
             updatedAt: timestamp,
-            messages: [
-              ...conversation.messages,
-              userMessage,
-              assistantMessage,
-            ],
           };
         })
       )
@@ -1347,7 +1256,7 @@ export default function ChatLayout() {
     // Streamed text lives in a ref; React state flushes at most every
     // 100 ms and the store is written once by commitStreaming().
     streamingRef.current = {
-      conversationId: workingConversationId,
+      conversationId: targetConversationId,
       messageId: assistantMessageId,
       content: "",
       thinking: "",
@@ -1364,15 +1273,12 @@ export default function ChatLayout() {
     // of streamed text, since the store is only written on commit.
     interimPersistTimerRef.current = setInterval(() => {
       try {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(
-            buildPersistPayload(
-              conversationsRef.current,
-              workingConversationId,
-              streamingRef.current
-            )
-          )
+        persistGuestState(
+          window.localStorage,
+          conversationListRef.current,
+          targetConversationId,
+          messagesByIdRef.current,
+          streamingRef.current
         );
       } catch (error) {
         console.warn("Unable to persist guest chat history.", error);
@@ -1388,31 +1294,33 @@ export default function ChatLayout() {
       if (!current) return;
       // Skip the 500 ms persist debounce: a commit is a single write.
       persistNowRef.current = true;
-      setConversations((prev) =>
+      setMessagesById((prev) => ({
+        ...prev,
+        [current.conversationId]: (prev[current.conversationId] ?? []).map(
+          (message) =>
+            message.id === current.messageId
+              ? {
+                  ...message,
+                  content: finalContent,
+                  thinking: current.thinking,
+                  sources: current.sources,
+                }
+              : message
+        ),
+      }));
+      setConversationList((prev) =>
         sortConversations(
-          prev.map((conversation) => {
-            if (conversation.id !== current.conversationId) {
-              return conversation;
-            }
-
-            return {
-              ...conversation,
-              preview: finalContent.trim()
-                ? finalContent.slice(0, 120)
-                : trimmedPrompt,
-              updatedAt: createTimestamp(),
-              messages: conversation.messages.map((message) =>
-                message.id === current.messageId
-                  ? {
-                      ...message,
-                      content: finalContent,
-                      thinking: current.thinking,
-                      sources: current.sources,
-                    }
-                  : message
-              ),
-            };
-          })
+          prev.map((conversation) =>
+            conversation.id === current.conversationId
+              ? {
+                  ...conversation,
+                  preview: finalContent.trim()
+                    ? finalContent.slice(0, 120)
+                    : trimmedPrompt,
+                  updatedAt: createTimestamp(),
+                }
+              : conversation
+          )
         )
       );
     };
