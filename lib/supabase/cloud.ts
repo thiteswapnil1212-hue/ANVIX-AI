@@ -1,5 +1,19 @@
 import { supabase } from "./client";
 import { normalizeFolderName, normalizeTags } from "@/lib/chat-organization";
+import {
+  isMissingColumnError,
+  mapMessageRow,
+  mapProfileRow,
+  toMessageInsertRow,
+  type CloudMessage,
+  type CloudProfile,
+  type MessageRow,
+  type ProfileRow,
+} from "./cloud-mapping";
+
+// Re-exported so existing import sites (`@/lib/supabase/cloud`) keep
+// working; the shapes live in `./cloud-mapping.ts` (pure, unit-tested).
+export type { CloudMessage, CloudProfile } from "./cloud-mapping";
 
 /**
  * Cloud persistence for chats and generated projects (Supabase).
@@ -11,14 +25,13 @@ import { normalizeFolderName, normalizeTags } from "@/lib/chat-organization";
  *
  * Every function no-ops safely (returns null / false) when Supabase is
  * not configured on the deployment, so guest mode never breaks.
+ *
+ * New `messages` / `profiles` columns (migration 0002: thinking,
+ * sources, attachments, mode, custom_instructions, default_chat_mode,
+ * default_thinking) are read and written when the deployment has them;
+ * on an older schema the same calls retry without those columns, so
+ * sync keeps working instead of failing the whole load.
  */
-
-export interface CloudMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: string;
-}
 
 export interface CloudConversation {
   id: string;
@@ -53,14 +66,6 @@ interface ConversationRow {
   tags?: string[];
   created_at: string;
   updated_at: string;
-}
-
-interface MessageRow {
-  id: string;
-  conversation_id: string;
-  role: "user" | "assistant";
-  content: string;
-  created_at: string;
 }
 
 interface ProjectRow {
@@ -126,6 +131,13 @@ export async function fetchConversationList(
 // Messages for one conversation, latest `limit` first (fetched newest
 // first, then reversed to chronological order). Pass `before` (the
 // createdAt of the oldest loaded message) to page older messages.
+// Selects the migration-0002 columns (thinking, sources, attachments,
+// mode) and retries without them on an older schema.
+const MESSAGE_COLUMNS =
+  "id, conversation_id, role, content, thinking, sources, attachments, mode, created_at";
+const MESSAGE_COLUMNS_LEGACY =
+  "id, conversation_id, role, content, created_at";
+
 export async function fetchConversationMessages(
   userId: string,
   conversationId: string,
@@ -135,32 +147,33 @@ export async function fetchConversationMessages(
 
   const limit = options?.limit ?? 100;
 
-  let query = supabase
-    .from("messages")
-    .select("id, conversation_id, role, content, created_at")
-    .eq("user_id", userId)
-    .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: false });
+  const runQuery = async (columns: string) => {
+    let query = supabase
+      .from("messages")
+      .select(columns)
+      .eq("user_id", userId)
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false });
 
-  if (options?.before) {
-    query = query.lt("created_at", options.before);
+    if (options?.before) {
+      query = query.lt("created_at", options.before);
+    }
+
+    return query.range(0, limit - 1);
+  };
+
+  let { data, error } = await runQuery(MESSAGE_COLUMNS);
+
+  if (error && isMissingColumnError(error)) {
+    ({ data, error } = await runQuery(MESSAGE_COLUMNS_LEGACY));
   }
-
-  const { data, error } = await query.range(0, limit - 1);
 
   if (error || !data) {
     console.warn("Unable to load cloud messages.", error);
     return null;
   }
 
-  return ((data as MessageRow[]) ?? [])
-    .map((row) => ({
-      id: row.id,
-      role: row.role,
-      content: row.content,
-      createdAt: row.created_at,
-    }))
-    .reverse();
+  return ((data as MessageRow[]) ?? []).map(mapMessageRow).reverse();
 }
 
 // Upsert the conversation row only (no message rewrite). Use for
@@ -265,16 +278,32 @@ export async function replaceMessages(
 
   if (conversation.messages.length === 0) return true;
 
+  // Insert with the migration-0002 columns; on an older schema retry
+  // with the legacy shape so the sync still lands.
   const { error: insertError } = await supabase.from("messages").insert(
-    conversation.messages.map((message) => ({
-      id: message.id,
-      conversation_id: conversation.id,
-      user_id: userId,
-      role: message.role,
-      content: message.content,
-      created_at: message.createdAt,
-    }))
+    conversation.messages.map((message) =>
+      toMessageInsertRow(message, conversation.id, userId)
+    )
   );
+
+  if (insertError && isMissingColumnError(insertError)) {
+    const { error: legacyError } = await supabase.from("messages").insert(
+      conversation.messages.map((message) => ({
+        id: message.id,
+        conversation_id: conversation.id,
+        user_id: userId,
+        role: message.role,
+        content: message.content,
+        created_at: message.createdAt,
+      }))
+    );
+
+    if (legacyError) {
+      console.warn("Unable to sync cloud messages.", legacyError);
+      return false;
+    }
+    return true;
+  }
 
   if (insertError) {
     console.warn("Unable to sync cloud messages.", insertError);
@@ -408,28 +437,35 @@ export async function updateProject(
 
 // ------------------------------------------------------------------ profiles
 
-export interface CloudProfile {
-  email: string | null;
-  displayName: string | null;
-}
-
 export async function fetchProfile(
   userId: string
 ): Promise<CloudProfile | null> {
   if (!supabase) return null;
 
+  // Migration-0002 columns first; retry without them on an older schema.
   const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      "email, display_name, custom_instructions, default_chat_mode, default_thinking"
+    )
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!error) {
+    return data ? mapProfileRow(data as ProfileRow) : null;
+  }
+
+  if (!isMissingColumnError(error)) return null;
+
+  const legacy = await supabase
     .from("profiles")
     .select("email, display_name")
     .eq("id", userId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (legacy.error || !legacy.data) return null;
 
-  return {
-    email: data.email as string | null,
-    displayName: data.display_name as string | null,
-  };
+  return mapProfileRow(legacy.data as ProfileRow);
 }
 
 export async function upsertProfile(
@@ -438,15 +474,37 @@ export async function upsertProfile(
 ): Promise<boolean> {
   if (!supabase) return false;
 
-  const { error } = await supabase.from("profiles").upsert(
-    {
-      id: userId,
-      email: profile.email,
-      display_name: profile.displayName,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" }
-  );
+  const baseRow = {
+    id: userId,
+    email: profile.email,
+    display_name: profile.displayName,
+    updated_at: new Date().toISOString(),
+  };
+
+  // Try with the migration-0002 columns first; on an older schema
+  // retry with the base row so the profile save still lands.
+  const { error: extendedError } = await supabase
+    .from("profiles")
+    .upsert(
+      {
+        ...baseRow,
+        custom_instructions: profile.customInstructions ?? null,
+        default_chat_mode: profile.defaultChatMode ?? "smart",
+        default_thinking: profile.defaultThinking ?? "fast",
+      },
+      { onConflict: "id" }
+    );
+
+  if (!extendedError) return true;
+
+  if (!isMissingColumnError(extendedError)) {
+    console.warn("Unable to save profile.", extendedError);
+    return false;
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .upsert(baseRow, { onConflict: "id" });
 
   if (error) {
     console.warn("Unable to save profile.", error);
