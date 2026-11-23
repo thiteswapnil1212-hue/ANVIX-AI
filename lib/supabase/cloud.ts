@@ -145,10 +145,13 @@ export async function fetchConversationMessages(
 ): Promise<CloudMessage[] | null> {
   if (!supabase) return null;
 
+  // Narrowed once here: `supabase` is a module binding, so a closure
+  // cannot rely on the null check above — capture the narrowed value.
+  const db = supabase;
   const limit = options?.limit ?? 100;
 
   const runQuery = async (columns: string) => {
-    let query = supabase
+    let query = db
       .from("messages")
       .select(columns)
       .eq("user_id", userId)
@@ -173,7 +176,9 @@ export async function fetchConversationMessages(
     return null;
   }
 
-  return ((data as MessageRow[]) ?? []).map(mapMessageRow).reverse();
+  return ((data as unknown as MessageRow[]) ?? [])
+    .map(mapMessageRow)
+    .reverse();
 }
 
 // Upsert the conversation row only (no message rewrite). Use for
