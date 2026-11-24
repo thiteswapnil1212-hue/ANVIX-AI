@@ -501,11 +501,21 @@ function ChatMessageBubble({
   // fence never renders as code — the card below opens the panel.
   // When no panel handler is wired up, the raw text is kept verbatim
   // instead: extracting without a card would hide the code.
-  const { text: displayText, artifacts } = useMemo(
+  const {
+    text: displayText,
+    artifacts,
+    buildingArtifact,
+    buildingArtifactTitle,
+  } = useMemo(
     () =>
       isAssistant && onOpenArtifact
         ? parseArtifacts(content, { streaming: isStreaming })
-        : { text: content, artifacts: [] as ChatArtifact[] },
+        : {
+            text: content,
+            artifacts: [] as ChatArtifact[],
+            buildingArtifact: undefined as boolean | undefined,
+            buildingArtifactTitle: undefined as string | undefined,
+          },
     [content, isStreaming, isAssistant, onOpenArtifact]
   );
 
@@ -514,7 +524,8 @@ function ChatMessageBubble({
     !displayText.trim() &&
     !thinking?.trim() &&
     !generatedImage &&
-    artifacts.length === 0;
+    artifacts.length === 0 &&
+    !buildingArtifact;
 
   if (isEmptyAssistant) return null;
 
@@ -623,7 +634,26 @@ function ChatMessageBubble({
                 // Plain text while streaming: re-parsing the whole
                 // growing markdown on every chunk is quadratic work.
                 // Full markdown renders once when the answer completes.
-                <p className="whitespace-pre-wrap">{content}</p>
+                // The text is the artifact-stripped display text, not
+                // the raw content — an unfinished artifact fence
+                // would otherwise show its raw HTML as plain text
+                // mid-stream. The parse already runs per chunk in the
+                // memo above, so this adds no extra work.
+                <>
+                  <p className="whitespace-pre-wrap">{displayText}</p>
+                  {buildingArtifact ? (
+                    <span className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
+                      <span
+                        className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#D4AF37]"
+                        aria-hidden="true"
+                      />
+                      Building{" "}
+                      {buildingArtifactTitle
+                        ? `${buildingArtifactTitle}…`
+                        : "artifact…"}
+                    </span>
+                  ) : null}
+                </>
               ) : (
               <MarkdownContent
                 content={displayText}
