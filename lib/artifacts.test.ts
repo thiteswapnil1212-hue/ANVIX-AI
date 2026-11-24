@@ -105,18 +105,49 @@ test("parseArtifacts extracts an interrupted fence as a partial artifact", () =>
   assert.ok(text.includes("[Response interrupted. Please try again.]"));
 });
 
-test("parseArtifacts leaves an unterminated artifact fence alone while streaming", () => {
+test("parseArtifacts strips an unterminated artifact fence while streaming and flags it as building", () => {
   // Mid-stream the fence is usually just unfinished, not
-  // interrupted — extracting it here flashed an "Interrupted —
-  // partial preview" card that collapsed once the fence closed.
+  // interrupted — but leaving it in the text showed the raw fence
+  // and HTML as plain text while it streamed in. The unfinished
+  // block is stripped from the visible text and flagged instead, so
+  // the bubble can show a neutral "Building…" placeholder; no
+  // artifact entry is created, so no card flashes mid-stream.
   const partial = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, ";
-  const { text, artifacts } = parseArtifacts(
-    `Here is your widget:\n\n\`\`\`artifact:html title="Tiny Calculator"\n${partial}`,
+  const { text, artifacts, buildingArtifact, buildingArtifactTitle } =
+    parseArtifacts(
+      `Here is your widget:\n\n\`\`\`artifact:html title="Tiny Calculator"\n${partial}`,
+      { streaming: true }
+    );
+  assert.equal(artifacts.length, 0);
+  assert.equal(buildingArtifact, true);
+  assert.equal(buildingArtifactTitle, "Tiny Calculator");
+  assert.ok(!text.includes("artifact:html"));
+  assert.ok(!text.includes("<!doctype"));
+  assert.ok(text.includes("Here is your widget:"));
+});
+
+test("parseArtifacts extracts a complete fence and flags a second unfinished one while streaming", () => {
+  const { text, artifacts, buildingArtifact, buildingArtifactTitle } =
+    parseArtifacts(
+      `First:\n\n\`\`\`artifact:html title="Loan calculator"\n${HTML_DOC}\n\`\`\`\n\nSecond:\n\n\`\`\`artifact:html title="Tiny Calculator"\n<!doctype html><html>`,
+      { streaming: true }
+    );
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].title, "Loan calculator");
+  assert.equal(buildingArtifact, true);
+  assert.equal(buildingArtifactTitle, "Tiny Calculator");
+  assert.ok(!text.includes("<!doctype"));
+  assert.ok(text.includes("First:"));
+});
+
+test("parseArtifacts leaves an unterminated non-artifact fence alone while streaming", () => {
+  const { text, artifacts, buildingArtifact } = parseArtifacts(
+    "Some code:\n\n```js\nconst x = 1;",
     { streaming: true }
   );
   assert.equal(artifacts.length, 0);
-  assert.ok(text.includes("artifact:html"));
-  assert.ok(text.includes("<!doctype"));
+  assert.equal(buildingArtifact, undefined);
+  assert.ok(text.includes("const x = 1;"));
 });
 
 test("parseArtifacts still extracts complete fences while streaming", () => {
