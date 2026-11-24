@@ -1127,7 +1127,7 @@ function ChatInput({
                     <div
                       className="
                         absolute bottom-[43px] right-0 z-[9999]
-                        max-h-[min(400px,calc(100dvh-260px))]
+                        max-h-[min(460px,calc(100dvh-200px))]
                         w-[min(300px,calc(100vw-32px))]
                         overflow-y-auto overflow-x-hidden
                         rounded-xl border border-zinc-800
@@ -1205,7 +1205,7 @@ function ChatInput({
                               className={`
                                 flex w-full items-center
                                 justify-between gap-3
-                                rounded-lg px-2.5 py-2
+                                rounded-lg px-2.5 py-1.5
                                 text-left transition-colors
                                 ${
                                   unavailable
@@ -1308,7 +1308,7 @@ function ChatInput({
                       </div>
 
                       {/* Web grounding toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2">
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-1.5">
                         <button
                           type="button"
                           role="switch"
@@ -1359,7 +1359,7 @@ function ChatInput({
                       </div>
 
                       {/* Deep research toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2">
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-1.5">
                         <button
                           type="button"
                           role="switch"
