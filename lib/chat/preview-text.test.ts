@@ -61,6 +61,47 @@ test("preview strips an old stored raw tag fragment", () => {
   assert.equal(cleanPreviewText("<meta na"), "");
 });
 
+test("preview strips style and script blocks but keeps readable text", () => {
+  assert.equal(
+    cleanPreviewText(
+      "Here is your calculator:\n<style>body { display: flex; }</style>\n<script>const x = 1;</script>"
+    ),
+    "Here is your calculator:"
+  );
+});
+
+test("preview strips an unterminated style block and falls back", () => {
+  // The exact reported case: an interrupted calculator chat whose
+  // preview read "Tiny Calculator body { display: flex; ...". The
+  // <title> text is head metadata too, so nothing readable remains
+  // and the caller falls back to the user prompt.
+  const raw = [
+    '```artifact:html title="Tiny Calculator"',
+    "<!DOCTYPE html>",
+    "<html><head><title>Tiny Calculator</title>",
+    "<style>body { display: flex; justify-content: center; align-items: center; height: 100vh; m",
+    "",
+    "[Response interrupted. Please try again.]",
+  ].join("\n");
+  assert.equal(cleanPreviewText(raw), "");
+});
+
+test("preview strips an unterminated script block", () => {
+  assert.equal(
+    cleanPreviewText("Note:\n<script>const a = 1;\nconst b = 2;"),
+    "Note:"
+  );
+});
+
+test("preview strips a title block but keeps body text", () => {
+  assert.equal(
+    cleanPreviewText(
+      "<html><head><title>Some page</title></head><body>Real answer</body></html>"
+    ),
+    "Real answer"
+  );
+});
+
 test("preview keeps a bare less-than in ordinary text", () => {
   assert.equal(cleanPreviewText("a < b and cost < $5"), "a < b and cost < $5");
 });
