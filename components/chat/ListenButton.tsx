@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Volume2, Square } from "lucide-react";
 import {
-  isBrowserSpeechAvailable,
   startReadAloud,
   type ReadAloudHandle,
 } from "@/lib/tts-client";
@@ -40,12 +39,11 @@ export default function ListenButton({ text }: { text: string }) {
     }
 
     if (!text.trim()) return;
-    if (!isBrowserSpeechAvailable() && typeof window !== "undefined") {
-      // No browser voice either — nothing can speak.
-      setState("error");
-      return;
-    }
 
+    // No pre-gate on browser speech: Gemini TTS plays through
+    // <audio> and works even where speechSynthesis is missing.
+    // startReadAloud throws only when no voice path works at all,
+    // and the catch below turns that into "Voice unavailable".
     setState("loading");
     setSource(null);
 
