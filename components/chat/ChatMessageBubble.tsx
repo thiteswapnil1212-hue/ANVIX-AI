@@ -18,6 +18,7 @@ import {
   ExternalLink,
   FileText,
   GitFork,
+  Globe,
   Image as ImageIcon,
   Scale,
   PanelTop,
@@ -113,9 +114,18 @@ function ThinkingBlock({ thinking }: { thinking: string }) {
 function SourcesList({ sources }: { sources: GroundingSource[] }) {
   return (
     <div className="mt-4 border-t border-white/[0.06] pt-3">
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.17em] text-zinc-500">
-        Sources
-      </p>
+      <div className="mb-2 flex items-center gap-2">
+        {/* Shown only when sources actually arrived with the answer:
+            grounding degrades silently on quota, so this badge never
+            appears for an ungrounded reply. */}
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">
+          <Globe className="h-3 w-3" aria-hidden="true" />
+          Grounded
+        </span>
+        <p className="text-[10px] font-bold uppercase tracking-[0.17em] text-zinc-500">
+          Sources
+        </p>
+      </div>
       <ol className="space-y-1.5">
         {sources.map((source, index) => (
           <li key={`${source.uri}-${index}`} className="min-w-0">
@@ -640,12 +650,19 @@ function ChatMessageBubble({
             <SourcesList sources={sources} />
           ) : null}
 
-          <div
-            className={`
-              mt-3 flex gap-2
-              ${isAssistant ? "justify-end" : "justify-start"}
-            `}
-          >
+          {/* The action row is invisible until hover on desktop
+              (opacity-0), but it still reserved ~44px of bubble
+              height — a one-word message rendered ~110px tall. The
+              wrapper collapses that space on desktop until the
+              message is hovered or focused; on touch screens the row
+              stays visible. */}
+          <div className="max-h-12 overflow-hidden transition-all duration-200 sm:max-h-0 sm:group-hover/message:max-h-12 sm:group-focus-within/message:max-h-12">
+            <div
+              className={`
+                mt-3 flex gap-2
+                ${isAssistant ? "justify-end" : "justify-start"}
+              `}
+            >
             {onFork && (
               <button
                 type="button"
@@ -702,6 +719,7 @@ function ChatMessageBubble({
                 sm:group-focus-within/message:opacity-100
               "
             />
+            </div>
           </div>
 
           {isAssistant && compareOpen && comparePrompt?.trim() ? (
