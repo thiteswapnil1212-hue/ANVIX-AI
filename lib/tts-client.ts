@@ -49,25 +49,60 @@ function audioBlobFor(data: string, mimeType: string): Blob {
 }
 
 /**
+ * Voices load asynchronously in Chrome: getVoices() often returns
+ * [] on the first call and fills in later via `voiceschanged`.
+ * Speaking before any voice exists silently does nothing — the
+ * utterance ends immediately with no audio, which looked like a
+ * broken Listen button. Wait briefly for voices; an empty list after
+ * the wait means this browser genuinely cannot speak.
+ */
+function waitForVoices(timeoutMs: number): Promise<SpeechSynthesisVoice[]> {
+  const synth = window.speechSynthesis;
+  const current = synth.getVoices();
+  if (current.length > 0) return Promise.resolve(current);
+
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      synth.removeEventListener("voiceschanged", finish);
+      resolve(synth.getVoices());
+    };
+    synth.addEventListener("voiceschanged", finish);
+    setTimeout(finish, timeoutMs);
+  });
+}
+
+/**
  * Read `text` aloud with the browser's built-in voice. Free forever.
  * Picks an English voice when one is available; falls back to the
  * browser default otherwise. Resolves `onEnd` when speech finishes
- * or is stopped.
+ * or is stopped. Throws when no voice exists at all, so the caller
+ * can show "Voice unavailable" instead of silently playing nothing.
  */
-export function speakWithBrowserVoice(
+export async function speakWithBrowserVoice(
   text: string,
   onEnd: () => void
-): () => void {
+): Promise<() => void> {
   const synth = window.speechSynthesis;
+  if (!synth || typeof synth.speak !== "function") {
+    throw new Error("Browser speech is unavailable");
+  }
+
   const clean = stripMarkdownForSpeech(text);
   if (!clean) {
     onEnd();
     return () => {};
   }
 
+  const voices = await waitForVoices(1500);
+  if (voices.length === 0) {
+    throw new Error("No browser voices available");
+  }
+
   synth.cancel();
   const utterance = new SpeechSynthesisUtterance(clean);
-  const voices = synth.getVoices();
   const english =
     voices.find((voice) => /^en[-_]IN/i.test(voice.lang)) ??
     voices.find((voice) => /^en[-_]/i.test(voice.lang));
@@ -95,6 +130,10 @@ export async function startReadAloud(
   onEnd: () => void
 ): Promise<ReadAloudHandle> {
   let response: Response | null = null;
+  // The Gemini call can hang; without a timeout the button sits on
+  // "Loading voice…" indefinitely instead of falling back.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
     response = await fetch("/api/tts", {
       method: "POST",
@@ -103,10 +142,13 @@ export async function startReadAloud(
         ...(await getAuthHeaders()),
       },
       body: JSON.stringify({ text }),
+      signal: controller.signal,
     });
   } catch {
-    // Network failure: browser voice, no error shown.
+    // Network failure or timeout: browser voice, no error shown.
     response = null;
+  } finally {
+    clearTimeout(timeout);
   }
 
   if (response?.ok) {
@@ -139,7 +181,10 @@ export async function startReadAloud(
     }
   }
 
-  const stopBrowser = speakWithBrowserVoice(text, onEnd);
+  // The browser fallback throws when no voice exists at all — let
+  // that reach the caller (Listen shows "Voice unavailable") instead
+  // of resolving a handle that plays nothing.
+  const stopBrowser = await speakWithBrowserVoice(text, onEnd);
   return { source: "browser", stop: stopBrowser };
 }
 
