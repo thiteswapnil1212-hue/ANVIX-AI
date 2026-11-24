@@ -504,9 +504,9 @@ function ChatMessageBubble({
   const { text: displayText, artifacts } = useMemo(
     () =>
       isAssistant && onOpenArtifact
-        ? parseArtifacts(content)
+        ? parseArtifacts(content, { streaming: isStreaming })
         : { text: content, artifacts: [] as ChatArtifact[] },
-    [content, isAssistant, onOpenArtifact]
+    [content, isStreaming, isAssistant, onOpenArtifact]
   );
 
   const isEmptyAssistant =
