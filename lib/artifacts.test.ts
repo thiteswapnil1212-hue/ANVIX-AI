@@ -87,6 +87,41 @@ test("parseArtifacts leaves oversized blocks as plain code", () => {
   assert.ok(text.includes(big));
 });
 
+test("parseArtifacts extracts an interrupted fence as a partial artifact", () => {
+  // The reported case: the stream was cut off mid-HTML and the chat
+  // appended the interruption note. The raw HTML must not survive
+  // in the text (it would render as a code block).
+  const partial = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, ";
+  const { text, artifacts } = parseArtifacts(
+    `Here is your widget:\n\n\`\`\`artifact:html title="Tiny Calculator"\n${partial}\n\n[Response interrupted. Please try again.]`
+  );
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].title, "Tiny Calculator");
+  assert.equal(artifacts[0].code, partial);
+  assert.equal(artifacts[0].partial, true);
+  assert.ok(!text.includes("<!doctype"));
+  assert.ok(!text.includes("artifact"));
+  assert.ok(text.includes("Here is your widget"));
+  assert.ok(text.includes("[Response interrupted. Please try again.]"));
+});
+
+test("parseArtifacts leaves an unterminated non-artifact fence alone", () => {
+  const { text, artifacts } = parseArtifacts(
+    "Some code:\n\n```js\nconst x = 1;"
+  );
+  assert.equal(artifacts.length, 0);
+  assert.ok(text.includes("const x = 1;"));
+});
+
+test("parseArtifacts leaves an oversized interrupted fence as plain code", () => {
+  const big = "x".repeat(MAX_ARTIFACT_CODE_CHARS + 1);
+  const { artifacts, text } = parseArtifacts(
+    `\`\`\`artifact:html\n${big}`
+  );
+  assert.equal(artifacts.length, 0);
+  assert.ok(text.includes(big));
+});
+
 test("hasArtifact is true only for renderable artifact blocks", () => {
   assert.equal(hasArtifact(`\`\`\`artifact:html\n${HTML_DOC}\n\`\`\``), true);
   assert.equal(hasArtifact(`\`\`\`artifact:svg\n<svg/>\n\`\`\``), false);
