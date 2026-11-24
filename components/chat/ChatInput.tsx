@@ -1128,7 +1128,7 @@ function ChatInput({
                       className="
                         absolute bottom-[43px] right-0 z-[9999]
                         max-h-[min(460px,calc(100dvh-200px))]
-                        w-[min(300px,calc(100vw-32px))]
+                        w-[min(360px,calc(100vw-32px))]
                         overflow-y-auto overflow-x-hidden
                         rounded-xl border border-zinc-800
                         bg-[#18181B] p-1.5
@@ -1140,7 +1140,7 @@ function ChatInput({
                       <div
                         className="
                           flex items-center justify-between
-                          gap-2 px-2.5 pb-1.5 pt-1.5
+                          gap-2 px-2.5 pb-1 pt-1
                         "
                       >
                         <p
@@ -1161,7 +1161,7 @@ function ChatInput({
                             rounded-full
                             border border-[#D4AF37]/40
                             bg-[#D4AF37]/10
-                            px-2.5 py-1.5
+                            px-2.5 py-1
                             text-[11px] font-medium
                             text-[#D4AF37]
                             transition-colors
@@ -1205,7 +1205,7 @@ function ChatInput({
                               className={`
                                 flex w-full items-center
                                 justify-between gap-3
-                                rounded-lg px-2.5 py-1.5
+                                rounded-lg px-2.5 py-1
                                 text-left transition-colors
                                 ${
                                   unavailable
@@ -1255,7 +1255,7 @@ function ChatInput({
                       </div>
 
                       {/* Thinking toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 pb-0.5 pt-2">
+                      <div className="mt-1.5 border-t border-zinc-800/80 px-2.5 pb-0.5 pt-1.5">
                         <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-zinc-600">
                           Thinking
                         </p>
@@ -1297,18 +1297,18 @@ function ChatInput({
                             );
                           })}
                         </div>
-                        <p className="mt-1.5 text-[11px] leading-5 text-zinc-600">
+                        <p className="mt-1.5 text-[11px] leading-4 text-zinc-600">
                           {
                             THINKING_CHOICES.find(
                               (choice) => choice.id === thinking
                             )?.hint
                           }{" "}
-                          Deep thinking uses the most quota.
+                          Deep costs the most.
                         </p>
                       </div>
 
                       {/* Web grounding toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-1.5">
+                      <div className="mt-1.5 border-t border-zinc-800/80 px-2.5 py-1">
                         <button
                           type="button"
                           role="switch"
@@ -1336,8 +1336,7 @@ function ChatInput({
                                 Search the web
                               </span>
                               <span className="mt-0.5 block text-[11px] leading-4 text-zinc-600">
-                                Ground answers in live results, with
-                                sources.
+                                Ground answers in live results.
                               </span>
                             </span>
                           </span>
@@ -1359,7 +1358,7 @@ function ChatInput({
                       </div>
 
                       {/* Deep research toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-1.5">
+                      <div className="mt-1.5 border-t border-zinc-800/80 px-2.5 py-1">
                         <button
                           type="button"
                           role="switch"
@@ -1390,9 +1389,8 @@ function ChatInput({
                                 Deep research
                               </span>
                               <span className="mt-0.5 block text-[11px] leading-4 text-zinc-600">
-                                Cited report, Markdown export ·{" "}
-                                {RESEARCH_DAILY_LIMIT} run/day · Flash-Lite
-                                only · sign-in required.
+                                Cited report · {RESEARCH_DAILY_LIMIT}/day ·
+                                sign-in required.
                               </span>
                             </span>
                           </span>
