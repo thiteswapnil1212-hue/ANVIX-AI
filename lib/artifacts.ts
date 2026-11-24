@@ -147,14 +147,21 @@ export function parseArtifacts(content: string): ParsedMessageArtifacts {
           .slice(last.index + last[0].length)
           .replace(/^\n/, "");
         // The interruption note is appended after the cut-off code;
-        // keep it in the message text, not in the artifact.
+        // keep it in the message text, not in the artifact. The exact
+        // form (blank line + note) leaves the code byte-for-byte.
         let marker = "";
-        const trimmedCode = code.trimEnd();
-        if (trimmedCode.endsWith(INTERRUPTED_MARKER)) {
-          code = trimmedCode
-            .slice(0, -INTERRUPTED_MARKER.length)
-            .trimEnd();
-          marker = `\n\n${INTERRUPTED_MARKER}`;
+        const markerSuffix = `\n\n${INTERRUPTED_MARKER}`;
+        if (code.endsWith(markerSuffix)) {
+          code = code.slice(0, -markerSuffix.length);
+          marker = markerSuffix;
+        } else {
+          const trimmedCode = code.trimEnd();
+          if (trimmedCode.endsWith(INTERRUPTED_MARKER)) {
+            code = trimmedCode
+              .slice(0, -INTERRUPTED_MARKER.length)
+              .trimEnd();
+            marker = markerSuffix;
+          }
         }
         if (code.length <= MAX_ARTIFACT_CODE_CHARS) {
           artifacts.push({
