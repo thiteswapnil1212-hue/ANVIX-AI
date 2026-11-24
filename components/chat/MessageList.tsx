@@ -14,6 +14,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import type { ChatArtifact } from "@/lib/artifacts";
+import { newMessagesLabel } from "@/lib/chat/format-count";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -128,6 +129,11 @@ export default function MessageList({
 
   const autoScrollRef = useRef(true);
   const frameRef = useRef<number | null>(null);
+  // A programmatic scroll (auto-scroll / streaming pin) fires scroll
+  // events at intermediate positions while it animates; without this
+  // guard those events flip auto-scroll off and pop the jump pill
+  // even though the reader never scrolled away.
+  const programmaticScrollUntilRef = useRef(0);
   const previousCountRef = useRef(messages.length);
   const previousLastIdRef = useRef(
     messages[messages.length - 1]?.id ?? ""
@@ -200,6 +206,7 @@ export default function MessageList({
     (behavior: ScrollBehavior = "smooth") => {
       if (totalCount === 0) return;
 
+      programmaticScrollUntilRef.current = Date.now() + 800;
       rowVirtualizer.scrollToIndex(totalCount - 1, {
         align: "end",
         behavior,
@@ -238,6 +245,16 @@ export default function MessageList({
   }, [onLoadEarlierMessages]);
 
   const handleScroll = useCallback(() => {
+    // Ignore scroll events fired by our own programmatic scrolls
+    // while they settle: mid-animation positions are not the reader
+    // scrolling away from the bottom.
+    if (Date.now() < programmaticScrollUntilRef.current) {
+      autoScrollRef.current = true;
+      updateScrollButton(false);
+      setUnreadCount(0);
+      return;
+    }
+
     const nearBottom = isNearBottom();
 
     autoScrollRef.current = nearBottom;
@@ -340,6 +357,7 @@ export default function MessageList({
   // own re-measurement.)
   useEffect(() => {
     if (isTyping && autoScrollRef.current && totalCount > 0) {
+      programmaticScrollUntilRef.current = Date.now() + 800;
       rowVirtualizer.scrollToIndex(totalCount - 1, {
         align: "end",
         behavior: "auto",
@@ -410,12 +428,14 @@ export default function MessageList({
         </button>
       )}
 
-      {/* Scroll container */}
+      {/* Scroll container. scroll-pt keeps the first row clear of the
+          header bar and top fade when scrolled (or jumped) to the top. */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="
           h-full min-h-0 overflow-y-auto overscroll-contain
+          scroll-pt-10
           [scrollbar-color:#3f3f46_transparent]
           [scrollbar-width:thin]
           [&::-webkit-scrollbar]:w-1.5
@@ -428,9 +448,9 @@ export default function MessageList({
         <div
           className="
             mx-auto w-full max-w-5xl
-            px-3 py-6 pb-10
-            sm:px-5 sm:py-8 sm:pb-12
-            lg:px-8 lg:py-10
+            px-3 pb-10 pt-10
+            sm:px-5 sm:pb-12 sm:pt-10
+            lg:px-8 lg:pt-12
           "
         >
           <div
@@ -484,11 +504,7 @@ export default function MessageList({
         <button
           type="button"
           onClick={() => scrollToBottom("smooth")}
-          aria-label={
-            unreadCount > 0
-              ? `Jump to latest message, ${unreadCount} new messages`
-              : "Jump to latest message"
-          }
+          aria-label={newMessagesLabel(unreadCount)}
           title="Jump to latest"
           className="
             absolute bottom-5 left-1/2 z-30
