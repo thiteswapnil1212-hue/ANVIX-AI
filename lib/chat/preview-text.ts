@@ -28,6 +28,23 @@ export function cleanPreviewText(text: string): string {
   // an interrupted reply falls back to the user prompt instead of
   // showing the note as the summary.
   cleaned = cleaned.replace(/\[Response interrupted\. Please try again\.\]/g, " ");
+  // <style>/<script>/<title> blocks: their inner text is head
+  // content, not visible message text — a tag strip alone leaves the
+  // CSS/JS behind ("body { display: flex; ..."). Drop the whole
+  // block, including an unterminated one running to end-of-string
+  // (the reply was cut off inside the block). The closed-block rule
+  // runs first so a later unterminated block is the only thing the
+  // to-end rule can match.
+  for (const tag of ["style", "script", "title"]) {
+    cleaned = cleaned.replace(
+      new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, "gi"),
+      " "
+    );
+    cleaned = cleaned.replace(
+      new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*$`, "gi"),
+      " "
+    );
+  }
   // HTML tags (a pasted document included).
   cleaned = cleaned.replace(/<[^>]*>/g, " ");
   // A stream cut off mid-tag leaves an unterminated "<meta ..." with
