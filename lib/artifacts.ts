@@ -98,6 +98,16 @@ export type ParsedMessageArtifacts = {
   /** Message text with extracted artifact blocks removed. */
   text: string;
   artifacts: ChatArtifact[];
+  /**
+   * True while streaming when an artifact fence has opened but not
+   * closed yet. The unfinished block is stripped from `text` (so raw
+   * HTML never shows as plain text mid-stream) without creating an
+   * artifact entry — no card flashes, and nothing is labelled
+   * "Interrupted" while the stream is still going.
+   */
+  buildingArtifact?: boolean;
+  /** Title of the artifact being built, when the fence carries one. */
+  buildingArtifactTitle?: string;
 };
 
 /**
@@ -110,12 +120,15 @@ export type ParsedMessageArtifacts = {
  * kept in the message text.
  *
  * While the message is still streaming (`options.streaming`), an
- * unterminated fence is NOT extracted: mid-stream it is usually
- * just unfinished, not interrupted, and extracting it would flash
- * an "Interrupted — partial preview" card that collapses into the
- * clean card once the closing fence arrives. The card appears only
- * after the stream ends — as a full artifact, or as a partial one
- * when the reply really was interrupted.
+ * unterminated fence is NOT extracted as an artifact: mid-stream it
+ * is usually just unfinished, not interrupted, and extracting it
+ * would flash an "Interrupted — partial preview" card that collapses
+ * into the clean card once the closing fence arrives. Instead the
+ * unfinished block is stripped from the visible text and flagged
+ * (`buildingArtifact`), so the bubble can show a neutral "Building…"
+ * placeholder instead of the raw fence and HTML as plain text. The
+ * card appears only after the stream ends — as a full artifact, or
+ * as a partial one when the reply really was interrupted.
  */
 export function parseArtifacts(
   content: string,
@@ -123,6 +136,8 @@ export function parseArtifacts(
 ): ParsedMessageArtifacts {
   const artifacts: ChatArtifact[] = [];
   let extractedCount = 0;
+  let buildingArtifact: boolean | undefined;
+  let buildingArtifactTitle: string | undefined;
 
   let text = content.replace(
     FENCE_RE,
@@ -148,44 +163,53 @@ export function parseArtifacts(
   // Unterminated artifact fence: the last ``` line has no closing
   // fence after it (complete fences were removed above, so any
   // remaining ``` line is either a stray marker or this opener).
-  // Skipped while streaming — see the doc comment above.
-  if (!options?.streaming && extractedCount < MAX_ARTIFACTS_PER_MESSAGE) {
+  if (extractedCount < MAX_ARTIFACTS_PER_MESSAGE) {
     const openers = [...text.matchAll(/^```([^\n]*)$/gm)];
     const last = openers[openers.length - 1];
     if (last && last.index !== undefined) {
       const parsed = parseArtifactInfo(last[1]);
       if (parsed) {
-        let code = text
-          .slice(last.index + last[0].length)
-          .replace(/^\n/, "");
-        // The interruption note is appended after the cut-off code;
-        // keep it in the message text, not in the artifact. The exact
-        // form (blank line + note) leaves the code byte-for-byte.
-        let marker = "";
-        const markerSuffix = `\n\n${INTERRUPTED_MARKER}`;
-        if (code.endsWith(markerSuffix)) {
-          code = code.slice(0, -markerSuffix.length);
-          marker = markerSuffix;
+        if (options?.streaming) {
+          // Mid-stream the fence is just unfinished — strip the
+          // unfinished block from the visible text and flag it, so
+          // the bubble shows a "Building…" placeholder. No artifact
+          // entry is created here.
+          buildingArtifact = true;
+          buildingArtifactTitle = cleanTitle(parsed.title, extractedCount);
+          text = text.slice(0, last.index);
         } else {
-          const trimmedCode = code.trimEnd();
-          if (trimmedCode.endsWith(INTERRUPTED_MARKER)) {
-            code = trimmedCode
-              .slice(0, -INTERRUPTED_MARKER.length)
-              .trimEnd();
+          let code = text
+            .slice(last.index + last[0].length)
+            .replace(/^\n/, "");
+          // The interruption note is appended after the cut-off code;
+          // keep it in the message text, not in the artifact. The exact
+          // form (blank line + note) leaves the code byte-for-byte.
+          let marker = "";
+          const markerSuffix = `\n\n${INTERRUPTED_MARKER}`;
+          if (code.endsWith(markerSuffix)) {
+            code = code.slice(0, -markerSuffix.length);
             marker = markerSuffix;
+          } else {
+            const trimmedCode = code.trimEnd();
+            if (trimmedCode.endsWith(INTERRUPTED_MARKER)) {
+              code = trimmedCode
+                .slice(0, -INTERRUPTED_MARKER.length)
+                .trimEnd();
+              marker = markerSuffix;
+            }
           }
-        }
-        if (code.length <= MAX_ARTIFACT_CODE_CHARS) {
-          artifacts.push({
-            id: `artifact-${extractedCount}`,
-            title: cleanTitle(parsed.title, extractedCount),
-            language: parsed.language,
-            code,
-            previewable: true,
-            partial: true,
-          });
-          extractedCount += 1;
-          text = text.slice(0, last.index) + marker;
+          if (code.length <= MAX_ARTIFACT_CODE_CHARS) {
+            artifacts.push({
+              id: `artifact-${extractedCount}`,
+              title: cleanTitle(parsed.title, extractedCount),
+              language: parsed.language,
+              code,
+              previewable: true,
+              partial: true,
+            });
+            extractedCount += 1;
+            text = text.slice(0, last.index) + marker;
+          }
         }
       }
     }
@@ -194,7 +218,7 @@ export function parseArtifacts(
   // Collapse the blank lines left behind by removed blocks.
   const cleaned = text.replace(/\n{3,}/g, "\n\n").trim();
 
-  return { text: cleaned, artifacts };
+  return { text: cleaned, artifacts, buildingArtifact, buildingArtifactTitle };
 }
 
 /**
