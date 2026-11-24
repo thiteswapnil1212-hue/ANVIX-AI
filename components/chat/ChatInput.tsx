@@ -419,13 +419,22 @@ function ChatInput({
     submittingRef.current = true;
     setIsSubmitting(true);
 
+    // Clear optimistically: the composer is free for the next message
+    // while this one streams. If the send is rejected or fails, the
+    // text (and attachments) come back — but only when the user has
+    // not typed something new in the meantime.
+    const sentAttachments = attachments;
+    setValue("");
+    setAttachments([]);
+    setAttachError(null);
+
     try {
       const accepted = await onSend(message, {
         mode: selectedMode,
         thinking,
         web: webEnabled,
         research: researchEnabled,
-        attachments,
+        attachments: sentAttachments,
         assistantId: assistantSelection?.id ?? null,
         assistant: assistantSelection
           ? {
@@ -437,17 +446,23 @@ function ChatInput({
       });
 
       if (accepted) {
-        setValue("");
-        setAttachments([]);
-        setAttachError(null);
         setModelOpen(false);
         setTemplateOpen(false);
         setGuideOpen(false);
+      } else {
+        setValue((current) => (current.trim() ? current : message));
+        setAttachments((current) =>
+          current.length > 0 ? current : sentAttachments
+        );
       }
     } catch (error) {
       console.error(
         "ANVIX chat submission failed:",
         error
+      );
+      setValue((current) => (current.trim() ? current : message));
+      setAttachments((current) =>
+        current.length > 0 ? current : sentAttachments
       );
     } finally {
       submittingRef.current = false;
@@ -1112,7 +1127,7 @@ function ChatInput({
                     <div
                       className="
                         absolute bottom-[43px] right-0 z-[9999]
-                        max-h-[min(420px,60vh)]
+                        max-h-[min(400px,calc(100dvh-260px))]
                         w-[min(300px,calc(100vw-32px))]
                         overflow-y-auto overflow-x-hidden
                         rounded-xl border border-zinc-800
@@ -1125,7 +1140,7 @@ function ChatInput({
                       <div
                         className="
                           flex items-center justify-between
-                          gap-2 px-2.5 pb-2 pt-2
+                          gap-2 px-2.5 pb-1.5 pt-1.5
                         "
                       >
                         <p
@@ -1190,7 +1205,7 @@ function ChatInput({
                               className={`
                                 flex w-full items-center
                                 justify-between gap-3
-                                rounded-lg px-2.5 py-2.5
+                                rounded-lg px-2.5 py-2
                                 text-left transition-colors
                                 ${
                                   unavailable
@@ -1240,7 +1255,7 @@ function ChatInput({
                       </div>
 
                       {/* Thinking toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 pb-1 pt-3">
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 pb-0.5 pt-2">
                         <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-zinc-600">
                           Thinking
                         </p>
@@ -1293,7 +1308,7 @@ function ChatInput({
                       </div>
 
                       {/* Web grounding toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2.5">
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2">
                         <button
                           type="button"
                           role="switch"
@@ -1344,7 +1359,7 @@ function ChatInput({
                       </div>
 
                       {/* Deep research toggle */}
-                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2.5">
+                      <div className="mt-2 border-t border-zinc-800/80 px-2.5 py-2">
                         <button
                           type="button"
                           role="switch"
