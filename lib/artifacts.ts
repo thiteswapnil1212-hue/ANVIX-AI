@@ -108,8 +108,19 @@ export type ParsedMessageArtifacts = {
  * was interrupted) is also extracted, marked `partial: true`, so the
  * raw HTML never renders as a code block; the interruption note is
  * kept in the message text.
+ *
+ * While the message is still streaming (`options.streaming`), an
+ * unterminated fence is NOT extracted: mid-stream it is usually
+ * just unfinished, not interrupted, and extracting it would flash
+ * an "Interrupted — partial preview" card that collapses into the
+ * clean card once the closing fence arrives. The card appears only
+ * after the stream ends — as a full artifact, or as a partial one
+ * when the reply really was interrupted.
  */
-export function parseArtifacts(content: string): ParsedMessageArtifacts {
+export function parseArtifacts(
+  content: string,
+  options?: { streaming?: boolean }
+): ParsedMessageArtifacts {
   const artifacts: ChatArtifact[] = [];
   let extractedCount = 0;
 
@@ -137,7 +148,8 @@ export function parseArtifacts(content: string): ParsedMessageArtifacts {
   // Unterminated artifact fence: the last ``` line has no closing
   // fence after it (complete fences were removed above, so any
   // remaining ``` line is either a stray marker or this opener).
-  if (extractedCount < MAX_ARTIFACTS_PER_MESSAGE) {
+  // Skipped while streaming — see the doc comment above.
+  if (!options?.streaming && extractedCount < MAX_ARTIFACTS_PER_MESSAGE) {
     const openers = [...text.matchAll(/^```([^\n]*)$/gm)];
     const last = openers[openers.length - 1];
     if (last && last.index !== undefined) {
