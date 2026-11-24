@@ -22,8 +22,21 @@ export function cleanPreviewText(text: string): string {
   cleaned = cleaned.replace(/```[\s\S]*?```/g, " ");
   // Stray fence markers left over (e.g. a lone closing ```).
   cleaned = cleaned.replace(/```/g, " ");
+  // The interruption note the chat appends when a reply is cut off
+  // mid-stream ("[Response interrupted. Please try again.]") is a
+  // system annotation, not message content — drop it so a preview of
+  // an interrupted reply falls back to the user prompt instead of
+  // showing the note as the summary.
+  cleaned = cleaned.replace(/\[Response interrupted\. Please try again\.\]/g, " ");
   // HTML tags (a pasted document included).
   cleaned = cleaned.replace(/<[^>]*>/g, " ");
+  // A stream cut off mid-tag leaves an unterminated "<meta ..." with
+  // no ">" anywhere after it (the tag strip above needs a closing
+  // ">"), so it would survive into the preview. Drop a tag-like
+  // fragment ("<" or "</" + letter/"!") that runs to the end of the
+  // text with no ">" after it. A bare "<" followed by a space or a
+  // digit ("a < b", "cost < $5") is ordinary text and is kept.
+  cleaned = cleaned.replace(/<\/?[A-Za-z!][^>]*$/g, " ");
   // Markdown images/links keep their readable text.
   cleaned = cleaned.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
   cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
