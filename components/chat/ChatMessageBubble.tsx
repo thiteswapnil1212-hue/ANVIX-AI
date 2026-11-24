@@ -226,8 +226,9 @@ function ArtifactCard({
           {artifact.title}
         </span>
         <span className="mt-0.5 block text-[11px] leading-4 text-zinc-500">
-          Interactive artifact · HTML · sandboxed, no network — tap to
-          open
+          {artifact.partial
+            ? "Interrupted — partial preview · HTML · sandboxed, no network — tap to open"
+            : "Interactive artifact · HTML · sandboxed, no network — tap to open"}
         </span>
       </span>
       <span className="shrink-0 rounded-md bg-[#D4AF37] px-2 py-1 text-[11px] font-semibold text-black">
