@@ -105,6 +105,31 @@ test("parseArtifacts extracts an interrupted fence as a partial artifact", () =>
   assert.ok(text.includes("[Response interrupted. Please try again.]"));
 });
 
+test("parseArtifacts leaves an unterminated artifact fence alone while streaming", () => {
+  // Mid-stream the fence is usually just unfinished, not
+  // interrupted — extracting it here flashed an "Interrupted —
+  // partial preview" card that collapsed once the fence closed.
+  const partial = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, ";
+  const { text, artifacts } = parseArtifacts(
+    `Here is your widget:\n\n\`\`\`artifact:html title="Tiny Calculator"\n${partial}`,
+    { streaming: true }
+  );
+  assert.equal(artifacts.length, 0);
+  assert.ok(text.includes("artifact:html"));
+  assert.ok(text.includes("<!doctype"));
+});
+
+test("parseArtifacts still extracts complete fences while streaming", () => {
+  const { text, artifacts } = parseArtifacts(
+    `Here is your widget:\n\n\`\`\`artifact:html title="Loan calculator"\n${HTML_DOC}\n\`\`\``,
+    { streaming: true }
+  );
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].title, "Loan calculator");
+  assert.equal(artifacts[0].partial, undefined);
+  assert.ok(!text.includes("artifact"));
+});
+
 test("parseArtifacts leaves an unterminated non-artifact fence alone", () => {
   const { text, artifacts } = parseArtifacts(
     "Some code:\n\n```js\nconst x = 1;"
