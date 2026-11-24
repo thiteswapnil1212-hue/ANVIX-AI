@@ -1,0 +1,45 @@
+/**
+ * Sidebar preview text.
+ *
+ * Conversation previews are stored from raw message content, and an
+ * assistant reply can be an artifact fence plus a whole HTML
+ * document. Showing that raw text in the sidebar leaks code where a
+ * one-line summary belongs, so previews are cleaned at write time
+ * (commitStreaming stores the cleaned preview) and at display time
+ * (the sidebar threads mapping cleans already-stored previews).
+ * Cleaning never invents text: when nothing readable remains, the
+ * result is "" and the caller falls back to the user prompt.
+ */
+export function cleanPreviewText(text: string): string {
+  let cleaned = text;
+  // Artifact fences (```artifact ... ```) — drop the whole block.
+  cleaned = cleaned.replace(/```artifact[\s\S]*?```/g, " ");
+  // A truncated preview can cut an artifact fence off before its
+  // closing marker (the sidebar only stores the first 120 chars),
+  // so also drop a dangling artifact opener line on its own.
+  cleaned = cleaned.replace(/```artifact[^\n]*/g, " ");
+  // Any other fenced code block — drop it too.
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, " ");
+  // Stray fence markers left over (e.g. a lone closing ```).
+  cleaned = cleaned.replace(/```/g, " ");
+  // HTML tags (a pasted document included).
+  cleaned = cleaned.replace(/<[^>]*>/g, " ");
+  // Markdown images/links keep their readable text.
+  cleaned = cleaned.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+  cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  // Inline code ticks, bold/italic markers, headings, quotes, rules.
+  cleaned = cleaned.replace(/`+/g, "");
+  cleaned = cleaned.replace(/(\*\*|__)(.*?)\1/g, "$2");
+  cleaned = cleaned.replace(/(\*|_)(.*?)\1/g, "$2");
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, "");
+  cleaned = cleaned.replace(/^>\s?/gm, "");
+  cleaned = cleaned.replace(/^[-*_]{3,}\s*$/gm, " ");
+  // HTML entities that survive tag stripping.
+  cleaned = cleaned.replace(/&nbsp;/g, " ");
+  cleaned = cleaned.replace(/&amp;/g, "&");
+  cleaned = cleaned.replace(/&lt;/g, "<");
+  cleaned = cleaned.replace(/&gt;/g, ">");
+  cleaned = cleaned.replace(/&quot;/g, '"');
+  // Collapse whitespace (newlines included) and trim.
+  return cleaned.replace(/\s+/g, " ").trim();
+}
