@@ -39,7 +39,12 @@ export type ChatArtifact = {
   code: string;
   /** True when the viewer can render a live preview (HTML only). */
   previewable: boolean;
+  /** True when the fence was cut off mid-stream (no closing fence). */
+  partial?: boolean;
 };
+
+/** The note the chat appends when a reply is cut off mid-stream. Kept in sync with ChatLayout — it belongs to the message text, not to artifact code. */
+const INTERRUPTED_MARKER = "[Response interrupted. Please try again.]";
 
 export const MAX_ARTIFACTS_PER_MESSAGE = 3;
 export const MAX_ARTIFACT_CODE_CHARS = 65_536;
@@ -98,13 +103,17 @@ export type ParsedMessageArtifacts = {
 /**
  * Extract artifact blocks from a message. Non-artifact fences,
  * unsupported artifact languages, oversized blocks, and artifacts
- * past the per-message cap are left untouched in the text.
+ * past the per-message cap are left untouched in the text. An
+ * artifact fence cut off mid-stream (no closing fence — the reply
+ * was interrupted) is also extracted, marked `partial: true`, so the
+ * raw HTML never renders as a code block; the interruption note is
+ * kept in the message text.
  */
 export function parseArtifacts(content: string): ParsedMessageArtifacts {
   const artifacts: ChatArtifact[] = [];
   let extractedCount = 0;
 
-  const text = content.replace(
+  let text = content.replace(
     FENCE_RE,
     (whole, info: string, code: string) => {
       if (extractedCount >= MAX_ARTIFACTS_PER_MESSAGE) return whole;
@@ -124,6 +133,44 @@ export function parseArtifacts(content: string): ParsedMessageArtifacts {
       return "";
     }
   );
+
+  // Unterminated artifact fence: the last ``` line has no closing
+  // fence after it (complete fences were removed above, so any
+  // remaining ``` line is either a stray marker or this opener).
+  if (extractedCount < MAX_ARTIFACTS_PER_MESSAGE) {
+    const openers = [...text.matchAll(/^```([^\n]*)$/gm)];
+    const last = openers[openers.length - 1];
+    if (last && last.index !== undefined) {
+      const parsed = parseArtifactInfo(last[1]);
+      if (parsed) {
+        let code = text
+          .slice(last.index + last[0].length)
+          .replace(/^\n/, "");
+        // The interruption note is appended after the cut-off code;
+        // keep it in the message text, not in the artifact.
+        let marker = "";
+        const trimmedCode = code.trimEnd();
+        if (trimmedCode.endsWith(INTERRUPTED_MARKER)) {
+          code = trimmedCode
+            .slice(0, -INTERRUPTED_MARKER.length)
+            .trimEnd();
+          marker = `\n\n${INTERRUPTED_MARKER}`;
+        }
+        if (code.length <= MAX_ARTIFACT_CODE_CHARS) {
+          artifacts.push({
+            id: `artifact-${extractedCount}`,
+            title: cleanTitle(parsed.title, extractedCount),
+            language: parsed.language,
+            code,
+            previewable: true,
+            partial: true,
+          });
+          extractedCount += 1;
+          text = text.slice(0, last.index) + marker;
+        }
+      }
+    }
+  }
 
   // Collapse the blank lines left behind by removed blocks.
   const cleaned = text.replace(/\n{3,}/g, "\n\n").trim();
