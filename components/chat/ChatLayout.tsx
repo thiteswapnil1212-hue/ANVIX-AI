@@ -29,6 +29,7 @@ import {
   shouldShowSignInNudge,
   writeNudgeDismissed,
 } from "@/lib/chat/guest-nudge";
+import { cleanPreviewText } from "@/lib/chat/preview-text";
 import {
   conversationMessagesKey,
   createTimestamp,
@@ -580,39 +581,33 @@ export default function ChatLayout() {
     setIsTyping(false);
   }, []);
 
-  // Create a new conversation.
+  // Create a new conversation. No entry is created until the first
+  // message is sent: handleSend (and handleGenerateImage) create the
+  // entry with a title and preview then. Creating an empty entry
+  // here persisted blank "New chat" rows in history, and the
+  // artifact panel from the previous conversation stayed open over
+  // the empty one.
   const handleNewConversation = useCallback(() => {
     handleStop();
 
-    const id = crypto.randomUUID();
-    const now = createTimestamp();
-
-    const newMeta: GuestChatMeta = {
-      id,
-      title: "New chat",
-      preview: "",
-      createdAt: now,
-      updatedAt: now,
-      pinned: false,
-      folder: null,
-      tags: [],
-    };
-
-    setConversationList((prev) => sortConversations([newMeta, ...prev]));
-    setMessagesById((prev) => ({ ...prev, [id]: [] }));
-
-    setActiveConversationId(id);
+    setActiveConversationId(null);
     setHasEarlierMessages(false);
     setSidebarOpen(false);
+    setOpenArtifact(null);
+    setSidePanel(null);
   }, [handleStop]);
 
   // Select a conversation. Messages load on demand (guest key or
-  // cloud page) the first time it is opened.
+  // cloud page) the first time it is opened. The side panel belongs
+  // to the previous conversation, so it closes here — otherwise an
+  // artifact from the old chat stays open over the new one.
   const handleSelectConversation = useCallback(
     (id: string) => {
       handleStop();
       setActiveConversationId(id);
       setSidebarOpen(false);
+      setOpenArtifact(null);
+      setSidePanel(null);
       setHasEarlierMessages(earlierAvailableRef.current.get(id) ?? false);
       void ensureMessagesLoaded(id);
     },
@@ -668,11 +663,15 @@ export default function ChatLayout() {
 
         if (remaining.length === 0) {
           setActiveConversationId(null);
+          setOpenArtifact(null);
+          setSidePanel(null);
           return remaining;
         }
 
         if (activeConversationId === id) {
           setActiveConversationId(remaining[0].id);
+          setOpenArtifact(null);
+          setSidePanel(null);
           setHasEarlierMessages(
             earlierAvailableRef.current.get(remaining[0].id) ?? false
           );
@@ -891,6 +890,10 @@ export default function ChatLayout() {
           [newId]: [],
         }));
         setActiveConversationId(workingConversationId);
+        // A fresh conversation replaces the previous one: its
+        // artifact panel does not carry over.
+        setOpenArtifact(null);
+        setSidePanel(null);
       }
 
       const userMessage: Message = {
@@ -1244,7 +1247,9 @@ export default function ChatLayout() {
       conversationList.map((conversation) => ({
         id: conversation.id,
         title: conversation.title,
-        preview: conversation.preview,
+        // Clean at display time too: previews stored before the
+        // cleaning landed can still hold raw artifact markup.
+        preview: cleanPreviewText(conversation.preview),
         updatedAt: conversation.updatedAt,
         pinned: conversation.pinned,
       })),
@@ -1315,6 +1320,10 @@ export default function ChatLayout() {
       }));
 
       setActiveConversationId(workingConversationId);
+      // A fresh conversation replaces the previous one: its artifact
+      // panel does not carry over.
+      setOpenArtifact(null);
+      setSidePanel(null);
     }
 
     // Narrowed once here: the updaters below are closures, and TS
@@ -1442,9 +1451,13 @@ export default function ChatLayout() {
             conversation.id === current.conversationId
               ? {
                   ...conversation,
-                  preview: finalContent.trim()
-                    ? finalContent.slice(0, 120)
-                    : trimmedPrompt,
+                  // Preview from the cleaned reply: the raw answer can
+                  // be an artifact fence plus a whole HTML document,
+                  // which would leak code into the sidebar. Fall back
+                  // to the user prompt when nothing readable remains.
+                  preview:
+                    cleanPreviewText(finalContent).slice(0, 120) ||
+                    trimmedPrompt,
                   updatedAt: createTimestamp(),
                 }
               : conversation
