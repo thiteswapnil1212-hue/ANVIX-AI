@@ -1946,10 +1946,15 @@ export default function ChatLayout() {
             {/* DESKTOP TOOLBAR — conversation title + share. An
                 overlay at the top of the message area, not in-flow,
                 so it costs no vertical space; the message list's
-                top padding clears it. Solid bg matching the page
-                so scrolling text stays readable underneath it. */}
+                top padding clears it. The background is a gradient
+                — solid where the title and Share sit, fading to
+                transparent at the bottom — so scrolling text
+                visibly slides under it (ChatGPT-style) instead of
+                vanishing behind a solid bar. At rest the first row
+                sits below the bar, so no message text ever sits
+                under it while still. */}
             {messages.length > 0 && activeConversationId && (
-              <div className="absolute inset-x-0 top-0 z-20 hidden h-11 items-center justify-between border-b border-white/[0.06] bg-[#0B0B0C] px-4 md:flex">
+              <div className="absolute inset-x-0 top-0 z-20 hidden h-11 items-center justify-between bg-[linear-gradient(to_bottom,#0B0B0C_0%,#0B0B0C_55%,transparent_100%)] px-4 md:flex">
                 <p className="min-w-0 truncate text-xs font-medium text-zinc-300">
                   {activeConversation?.title ?? "Chat"}
                 </p>
