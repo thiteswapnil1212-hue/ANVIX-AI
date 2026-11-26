@@ -15,7 +15,7 @@ import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import type { ChatArtifact } from "@/lib/artifacts";
 import { newMessagesLabel } from "@/lib/chat/format-count";
-import { addedMessageScrollTarget } from "@/lib/chat/scroll-anchor";
+import { addedMessageScrollTarget, bottomSpacerPx } from "@/lib/chat/scroll-anchor";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -51,10 +51,12 @@ interface MessageListProps {
 const BOTTOM_THRESHOLD = 120;
 
 // Clearance for a top-anchored row: on desktop the conversation
-// toolbar overlays the top of the message area (44px tall), so an
-// anchored row must sit below it, with a small gap. Below md there
-// is no overlaid toolbar, so no clearance is applied.
-const TOP_ANCHOR_CLEARANCE_PX = 52;
+// toolbar overlays the top of the message area (44px tall). The
+// list's own top padding (48px from sm up) already puts an anchored
+// row 48px below the list top, so only a small extra nudge is
+// needed to clear the toolbar with a gap. Below md there is no
+// overlaid toolbar, so no clearance is applied.
+const TOP_ANCHOR_CLEARANCE_PX = 12;
 
 const MessageRow = memo(function MessageRow({
   message,
@@ -163,6 +165,34 @@ export default function MessageList({
 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Scrollable room below the last row, fed to the virtualizer as
+  // paddingEnd (see bottomSpacerPx): without it a just-sent prompt
+  // cannot top-anchor, because scrollToIndex(align: "start")
+  // clamps to scrollHeight - clientHeight and the tail below the
+  // prompt is far shorter than the viewport. Measured from the
+  // container itself so it tracks resizes and composer-height
+  // changes; the ref mirror is what isNearBottom reads, so the
+  // "bottom" stays the last row, not the end of the spacer.
+  const [bottomSpacerPxState, setBottomSpacerPxState] = useState(0);
+  const bottomSpacerPxRef = useRef(0);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const updateSpacer = () => {
+      const next = bottomSpacerPx(container.clientHeight);
+      if (next !== bottomSpacerPxRef.current) {
+        bottomSpacerPxRef.current = next;
+        setBottomSpacerPxState(next);
+      }
+    };
+
+    updateSpacer();
+    const observer = new ResizeObserver(updateSpacer);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const latestMessage = messages[messages.length - 1];
   const firstMessageId = messages[0]?.id ?? "";
@@ -193,6 +223,11 @@ export default function MessageList({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 150,
     overscan: 5,
+    // Room below the last row for the top anchor (see the spacer
+    // state above). The virtualizer's last-row "end" alignment
+    // subtracts paddingEnd again, so scroll-to-bottom still lands
+    // the last row at the viewport bottom.
+    paddingEnd: bottomSpacerPxState,
   });
 
   const isNearBottom = useCallback(() => {
@@ -200,8 +235,12 @@ export default function MessageList({
 
     if (!container) return true;
 
+    // Distance to the last row, not to the end of the bottom
+    // spacer: after scroll-to-bottom the last row sits at the
+    // viewport bottom with only the 48px bottom padding below it.
     const distance =
       container.scrollHeight -
+      bottomSpacerPxRef.current -
       container.scrollTop -
       container.clientHeight;
 
