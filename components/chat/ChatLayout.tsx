@@ -1940,9 +1940,16 @@ export default function ChatLayout() {
               </button>
             </header>
 
-            {/* DESKTOP TOOLBAR — conversation title + share */}
+            {/* MESSAGES + INPUT with the artifact side panel */}
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+              <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+            {/* DESKTOP TOOLBAR — conversation title + share. An
+                overlay at the top of the message area, not in-flow,
+                so it costs no vertical space; the message list's
+                top padding clears it. Solid bg matching the page
+                so scrolling text stays readable underneath it. */}
             {messages.length > 0 && activeConversationId && (
-              <div className="hidden h-11 shrink-0 items-center justify-between border-b border-white/[0.06] px-4 md:flex">
+              <div className="absolute inset-x-0 top-0 z-20 hidden h-11 items-center justify-between border-b border-white/[0.06] bg-[#0B0B0C] px-4 md:flex">
                 <p className="min-w-0 truncate text-xs font-medium text-zinc-300">
                   {activeConversation?.title ?? "Chat"}
                 </p>
@@ -1953,10 +1960,6 @@ export default function ChatLayout() {
                 />
               </div>
             )}
-
-            {/* MESSAGES + INPUT with the artifact side panel */}
-            <div className="flex min-h-0 flex-1 overflow-hidden">
-              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {/* MESSAGES */}
             <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
               {messages.length === 0 && !isTyping ? (
@@ -2117,9 +2120,10 @@ export default function ChatLayout() {
                 border-white/[0.06]
                 bg-transparent
                 px-3
-                pt-4
+                pt-2
                 sm:px-6
-                sm:py-4
+                sm:pb-4
+                sm:pt-2
               "
             >
               <div className="mx-auto w-full max-w-3xl">
@@ -2161,7 +2165,7 @@ export default function ChatLayout() {
 
                 <p
                   className="
-                    mt-3
+                    mt-2
                     text-center
                     text-[11px]
                     leading-5
