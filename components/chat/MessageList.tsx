@@ -15,6 +15,7 @@ import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import type { ChatArtifact } from "@/lib/artifacts";
 import { newMessagesLabel } from "@/lib/chat/format-count";
+import { addedMessageScrollTarget } from "@/lib/chat/scroll-anchor";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -48,6 +49,12 @@ interface MessageListProps {
 }
 
 const BOTTOM_THRESHOLD = 120;
+
+// Clearance for a top-anchored row: on desktop the conversation
+// toolbar overlays the top of the message area (44px tall), so an
+// anchored row must sit below it, with a small gap. Below md there
+// is no overlaid toolbar, so no clearance is applied.
+const TOP_ANCHOR_CLEARANCE_PX = 52;
 
 const MessageRow = memo(function MessageRow({
   message,
@@ -148,6 +155,11 @@ export default function MessageList({
     scrollTop: number;
   } | null>(null);
   const firstRenderRef = useRef(true);
+  // Set when the layout effect top-anchors a just-sent prompt: the
+  // streaming pin effect skips exactly one run (the send commit) so
+  // it cannot yank the view to the bottom before the anchor scroll
+  // runs. Pinning resumes on the next streamed chunk.
+  const skipStreamingPinOnceRef = useRef(false);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -231,6 +243,55 @@ export default function MessageList({
       });
     },
     [scrollToBottom]
+  );
+
+  // Scroll a specific row into place (the top anchor). A "start"
+  // anchor is instant, not smooth: the streaming pin takes over
+  // within a chunk or two, so a smooth animation would be
+  // interrupted mid-flight. The desktop toolbar overlays the top of
+  // the message area, so an anchored row is nudged down past it.
+  const scrollToRow = useCallback(
+    (
+      index: number,
+      align: "start" | "end",
+      behavior: ScrollBehavior = "auto"
+    ) => {
+      programmaticScrollUntilRef.current = Date.now() + 800;
+      rowVirtualizer.scrollToIndex(index, { align, behavior });
+
+      if (align === "start") {
+        const container = scrollRef.current;
+
+        if (
+          container &&
+          window.matchMedia("(min-width: 768px)").matches
+        ) {
+          container.scrollTop = Math.max(
+            0,
+            container.scrollTop - TOP_ANCHOR_CLEARANCE_PX
+          );
+        }
+      }
+
+      autoScrollRef.current = true;
+      updateScrollButton(false);
+      setUnreadCount(0);
+    },
+    [rowVirtualizer, updateScrollButton]
+  );
+
+  const scheduleScrollToRow = useCallback(
+    (index: number, align: "start" | "end") => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+      }
+
+      frameRef.current = requestAnimationFrame(() => {
+        scrollToRow(index, align, "auto");
+        frameRef.current = null;
+      });
+    },
+    [scrollToRow]
   );
 
   const handleLoadEarlier = useCallback(() => {
@@ -319,7 +380,24 @@ export default function MessageList({
 
     if (newMessageAdded || latestMessageChanged) {
       if (autoScrollRef.current) {
-        scheduleScroll("smooth");
+        // A batch starting with a user message is a send: anchor
+        // the prompt to the top (ChatGPT-style) and let the reply
+        // stream below it. Anything else keeps the old behaviour —
+        // the last row pins to the bottom.
+        const target = addedMessageScrollTarget({
+          addedRoles: messages
+            .slice(previousCount)
+            .map((message) => message.role),
+          addedStartIndex: previousCount,
+          autoScroll: true,
+        });
+
+        if (target?.align === "start") {
+          skipStreamingPinOnceRef.current = true;
+          scheduleScrollToRow(target.index, "start");
+        } else {
+          scheduleScroll("smooth");
+        }
       } else {
         setUnreadCount((count) => count + 1);
         updateScrollButton(true);
@@ -331,12 +409,17 @@ export default function MessageList({
     if (typingStarted && autoScrollRef.current) {
       scheduleScroll("smooth");
     }
+    // The deps are intentionally narrow (length + ids, not the
+    // messages array): this effect must not re-run on every streamed
+    // chunk — per-chunk following is the streaming pin effect's job.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     messages.length,
     latestMessage?.id,
     firstMessageId,
     isTyping,
     scheduleScroll,
+    scheduleScrollToRow,
     updateScrollButton,
   ]);
 
@@ -357,6 +440,15 @@ export default function MessageList({
   // own re-measurement.)
   useEffect(() => {
     if (isTyping && autoScrollRef.current && totalCount > 0) {
+      // A just-anchored prompt owns this commit: the layout effect
+      // already scheduled its scroll to the top. Skip one pin run
+      // so the view is not yanked to the bottom before the anchor
+      // scroll runs; pinning resumes on the next streamed chunk.
+      if (skipStreamingPinOnceRef.current) {
+        skipStreamingPinOnceRef.current = false;
+        return;
+      }
+
       programmaticScrollUntilRef.current = Date.now() + 800;
       rowVirtualizer.scrollToIndex(totalCount - 1, {
         align: "end",
@@ -411,6 +503,7 @@ export default function MessageList({
           disabled={loadingEarlierMessages}
           className="
             absolute left-1/2 top-3 z-30
+            md:top-14
             inline-flex -translate-x-1/2 items-center gap-1.5
             rounded-full border border-white/[0.12]
             bg-[#19191D]/95 px-3.5 py-2
@@ -429,13 +522,14 @@ export default function MessageList({
       )}
 
       {/* Scroll container. scroll-pt keeps the first row clear of the
-          header bar and top fade when scrolled (or jumped) to the top. */}
+          header bar, the top fade, and the overlaid desktop toolbar
+          when scrolled (or jumped) to the top. */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="
           h-full min-h-0 overflow-y-auto overscroll-contain
-          scroll-pt-10
+          scroll-pt-12
           [scrollbar-color:#3f3f46_transparent]
           [scrollbar-width:thin]
           [&::-webkit-scrollbar]:w-1.5
@@ -449,7 +543,7 @@ export default function MessageList({
           className="
             mx-auto w-full max-w-5xl
             px-3 pb-10 pt-10
-            sm:px-5 sm:pb-12 sm:pt-10
+            sm:px-5 sm:pb-12 sm:pt-12
             lg:px-8 lg:pt-12
           "
         >
