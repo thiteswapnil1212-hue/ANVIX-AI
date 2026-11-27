@@ -208,3 +208,46 @@ test("buildSandboxedSrcDoc keeps inline scripts usable but blocks fetches", () =
   assert.ok(doc.includes("script-src 'unsafe-inline'"));
   assert.ok(doc.includes("document.title='x'"));
 });
+
+const FULL_DOC =
+  '<!DOCTYPE html><html><head><title>Counter</title></head><body><p>1 to 60</p></body></html>';
+
+test("parseArtifacts promotes a plain html fence holding a full document", () => {
+  const { text, artifacts } = parseArtifacts(
+    `Here it is:\n\n\`\`\`html\n${FULL_DOC}\n\`\`\``
+  );
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].title, "Counter");
+  assert.equal(artifacts[0].language, "html");
+  assert.equal(artifacts[0].code, FULL_DOC);
+  assert.ok(!text.includes("<!DOCTYPE"));
+});
+
+test("parseArtifacts leaves html fragments and snippets as code", () => {
+  const fragment = parseArtifacts(
+    "Example:\n\n```html\n<div class=\"card\">hi</div>\n```"
+  );
+  assert.equal(fragment.artifacts.length, 0);
+  assert.ok(fragment.text.includes('<div class="card">'));
+
+  const noDoctype = parseArtifacts(
+    `Page:\n\n\`\`\`html\n<html><body><p>hi</p></body></html>\n\`\`\``
+  );
+  assert.equal(noDoctype.artifacts.length, 0);
+
+  const unclosed = parseArtifacts(
+    `Page:\n\n\`\`\`html\n<!DOCTYPE html><html><body><p>hi</p></body>\n\`\`\``
+  );
+  assert.equal(unclosed.artifacts.length, 0);
+});
+
+test("parseArtifacts extracts an interrupted full-document html fence as partial", () => {
+  const cut = FULL_DOC.slice(0, 60);
+  const { text, artifacts } = parseArtifacts(
+    `Here it is:\n\n\`\`\`html\n${cut}\n\n[Response interrupted. Please try again.]`
+  );
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].partial, true);
+  assert.equal(artifacts[0].title, "Counter");
+  assert.ok(text.includes("[Response interrupted. Please try again.]"));
+});
