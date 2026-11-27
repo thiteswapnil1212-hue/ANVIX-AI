@@ -1,5 +1,7 @@
 
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, resolveRateLimitKey } from "@/lib/rate-limit";
+import { callerIdentity, recordUsage } from "@/lib/usage/meter";
+import { flushUsageInBackground } from "@/lib/usage/server-flush";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
@@ -196,6 +198,16 @@ export async function POST(req: Request) {
         { status: 502 }
       );
     }
+
+    // Quota meter: count this finished generation. The chat and
+    // agent routes already record; generate never did, so Generate
+    // could never move above 0. Best-effort flush — see the image
+    // route.
+    recordUsage(
+      "generate",
+      callerIdentity(await resolveRateLimitKey(req, "generate"))
+    );
+    flushUsageInBackground(req);
 
     return NextResponse.json({
       success: true,
