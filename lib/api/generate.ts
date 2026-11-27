@@ -1,4 +1,5 @@
 import { getAuthHeaders } from "./auth-headers.ts";
+import { recordSessionUsage } from "../usage/session-usage.ts";
 
 export interface GenerationResult {
   summary: string;
@@ -94,5 +95,9 @@ export async function generateProject(
     throw new Error(message);
   }
 
+  // Session usage: the server meter reads a per-instance in-memory
+  // limiter, so it usually shows 0 for guests — this browser's own
+  // count is what the Settings meter merges in (display only).
+  recordSessionUsage("generate");
   return response.json();
 }
