@@ -31,6 +31,7 @@ import {
 } from "@/lib/agent/history";
 import { downloadProjectZip } from "@/lib/project/export-zip";
 import { getAuthHeaders } from "@/lib/api/auth-headers";
+import { recordSessionUsage } from "@/lib/usage/session-usage";
 import { shouldUseOwnKey } from "@/lib/byok/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/lib/supabase/client";
@@ -376,6 +377,13 @@ export default function Workspace({
           addAgentActivity("Received an invalid agent event", "error");
         }
       }
+
+      // Session usage: the server meter reads a per-instance
+      // in-memory limiter, so it usually shows 0 for guests — this
+      // browser's own count is what the Settings meter merges in
+      // (display only). Reached only when the stream finished
+      // without throwing.
+      recordSessionUsage("agent");
     } catch (error) {
       if (!controller.signal.aborted) {
         addAgentActivity(
