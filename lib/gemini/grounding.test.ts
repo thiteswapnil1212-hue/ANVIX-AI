@@ -6,6 +6,10 @@ import {
   groundingTools,
   shouldDegradeGrounding,
   mergeGroundingSources,
+  GROUNDING_429_COOLDOWN_MS,
+  isGroundingCoolingDown,
+  recordGroundingQuotaFailure,
+  resetGroundingCooldownForTests,
 } from "./grounding.ts";
 
 function chunkWithGrounding(groundingChunks: unknown[]) {
@@ -73,6 +77,39 @@ test("mergeGroundingSources dedupes by uri, first title wins", () => {
     { title: "A", uri: "https://example.com/a" },
     { title: "B", uri: "https://example.com/b" },
   ]);
+});
+
+test("grounding cooldown: off until a 429, on for 5 minutes, then off again", () => {
+  // Module state persists across tests in one process, so reset first.
+  resetGroundingCooldownForTests();
+  const t0 = 1_000_000;
+
+  assert.equal(isGroundingCoolingDown(t0), false);
+
+  recordGroundingQuotaFailure(t0);
+  assert.equal(isGroundingCoolingDown(t0), true);
+  assert.equal(
+    isGroundingCoolingDown(t0 + GROUNDING_429_COOLDOWN_MS - 1),
+    true
+  );
+  assert.equal(isGroundingCoolingDown(t0 + GROUNDING_429_COOLDOWN_MS), false);
+  assert.equal(
+    isGroundingCoolingDown(t0 + GROUNDING_429_COOLDOWN_MS + 1),
+    false
+  );
+
+  // A second 429 re-arms the window from its own timestamp.
+  recordGroundingQuotaFailure(t0 + GROUNDING_429_COOLDOWN_MS);
+  assert.equal(
+    isGroundingCoolingDown(t0 + GROUNDING_429_COOLDOWN_MS + 1000),
+    true
+  );
+
+  resetGroundingCooldownForTests();
+  assert.equal(
+    isGroundingCoolingDown(t0 + GROUNDING_429_COOLDOWN_MS + 1000),
+    false
+  );
 });
 
 test("shouldDegradeGrounding retries any pre-emit failure except auth/config errors", () => {
