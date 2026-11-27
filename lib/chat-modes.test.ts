@@ -27,8 +27,8 @@ test("chat modes map to the documented model chains and defaults", () => {
   assert.equal(smart?.defaultThinking, "fast");
 
   const deep = getChatMode("deep");
-  assert.equal(deep?.modelId, "gemini-4-hydrogen");
-  assert.equal(deep?.fallbackModelId, "gemini-3.8-flash");
+  assert.equal(deep?.modelId, "gemini-3.8-flash");
+  assert.equal(deep?.fallbackModelId, "gemini-3.5-flash-lite");
   assert.equal(deep?.defaultThinking, "deep");
 
   // Every mode's primary differs from its fallback, so a retry
@@ -76,8 +76,8 @@ test("thinking choices map to Gemini 3 thinking levels", () => {
 test("resolveChatMode uses the mode default when thinking is absent", () => {
   const resolved = resolveChatMode("deep", undefined);
   assert.equal(resolved.mode.id, "deep");
-  assert.equal(resolved.modelId, "gemini-4-hydrogen");
-  assert.equal(resolved.fallbackModelId, "gemini-3.8-flash");
+  assert.equal(resolved.modelId, "gemini-3.8-flash");
+  assert.equal(resolved.fallbackModelId, "gemini-3.5-flash-lite");
   assert.equal(resolved.thinking, "deep");
   assert.equal(resolved.thinkingLevel, "high");
   assert.equal(resolved.includeThoughts, true);
