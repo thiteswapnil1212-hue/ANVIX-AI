@@ -59,6 +59,58 @@ export function shouldDegradeGrounding(error: unknown): boolean {
   return status !== 401 && status !== 403 && status !== 404;
 }
 
+// --- Grounding-quota cooldown (perf) ------------------------------------
+
+/**
+ * A grounded attempt that 429s is a doomed attempt: the
+ * grounding/search quota is exhausted, and the plain retry is what
+ * answers. Without a cooldown, every Web-ON request pays the
+ * grounded attempt's latency before falling back to plain. Same
+ * per-instance pattern as the model 429 cooldown in the chat route:
+ * warm instances skip the doomed attempt, cold instances pay for one
+ * probe. The cooldown only ever skips attaching the grounding tools
+ * — the model is still tried, and the "Grounded" badge still renders
+ * only when sources actually arrive (no sources, no badge).
+ *
+ * 5 minutes: long enough to cover a burst of repeat questions, short
+ * enough to re-probe regularly so grounding resumes when quota
+ * recovers. (A daily/monthly cap would want a longer window, but the
+ * observed 429s are per-minute rate limits — and a 5-minute re-probe
+ * costs one doomed attempt, never a user-visible failure.)
+ */
+export const GROUNDING_429_COOLDOWN_MS = 5 * 60_000;
+
+let lastGrounding429At = 0;
+
+/**
+ * True while a recent grounding 429 says a grounded attempt would
+ * 429 again. `nowMs` exists so tests can move time deterministically.
+ */
+export function isGroundingCoolingDown(nowMs: number = Date.now()): boolean {
+  return (
+    lastGrounding429At > 0 &&
+    nowMs - lastGrounding429At < GROUNDING_429_COOLDOWN_MS
+  );
+}
+
+/**
+ * Record a grounding-quota failure: a grounded attempt that failed
+ * pre-emit with 429. Only the route's degrade path calls this, and
+ * only for 429s on attempts that actually had tools attached — a
+ * plain attempt's 429 is a model-quota failure, not a grounding one,
+ * and is handled by the model-health cooldown instead.
+ */
+export function recordGroundingQuotaFailure(
+  nowMs: number = Date.now()
+): void {
+  lastGrounding429At = nowMs;
+}
+
+/** Test seam: clear the cooldown. Routes never call this. */
+export function resetGroundingCooldownForTests(): void {
+  lastGrounding429At = 0;
+}
+
 type RawGroundingChunk = {
   web?: unknown;
 };
