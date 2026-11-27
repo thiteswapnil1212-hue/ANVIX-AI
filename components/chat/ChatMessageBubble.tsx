@@ -103,9 +103,13 @@ function ThinkingBlock({ thinking }: { thinking: string }) {
       </button>
 
       {open && (
-        <p className="whitespace-pre-wrap border-t border-white/[0.06] px-3 py-2.5 text-[13px] leading-6 text-zinc-400">
-          {thinking}
-        </p>
+        <div className="border-t border-white/[0.06] px-3 py-2.5 text-[13px] leading-6 text-zinc-400">
+          {/* The reasoning arrives as markdown ("**Considering the
+              Details**" etc.) — render it with the same markdown
+              renderer as the answer, not as raw text. No component
+              overrides: thinking text is short prose, not code. */}
+          <MarkdownContent content={thinking} components={{}} />
+        </div>
       )}
     </div>
   );
