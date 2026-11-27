@@ -433,7 +433,11 @@ function ChatInput({
         mode: selectedMode,
         thinking,
         web: webEnabled,
-        research: researchEnabled,
+        // Guests cannot use deep research: the choice is also
+        // restored from localStorage, so a stale "on" from a
+        // signed-in session must never reach the server for a
+        // guest — it would fail as an in-chat error.
+        research: researchEnabled && !!user,
         attachments: sentAttachments,
         assistantId: assistantSelection?.id ?? null,
         assistant: assistantSelection
@@ -478,6 +482,7 @@ function ChatInput({
     thinking,
     webEnabled,
     researchEnabled,
+    user,
     attachments,
     assistantSelection,
   ]);
@@ -1363,7 +1368,12 @@ function ChatInput({
                           type="button"
                           role="switch"
                           aria-checked={researchEnabled}
-                          disabled={isSubmitting || isGenerating}
+                          // Guests cannot use deep research (the API
+                          // rejects them): keep the switch off for
+                          // them instead of letting it promise a run
+                          // that fails as an in-chat error. The label
+                          // already says "sign-in required".
+                          disabled={!user || isSubmitting || isGenerating}
                           onClick={() => {
                             setResearchEnabled((value) => {
                               if (!value) setAttachments([]);
