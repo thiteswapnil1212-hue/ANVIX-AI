@@ -11,13 +11,18 @@ import { Download } from "lucide-react";
  * Safari never fires it — on iOS the user installs via Share → Add to
  * Home Screen, which this component says in its hint). When the event
  * never fires, the button simply never appears — no fake install button.
+ *
+ * `quiet` is for surfaces like the home page: when the browser is not
+ * offering installation (yet), render nothing instead of the hint
+ * paragraph, so the page stays clean until the button can actually
+ * appear.
  */
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-export default function InstallPrompt() {
+export default function InstallPrompt({ quiet = false }: { quiet?: boolean }) {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(
@@ -47,6 +52,7 @@ export default function InstallPrompt() {
   }, [installed]);
 
   if (installed) {
+    if (quiet) return null;
     return (
       <p className="text-xs leading-5 text-zinc-500">
         ANVIX is installed on this device.
@@ -55,6 +61,7 @@ export default function InstallPrompt() {
   }
 
   if (!deferredPrompt) {
+    if (quiet) return null;
     return (
       <p className="text-xs leading-5 text-zinc-500">
         Your browser will offer installation when ANVIX is installable here.
