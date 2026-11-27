@@ -34,6 +34,23 @@ function jsonError(
 }
 
 export async function POST(request: Request) {
+  try {
+    return await handleImageRequest(request);
+  } catch (error) {
+    // Last line of defence: an unexpected throw must still answer
+    // with the route's JSON error shape, never a bare 500. (A bare
+    // 500 is what users saw on 2026-11-27 when the success path
+    // threw while building the response headers.)
+    console.error("Image route failed:", error);
+    return jsonError(
+      "The image service failed unexpectedly. Please try again.",
+      502,
+      { provider: "pollinations", retryable: true }
+    );
+  }
+}
+
+async function handleImageRequest(request: Request) {
   // Blunt bursts (image gen is slow + the upstream lane is 1/45s/IP),
   // then the real guard: 10 images/day per caller.
   const limited = await enforceRateLimit(request, "image", 5, 60_000);
@@ -116,7 +133,19 @@ export async function POST(request: Request) {
   // Proxy the bytes: the client renders them like any attachment.
   // The source URL is returned too, so a saved message can reload
   // the image from Pollinations after the session blob URL is gone.
-  const bytes = await upstream.arrayBuffer();
+  // The body read is guarded: a dropped connection mid-download used
+  // to throw here and answer a bare 500.
+  let bytes: ArrayBuffer;
+  try {
+    bytes = await upstream.arrayBuffer();
+  } catch (error) {
+    console.error("Pollinations body read failed:", error);
+    return jsonError(
+      "The free image service cut the download short. Please try again.",
+      502,
+      { provider: "pollinations", retryable: true }
+    );
+  }
   return new Response(bytes, {
     status: 200,
     headers: {
@@ -125,7 +154,25 @@ export async function POST(request: Request) {
       "Cache-Control": "public, max-age=86400",
       "X-ANVIX-Image-Provider": "pollinations",
       "X-ANVIX-Image-Source": imageUrl,
-      "X-ANVIX-Image-Note": IMAGE_PROVIDER_NOTE,
+      // Header values must be ByteString (Latin-1): sanitise even
+      // though the note constant is ASCII today, so a future edit
+      // can never 500 the success path again.
+      "X-ANVIX-Image-Note": toHeaderValue(IMAGE_PROVIDER_NOTE),
     },
   });
+}
+
+/**
+ * Make a string safe for an HTTP header value: any character outside
+ * Latin-1 becomes "-". `Response` construction throws a TypeError
+ * ("Cannot convert argument to a ByteString") on such characters,
+ * which Next.js turns into a bare 500.
+ */
+function toHeaderValue(value: string): string {
+  let safe = "";
+  for (const char of value) {
+    const code = char.codePointAt(0);
+    safe += code !== undefined && code <= 255 ? char : "-";
+  }
+  return safe;
 }
