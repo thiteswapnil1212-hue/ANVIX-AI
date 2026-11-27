@@ -23,6 +23,7 @@ import ExamplePrompts from "@/components/generate/ExamplePrompts";
 import GenerateProgress from "@/components/generate/GenerationProgress";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getAuthHeaders } from "@/lib/api/auth-headers";
+import { recordSessionUsage } from "@/lib/usage/session-usage";
 import { insertProject } from "@/lib/supabase/cloud";
 
 const MAX_CHARS = 2200;
@@ -121,6 +122,11 @@ async function streamBuildProject(
           const autoFix = event.autoFix as
             | { applied?: boolean; fixedFileCount?: number; issues?: string[]; remainingIssues?: string[]; error?: string }
             | undefined;
+          // Session usage: the server meter reads a per-instance
+          // in-memory limiter, so it usually shows 0 for guests —
+          // this browser's own count is what the Settings meter
+          // merges in (display only).
+          recordSessionUsage("build");
           return {
             success: true,
             project,
@@ -184,6 +190,8 @@ async function classicBuildProject(
     throw new Error(message);
   }
 
+  // Session usage, as in streamBuildProject above.
+  recordSessionUsage("build");
   return data;
 }
 
