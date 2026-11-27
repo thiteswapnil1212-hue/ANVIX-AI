@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   addedMessageScrollTarget,
   bottomSpacerPx,
+  isLastRowCutOff,
   isTopAnchorReachable,
 } from "./scroll-anchor.ts";
 
@@ -140,14 +141,86 @@ test("a tail with no typing row may still fall just short", () => {
   // If the typing indicator is not showing (tail = prompt +
   // placeholder only, ~136px), the anchor lands as high as the
   // geometry allows — ~56px below the top on desktop — instead of
-  // exactly at it. Documented, not hidden: the streaming pin owns
-  // the view from the first chunk anyway.
+  // exactly at it. Documented, not hidden: once the reply streams,
+  // the pin takes over only when the reply is actually cut off
+  // below the viewport (see isLastRowCutOff); a short reply stays
+  // put under its top-anchored prompt.
   assert.equal(
     isTopAnchorReachable({
       clientHeightPx: 792,
       spacerPx: bottomSpacerPx(792),
       tailBelowRowPx: 136,
       bottomPadPx: 48,
+    }),
+    false
+  );
+});
+
+// The gate for the streaming pin (round 7). Numbers are the live
+// desktop geometry: 792px list, 48px top padding, 552px bottom
+// spacer, and an overflowing conversation with 3000px of rows above
+// the just-sent prompt (scrollTop 3036 after the anchor's 12px
+// clearance nudge).
+test("round-6 live failure: a thinking-phase flush does not yank the anchor", () => {
+  // While "Thinking" the tail below the prompt is the empty
+  // assistant placeholder + typing indicator (~140px). The old
+  // code pinned unconditionally on every 100 ms snapshot flush, so
+  // the anchor survived ~100 ms and the live check saw the prompt
+  // at y≈515–575 instead of ~y129. The gate sees the last row
+  // fully visible and stays out of the way.
+  assert.equal(
+    isLastRowCutOff({
+      totalSizePx: 3000 + 60 + 60 + 80 + 552,
+      paddingEndPx: 552,
+      topPadPx: 48,
+      scrollTopPx: 3036,
+      clientHeightPx: 792,
+    }),
+    false
+  );
+});
+
+test("a short reply stays put under its top-anchored prompt", () => {
+  // First chunk in: the typing row is gone, the assistant row is
+  // ~120px tall. Still fully visible — no pin, the prompt stays
+  // at the top with the short reply below it.
+  assert.equal(
+    isLastRowCutOff({
+      totalSizePx: 3000 + 60 + 120 + 552,
+      paddingEndPx: 552,
+      topPadPx: 48,
+      scrollTopPx: 3036,
+      clientHeightPx: 792,
+    }),
+    false
+  );
+});
+
+test("a reply that grows past the viewport still pins to the bottom", () => {
+  // The assistant row is now ~1200px tall, so its end sits below
+  // the viewport bottom — the pin fires and the newest text stays
+  // visible, exactly as before.
+  assert.equal(
+    isLastRowCutOff({
+      totalSizePx: 3000 + 60 + 1200 + 552,
+      paddingEndPx: 552,
+      topPadPx: 48,
+      scrollTopPx: 3036,
+      clientHeightPx: 792,
+    }),
+    true
+  );
+});
+
+test("a last row exactly at the viewport bottom does not pin", () => {
+  // Boundary: nothing is cut off, so no scroll is needed.
+  assert.equal(
+    isLastRowCutOff({
+      totalSizePx: 4332,
+      paddingEndPx: 552,
+      topPadPx: 48,
+      scrollTopPx: 3036,
+      clientHeightPx: 792,
     }),
     false
   );
