@@ -12,6 +12,7 @@ import {
   resolveChatMode,
   resolveLegacyChatModel,
   defaultThinkingForMode,
+  thinkingLevelForModel,
   type ChatModeId,
   type ThinkingChoice,
 } from "@/lib/chat-modes";
@@ -518,13 +519,21 @@ export async function POST(request: Request) {
         useTools = true
       ): Promise<AttemptResult> => {
         const attemptTools = useTools && tools.length > 0;
+        // The thinking level is re-resolved per attempt model: the
+        // stored resolved level is the primary's, and a fallback to
+        // the other model must never inherit a level it rejects
+        // (Off is `minimal` on Lite only; `low` on 3.8-flash).
+        const attemptThinking = thinkingLevelForModel(
+          resolved.thinking,
+          modelId
+        );
         const model = client.getGenerativeModel({
           model: modelId,
           ...(systemInstruction ? { systemInstruction } : {}),
           generationConfig: {
             ...thinkingConfig(
-              resolved.thinkingLevel,
-              resolved.includeThoughts
+              attemptThinking.level,
+              attemptThinking.includeThoughts
             ),
           },
           ...(attemptTools ? { tools } : {}),
