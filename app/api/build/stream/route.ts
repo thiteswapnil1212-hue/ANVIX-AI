@@ -1,4 +1,6 @@
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, resolveRateLimitKey } from "@/lib/rate-limit";
+import { callerIdentity, recordUsage } from "@/lib/usage/meter";
+import { flushUsageInBackground } from "@/lib/usage/server-flush";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -107,6 +109,15 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  // Quota meter: count this build before streaming starts, like the
+  // chat route counts before generating. Best-effort flush — see the
+  // image route.
+  recordUsage(
+    "build",
+    callerIdentity(await resolveRateLimitKey(req, "build"))
+  );
+  flushUsageInBackground(req);
 
   const encoder = new TextEncoder();
   let streamClosed = false;
