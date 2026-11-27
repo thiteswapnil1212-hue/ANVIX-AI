@@ -1,7 +1,11 @@
 "use client";
 
 import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
+
+import {
+  markdownRehypePlugins,
+  markdownRemarkPlugins,
+} from "@/lib/markdown/math";
 
 // Split out of ChatMessageBubble (perf): react-markdown + remark-gfm
 // (+ micromark) is ~76 KB gzip. The bubble loads this with
@@ -11,6 +15,12 @@ import remarkGfm from "remark-gfm";
 // hydration. The Components overrides stay in the bubble (they need
 // its CopyButton) and arrive as a prop — they are plain functions,
 // not the heavy library.
+//
+// Math: remark-math + rehype-katex (see lib/markdown/math.ts) render
+// $...$ / $$...$$ via KaTeX. $ inside code fences and inline code
+// stays literal, and a malformed expression renders as an error,
+// never a crash. The Thinking block shares this component, so it
+// gets math rendering too.
 export default function MarkdownContent({
   content,
   components,
@@ -51,7 +61,8 @@ export default function MarkdownContent({
       "
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={markdownRemarkPlugins}
+        rehypePlugins={markdownRehypePlugins}
         skipHtml
         components={components}
       >
