@@ -41,6 +41,7 @@ import {
   selectRelevantMemories,
   type MemoryRecord,
 } from "@/lib/memory";
+import { deepReasoningInstructionForMode } from "@/lib/chat/deep-reasoning";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -436,11 +437,14 @@ export async function POST(request: Request) {
       };
 
         // System prompt: the artifact fence format first, then the
-        // user's custom instructions + selected assistant + relevant
-        // memories (empty = no override, the model behaves exactly
-        // as before).
+        // Deep-mode reasoning instruction (Deep only — Fast/Smart get
+        // "" here, so their prompts are byte-identical to before),
+        // then the user's custom instructions + selected assistant +
+        // relevant memories (empty = no override, the model behaves
+        // exactly as before).
         const systemInstruction = [
           ARTIFACT_SYSTEM_INSTRUCTION,
+          deepReasoningInstructionForMode(resolved.mode.id),
           systemPrompt,
         ]
           .filter(Boolean)
@@ -696,13 +700,20 @@ export async function POST(request: Request) {
         // Only provider/transient failures are fallback-worthy. A
         // 400 / 401 / 404 / invalid-request fails immediately — no
         // second round-trip for a request that can never succeed.
-        // Exception: a 400 with grounding on may be the tools being
+        // Exceptions: a 400 with grounding on may be the tools being
         // rejected, not the request — the fallback attempt degrades
-        // to no-tools itself, so it still gets a chance.
+        // to no-tools itself, so it still gets a chance. And a
+        // model-availability failure (404 / "model not found" /
+        // "unsupported model") means THIS model cannot serve the
+        // request, not that the request is bad — the next model in
+        // the chain gets a chance. (2026-11-27: Deep died outright
+        // on gemini-4-hydrogen because this class was not
+        // fallback-worthy.)
         const fallbackWorthy =
           (classification.status !== undefined &&
             FALLBACK_WORTHY_STATUSES.has(classification.status)) ||
           classification.category === "timeout" ||
+          classification.category === "model_unavailable" ||
           (webEnabled && classification.status === 400);
         if (!fallbackWorthy) {
           console.warn(
