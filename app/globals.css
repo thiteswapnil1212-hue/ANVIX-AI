@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* KaTeX styles for rendered maths in chat replies (lib/markdown/math.ts).
+   Bundled from node_modules with its fonts — no external font CDN, so
+   maths renders the same offline and inside sandboxed previews. */
+@import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));
 
