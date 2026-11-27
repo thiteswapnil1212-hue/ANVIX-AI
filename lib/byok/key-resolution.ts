@@ -132,6 +132,17 @@ export interface ResolveCallerApiKeyOptions {
   /** Client's "use my key" flag (body.useOwnKey === true). */
   useOwnKey: boolean;
   sharedKey: string | undefined;
+  /**
+   * Dedupe: when the caller already verified the request's Bearer
+   * token with the same getUser check (same Supabase URL + anon key,
+   * same 2 s timeout, same fail-open null), pass the resulting user
+   * id — null when the token was absent or invalid — to skip a second
+   * verification round-trip for the same token. Omit to verify here.
+   * Only the user id is shared; the token itself is still read from
+   * the header for the BYOK fetch below. The chat route passes its
+   * getAuthedServerContext verdict; other routes keep verifying.
+   */
+  verifiedUserId?: string | null;
   /** Test seam: override token verification. Routes omit it. */
   verifyToken?: (token: string) => Promise<string | null>;
   /** Test seam: override the stored-key fetch. Routes omit it. */
@@ -154,9 +165,15 @@ export async function resolveCallerApiKey(
 ): Promise<ResolvedApiKey> {
   const token = getBearerToken(request);
   const verify = options.verifyToken ?? verifyAccessToken;
-  const userId = token
-    ? await verify(token).catch(() => null)
-    : null;
+  // A pre-verified verdict (user id, or null for guest/invalid)
+  // skips the second getUser round-trip for the same token; without
+  // one, verify here — guests (no token) never verify at all.
+  const userId =
+    options.verifiedUserId !== undefined
+      ? options.verifiedUserId
+      : token
+        ? await verify(token).catch(() => null)
+        : null;
 
   let encryptedKey: string | null = null;
   if (options.useOwnKey && userId) {
