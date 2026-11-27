@@ -96,6 +96,55 @@ test("resolveCallerApiKey uses the caller's key only for a verified user who ask
   });
 });
 
+test("resolveCallerApiKey reuses a pre-verified user id without verifying again", async () => {
+  let verifyCalls = 0;
+  const countingVerify = async () => {
+    verifyCalls += 1;
+    return "user-1";
+  };
+
+  // Pre-verified user: the verifier is never called, the stored key
+  // is still fetched for that user id, and the user id flows through.
+  const resolved = await resolveCallerApiKey(requestWithAuth("tok-1"), {
+    useOwnKey: true,
+    sharedKey: SHARED_KEY,
+    secret: SECRET,
+    verifiedUserId: "user-1",
+    verifyToken: countingVerify,
+    fetchStoredKey: async (userId) =>
+      userId === "user-1"
+        ? { encryptedKey: ENCRYPTED_OWN, keyLast4: "90ab", verifiedAt: null }
+        : null,
+  });
+  assert.deepEqual(resolved, {
+    key: OWN_KEY,
+    source: "byok",
+    userId: "user-1",
+  });
+  assert.equal(verifyCalls, 0);
+
+  // Pre-verified guest (null): no verify, no stored-key fetch, shared.
+  let fetchCalls = 0;
+  const guest = await resolveCallerApiKey(requestWithAuth("tok-9"), {
+    useOwnKey: true,
+    sharedKey: SHARED_KEY,
+    secret: SECRET,
+    verifiedUserId: null,
+    verifyToken: countingVerify,
+    fetchStoredKey: async () => {
+      fetchCalls += 1;
+      return null;
+    },
+  });
+  assert.deepEqual(guest, {
+    key: SHARED_KEY,
+    source: "shared",
+    userId: null,
+  });
+  assert.equal(verifyCalls, 0);
+  assert.equal(fetchCalls, 0);
+});
+
 test("resolveCallerApiKey falls back to shared for guests and for users without a key", async () => {
   const deps = {
     sharedKey: SHARED_KEY,
