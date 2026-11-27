@@ -1,4 +1,6 @@
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, resolveRateLimitKey } from "@/lib/rate-limit";
+import { callerIdentity, recordUsage } from "@/lib/usage/meter";
+import { flushUsageInBackground } from "@/lib/usage/server-flush";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
@@ -140,6 +142,15 @@ export async function POST(req: Request) {
       autoFixApplied: autoFix.applied,
       autoFixRemaining: autoFix.remainingIssues.length,
     });
+
+    // Quota meter: count this finished build. The chat and agent
+    // routes already record; build never did, so App builds could
+    // never move above 0. Best-effort flush — see the image route.
+    recordUsage(
+      "build",
+      callerIdentity(await resolveRateLimitKey(req, "build"))
+    );
+    flushUsageInBackground(req);
 
     return NextResponse.json({
       success: true,
