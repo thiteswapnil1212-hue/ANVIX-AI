@@ -36,6 +36,36 @@ async function readError(
   }
 }
 
+type KeysResult = { keys: ApiKeyRow[] } | { error: string };
+
+/** Pure fetch (no setState): the effect and the handlers share it. */
+async function fetchKeys(): Promise<KeysResult> {
+  try {
+    const response = await fetch("/api/v1/keys");
+    if (!response.ok) {
+      return { error: await readError(response, "Could not load API keys.") };
+    }
+    const body = (await response.json()) as { keys?: ApiKeyRow[] };
+    return { keys: Array.isArray(body.keys) ? body.keys : [] };
+  } catch {
+    return { error: "Could not load API keys. Check your connection." };
+  }
+}
+
+function applyKeysResult(
+  result: KeysResult,
+  setKeys: (keys: ApiKeyRow[]) => void,
+  setStatus: (status: string) => void
+): void {
+  if ("error" in result) {
+    setStatus(result.error);
+    setKeys([]);
+  } else {
+    setKeys(result.keys);
+    setStatus("");
+  }
+}
+
 export default function ApiKeysPanel() {
   const { user, loading } = useAuth();
   const [keys, setKeys] = useState<ApiKeyRow[] | null>(null);
@@ -47,26 +77,24 @@ export default function ApiKeysPanel() {
   const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
-    try {
-      const response = await fetch("/api/v1/keys");
-      if (!response.ok) {
-        setStatus(await readError(response, "Could not load API keys."));
-        setKeys([]);
-        return;
-      }
-      const body = (await response.json()) as { keys?: ApiKeyRow[] };
-      setKeys(Array.isArray(body.keys) ? body.keys : []);
-      setStatus("");
-    } catch {
-      setStatus("Could not load API keys. Check your connection.");
-      setKeys([]);
-    }
+    applyKeysResult(await fetchKeys(), setKeys, setStatus);
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    void refresh();
-  }, [user, refresh]);
+    let cancelled = false;
+    // GitHubPanel pattern: the fetch runs in an async callback, and
+    // setState happens after the await (never synchronously in the
+    // effect body — the set-state-in-effect lint rule).
+    void (async () => {
+      const result = await fetchKeys();
+      if (cancelled) return;
+      applyKeysResult(result, setKeys, setStatus);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleCreate = async () => {
     setCreating(true);
