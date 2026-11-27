@@ -18,10 +18,28 @@ import type { GenerationConfig } from "@google/generative-ai";
 // Quick chat / generate — the single model users can pick.
 export const CHAT_MODEL_ID = "gemini-3.5-flash-lite";
 
-// Deep mode — the strongest free-tier model. Its free quota is likely the
-// tightest of the three, so it is only used when the user picks Deep mode,
-// and it always falls back to `gemini-3.8-flash`.
-export const DEEP_MODEL_ID = "gemini-4-hydrogen";
+// Deep mode — the strongest model PROVEN to answer on the live API
+// through this app's stack (legacy `@google/generative-ai` SDK,
+// GenerateContent path, shared free-tier key). That is
+// `gemini-3.8-flash` — the same model as Smart's primary — so Deep
+// differs from Smart by reasoning effort, not by model: high
+// thinking + the structured reasoning prompt (`lib/chat/deep-reasoning.ts`)
+// + the in-generation verify step.
+//
+// `gemini-4-hydrogen` was the Deep primary until 2026-11-27 and is
+// REMOVED, not renamed: it is a real GA model id with a free tier
+// (Google pricing page, Nov 2026), but live it fails deterministically
+// on this stack for every thinking choice (Deep 0/3 in the
+// reasoning baseline; Fast/Smart answer fine), and the fallback never
+// rescued it. Two documented reasons it cannot be served here:
+// (a) Google routes Hydrogen through the new Interactions API /
+// `@google/genai` SDK and calls GenerateContent legacy for Gemini 4;
+// third-party native-API docs note Hydrogen "has not been tested on
+// Gemini native yet". (b) Hydrogen's supported thinking levels are
+// low/medium/high/xhigh — `minimal` (Deep thinking=off) is not one.
+// Revisit Hydrogen only when the app migrates to `@google/genai` —
+// and live-test it before it becomes any mode's primary again.
+export const DEEP_MODEL_ID = "gemini-3.8-flash";
 
 // Build / agent / stream chains — primary first, fallback second.
 export const BUILD_MODEL_CHAIN = [
@@ -41,8 +59,8 @@ export const SMART_MODEL_CHAIN = [
   "gemini-3.5-flash-lite",
 ] as const;
 export const DEEP_MODEL_CHAIN = [
-  "gemini-4-hydrogen",
   "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
 ] as const;
 
 // One-shot auto-fix pass after a build — cheap model, one pass.
