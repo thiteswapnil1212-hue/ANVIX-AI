@@ -14,6 +14,14 @@
  * `components/chat/ArtifactViewer.tsx`), and shows the surrounding
  * reply as normal markdown with the artifact blocks removed.
  *
+ * A plain ```html fence is also an artifact — but only when it holds
+ * a complete standalone document (starts with `<!doctype html>` and
+ * contains `<html>…</html>`). That is the form the model uses when it
+ * answers a "build me X" prompt with a whole page and no artifact
+ * marker; a fragment, a snippet, or a teaching example stays an
+ * ordinary code block. The card's Code tab still shows the source,
+ * so nothing is hidden by the promotion.
+ *
  * V1 scope, stated honestly:
  * - HTML artifacts only. A non-HTML artifact fence (e.g.
  *   `artifact:svg`) is left in the text as an ordinary code block.
@@ -94,6 +102,48 @@ export function parseArtifactInfo(
   return null;
 }
 
+/** Title from a document's `<title>`, if it has one. */
+function documentTitle(code: string): string | undefined {
+  const match = code.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const title = match?.[1]?.replace(/<[^>]*>/g, "").trim();
+  return title || undefined;
+}
+
+/**
+ * A plain ```html fence holding a complete standalone document
+ * (starts with `<!doctype html>`, contains `<html>…</html>`).
+ * The strict shape is the discriminator: fragments, snippets, and
+ * teaching examples never look like this, so they stay code blocks.
+ */
+function parseFullDocumentHtml(
+  info: string,
+  code: string
+): { language: ArtifactLanguage; title: string | undefined } | null {
+  if (info.trim().toLowerCase() !== "html") return null;
+  const trimmed = code.trim();
+  if (!/^<!doctype html>/i.test(trimmed)) return null;
+  if (!/<html[\s>]/i.test(trimmed)) return null;
+  if (!/<\/html\s*>/i.test(trimmed)) return null;
+  return { language: "html", title: documentTitle(code) };
+}
+
+/**
+ * Same discriminator for a fence cut off mid-stream (no closing
+ * fence): the document is unfinished, so `</html>` cannot be
+ * required — the doctype + `<html>` opening is what marks it as a
+ * document rather than a fragment.
+ */
+function parseInterruptedDocumentHtml(
+  info: string,
+  code: string
+): { language: ArtifactLanguage; title: string | undefined } | null {
+  if (info.trim().toLowerCase() !== "html") return null;
+  const trimmed = code.trim();
+  if (!/^<!doctype html>/i.test(trimmed)) return null;
+  if (!/<html[\s>]/i.test(trimmed)) return null;
+  return { language: "html", title: documentTitle(code) };
+}
+
 export type ParsedMessageArtifacts = {
   /** Message text with extracted artifact blocks removed. */
   text: string;
@@ -143,7 +193,8 @@ export function parseArtifacts(
     FENCE_RE,
     (whole, info: string, code: string) => {
       if (extractedCount >= MAX_ARTIFACTS_PER_MESSAGE) return whole;
-      const parsed = parseArtifactInfo(info);
+      const parsed =
+        parseArtifactInfo(info) ?? parseFullDocumentHtml(info, code);
       if (!parsed) return whole;
       if (code.length > MAX_ARTIFACT_CODE_CHARS) return whole;
 
@@ -167,7 +218,12 @@ export function parseArtifacts(
     const openers = [...text.matchAll(/^```([^\n]*)$/gm)];
     const last = openers[openers.length - 1];
     if (last && last.index !== undefined) {
-      const parsed = parseArtifactInfo(last[1]);
+      const rawCode = text
+        .slice(last.index + last[0].length)
+        .replace(/^\n/, "");
+      const parsed =
+        parseArtifactInfo(last[1]) ??
+        parseInterruptedDocumentHtml(last[1], rawCode);
       if (parsed) {
         if (options?.streaming) {
           // Mid-stream the fence is just unfinished — strip the
@@ -178,9 +234,7 @@ export function parseArtifacts(
           buildingArtifactTitle = cleanTitle(parsed.title, extractedCount);
           text = text.slice(0, last.index);
         } else {
-          let code = text
-            .slice(last.index + last[0].length)
-            .replace(/^\n/, "");
+          let code = rawCode;
           // The interruption note is appended after the cut-off code;
           // keep it in the message text, not in the artifact. The exact
           // form (blank line + note) leaves the code byte-for-byte.
