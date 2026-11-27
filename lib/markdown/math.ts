@@ -23,8 +23,11 @@ import rehypeKatex from "rehype-katex";
  *   breaking the whole reply; `strict: false` tolerates the loose
  *   LaTeX models routinely emit; `trust: false` (the default) never
  *   allows `\href` / `\url` / `\includegraphics` from model output.
- * - KaTeX CSS comes from `app/globals.css` (`katex/dist/katex.min.css`,
- *   bundled with its fonts — no external font CDN).
+ * - KaTeX CSS loads lazily via `components/chat/KatexStyles.tsx`
+ *   (imported dynamically by MarkdownContent only when a reply
+ *   renders `.katex` output) — never from the global stylesheet, so
+ *   non-math pages fetch no KaTeX assets. The CSS is bundled with
+ *   its fonts — no external font CDN.
  */
 export const markdownRemarkPlugins: ComponentProps<
   typeof ReactMarkdown
