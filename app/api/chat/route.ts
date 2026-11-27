@@ -19,7 +19,9 @@ import { splitChunkParts } from "@/lib/gemini/chat-stream";
 import {
   extractGroundingSources,
   groundingTools,
+  isGroundingCoolingDown,
   mergeGroundingSources,
+  recordGroundingQuotaFailure,
   shouldDegradeGrounding,
   type GroundingSource,
 } from "@/lib/gemini/grounding";
@@ -181,12 +183,30 @@ export async function POST(request: Request) {
   }
   const attachments: ChatAttachmentInput[] = validatedAttachments.attachments;
 
+  // Verify the caller ONCE: getAuthedServerContext is this route's
+  // identity check (assistants / profile / memories below all use
+  // it), and key resolution reuses its verdict instead of paying a
+  // second getUser round-trip for the same token. Both checks are the
+  // same call — client.auth.getUser(token), 2 s timeout, fail-open
+  // null — so reusing the verdict changes no auth decision. Guests
+  // (no token) skip verification entirely in both places; the rate
+  // limiter above already does the same. A signed-in request used to
+  // pay getUser three times on a cold instance (rate limit + key
+  // resolution + this context); the rate limit's 60 s cache covers
+  // warm instances, and this dedupe removes one of the two uncached
+  // calls. The remaining pre-Gemini work for a guest is all in-memory
+  // (rate-limit map, usage staging) — the cold path's real cost is
+  // the function bootstrap + Gemini's time to first token, neither of
+  // which this route can cut.
+  const authed = await getAuthedServerContext(request).catch(() => null);
+
   // BYOK: the caller's own key when they asked for it and one is stored,
   // else the shared server key. The client only ever sends the boolean
   // flag — the key itself never leaves this route.
   const resolvedKey = await resolveCallerApiKey(request, {
     useOwnKey: body.useOwnKey === true,
     sharedKey: process.env.GEMINI_API_KEY,
+    verifiedUserId: authed?.userId ?? null,
   });
 
   // --- Custom assistants + custom instructions + memory v2 ----------
@@ -204,7 +224,6 @@ export async function POST(request: Request) {
   let customInstructions = "";
   let memoryFacts: string[] = [];
 
-  const authed = await getAuthedServerContext(request).catch(() => null);
   if (authed) {
     const assistantId =
       typeof body.assistantId === "string" ? body.assistantId.trim() : "";
@@ -597,13 +616,22 @@ export async function POST(request: Request) {
             !emittedAnything &&
             shouldDegradeGrounding(error)
           ) {
+            const status = classifyGeminiFailure(error).status;
             console.warn(
               "[ANVIX CHAT] Grounded attempt failed, retrying without tools",
               {
                 model: modelId,
-                status: classifyGeminiFailure(error).status,
+                status,
               }
             );
+            // A grounded 429 means the grounding quota is exhausted:
+            // arm the cooldown so the next few minutes of Web-ON
+            // requests skip the doomed grounded attempt entirely and
+            // go straight to plain. A plain attempt's 429 is a
+            // model-quota failure, not a grounding one — it never
+            // reaches this branch (attemptTools is false), so it is
+            // handled by the model-health cooldown instead.
+            if (status === 429) recordGroundingQuotaFailure();
             return runAttempt(modelId, signal, false);
           }
 
@@ -620,9 +648,20 @@ export async function POST(request: Request) {
           once: true,
         });
         if (request.signal.aborted || cancelled) ac.abort();
+        // Grounding-quota cooldown: when a recent grounded attempt
+        // 429'd, start without tools — the plain attempt is what
+        // answers, so attaching tools would only pay for a failure.
+        // The degrade path inside runAttempt still covers a first
+        // 429 (it arms the cooldown); this gate covers the requests
+        // after it. Sources can only arrive when tools were attached,
+        // so the "Grounded" badge stays honest by construction.
         return {
           controller: ac,
-          promise: runAttempt(modelId, ac.signal),
+          promise: runAttempt(
+            modelId,
+            ac.signal,
+            !isGroundingCoolingDown()
+          ),
         };
       };
 
