@@ -3,11 +3,26 @@ import assert from "node:assert/strict";
 
 import {
   buildPollinationsUrl,
+  IMAGE_PROVIDER_NOTE,
   isPollinationsRateLimit,
   parseRetryAfter,
   POLLINATIONS_MAX_PROMPT_CHARS,
   validateImagePrompt,
 } from "./pollinations.ts";
+
+test("image provider note is Latin-1 safe for the response header", () => {
+  // Regression: an em dash in this note made Response construction
+  // throw ("Cannot convert argument to a ByteString") and the image
+  // endpoint answered a bare 500 on every success (2026-11-27).
+  for (const char of IMAGE_PROVIDER_NOTE) {
+    const code = char.codePointAt(0);
+    assert.ok(
+      code !== undefined && code <= 255,
+      `non-Latin-1 char ${JSON.stringify(char)} in provider note`
+    );
+  }
+  assert.ok(!IMAGE_PROVIDER_NOTE.includes("—"));
+});
 
 test("buildPollinationsUrl encodes the prompt and pins Sana at 768", () => {
   const url = buildPollinationsUrl("a red kite over Pune");
