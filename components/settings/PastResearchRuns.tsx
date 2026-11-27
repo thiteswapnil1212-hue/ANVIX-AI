@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -39,6 +39,36 @@ function statusLabel(run: ResearchRun): string {
   return researchProgress(run).label;
 }
 
+type RunsResult = { runs: ResearchRun[] } | { error: string };
+
+/** Pure fetch (no setState): the effect and the handlers share it. */
+async function fetchRuns(): Promise<RunsResult> {
+  try {
+    const response = await fetch("/api/research");
+    if (!response.ok) {
+      return { error: "Could not load research runs." };
+    }
+    const body = (await response.json()) as { runs?: ResearchRun[] };
+    return { runs: Array.isArray(body.runs) ? body.runs : [] };
+  } catch {
+    return { error: "Could not load research runs. Check your connection." };
+  }
+}
+
+function applyRunsResult(
+  result: RunsResult,
+  setRuns: (runs: ResearchRun[]) => void,
+  setStatus: (status: string) => void
+): void {
+  if ("error" in result) {
+    setStatus(result.error);
+    setRuns([]);
+  } else {
+    setRuns(result.runs);
+    setStatus("");
+  }
+}
+
 export default function PastResearchRuns() {
   const { user, loading } = useAuth();
   const [runs, setRuns] = useState<ResearchRun[] | null>(null);
@@ -48,27 +78,21 @@ export default function PastResearchRuns() {
   const [opening, setOpening] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const refresh = useCallback(async () => {
-    try {
-      const response = await fetch("/api/research");
-      if (!response.ok) {
-        setStatus("Could not load research runs.");
-        setRuns([]);
-        return;
-      }
-      const body = (await response.json()) as { runs?: ResearchRun[] };
-      setRuns(Array.isArray(body.runs) ? body.runs : []);
-      setStatus("");
-    } catch {
-      setStatus("Could not load research runs. Check your connection.");
-      setRuns([]);
-    }
-  }, []);
-
   useEffect(() => {
     if (!user) return;
-    void refresh();
-  }, [user, refresh]);
+    let cancelled = false;
+    // GitHubPanel pattern: the fetch runs in an async callback, and
+    // setState happens after the await (never synchronously in the
+    // effect body — the set-state-in-effect lint rule).
+    void (async () => {
+      const result = await fetchRuns();
+      if (cancelled) return;
+      applyRunsResult(result, setRuns, setStatus);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleToggle = async (run: ResearchRun) => {
     if (openId === run.id) {
