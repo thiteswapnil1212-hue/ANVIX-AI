@@ -490,19 +490,28 @@ export function applyStreamingOverlay(
 }
 
 /**
- * Write the whole guest state: the metadata index plus one key per
- * loaded conversation. Only loaded conversations are written — the
- * loaded set is bounded by design (active + recently visited), so a
- * persist never rewrites the whole history. The optional overlay
- * folds in-flight streamed text into its message row (interim
- * persists during a stream).
+ * Write the guest state: the metadata index (always — it is metadata
+ * only, so cheap) plus one key per dirty loaded conversation. Only
+ * loaded conversations are written — the loaded set is bounded by
+ * design (active + recently visited), so a persist never rewrites the
+ * whole history. The optional overlay folds in-flight streamed text
+ * into its message row (interim persists during a stream).
+ *
+ * `onlyIds` (perf): when the caller passes the set of conversations
+ * whose messages changed since the last persist, only those keys are
+ * rewritten — a long chat no longer pays a full re-serialize of every
+ * loaded conversation on every persist. The overlay's conversation is
+ * always written, even when it is not in `onlyIds`: its stored copy
+ * must carry the in-flight text. Omit `onlyIds` to write every loaded
+ * key, as before.
  */
 export function persistGuestState(
   storage: GuestStorage,
   list: GuestChatMeta[],
   activeConversationId: string | null,
   messagesById: Record<string, GuestChatMessage[]>,
-  overlay?: StreamingOverlay | null
+  overlay?: StreamingOverlay | null,
+  onlyIds?: Set<string> | null
 ): void {
   const index: GuestChatIndex = {
     activeConversationId,
@@ -510,7 +519,14 @@ export function persistGuestState(
   };
   storage.setItem(STORAGE_INDEX_KEY, JSON.stringify(index));
 
+  const idsToWrite =
+    onlyIds === undefined || onlyIds === null
+      ? null
+      : new Set(onlyIds);
+  if (overlay && idsToWrite) idsToWrite.add(overlay.conversationId);
+
   for (const [id, messages] of Object.entries(messagesById)) {
+    if (idsToWrite && !idsToWrite.has(id)) continue;
     const finalMessages =
       overlay && overlay.conversationId === id
         ? applyStreamingOverlay(messages, overlay)
