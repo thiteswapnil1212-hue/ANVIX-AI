@@ -1,11 +1,24 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import ReactMarkdown, { type Components } from "react-markdown";
 
 import {
   markdownRehypePlugins,
   markdownRemarkPlugins,
 } from "@/lib/markdown/math";
+
+// KaTeX styles load lazily: this chunk (CSS + its font references)
+// is fetched only when a rendered reply actually contains `.katex`
+// output. ssr: false — the component renders nothing on the server;
+// the effect below detects math in the rendered DOM and loads the
+// chunk then. Non-math replies never fetch KaTeX assets at all, and
+// math replies look identical once the chunk loads (it is local, so
+// the unstyled window is one paint plus a fast local fetch).
+const KatexStyles = dynamic(() => import("./KatexStyles"), {
+  ssr: false,
+});
 
 // Split out of ChatMessageBubble (perf): react-markdown + remark-gfm
 // (+ micromark) is ~76 KB gzip. The bubble loads this with
@@ -20,7 +33,9 @@ import {
 // $...$ / $$...$$ via KaTeX. $ inside code fences and inline code
 // stays literal, and a malformed expression renders as an error,
 // never a crash. The Thinking block shares this component, so it
-// gets math rendering too.
+// gets math rendering too. Detection is DOM-based on purpose: the
+// rendered output is the ground truth (a regex over the raw markdown
+// would re-implement remark-math and misfire on $ in code fences).
 export default function MarkdownContent({
   content,
   components,
@@ -28,8 +43,19 @@ export default function MarkdownContent({
   content: string;
   components: Components;
 }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [hasMath, setHasMath] = useState(false);
+
+  useEffect(() => {
+    if (hasMath) return;
+    if (containerRef.current?.querySelector(".katex")) {
+      setHasMath(true);
+    }
+  }, [content, hasMath]);
+
   return (
     <div
+      ref={containerRef}
       className="
         markdown-content min-w-0
         [&>*:first-child]:mt-0
@@ -60,6 +86,7 @@ export default function MarkdownContent({
         [&_input[type=checkbox]]:accent-[#D4AF37]
       "
     >
+      {hasMath ? <KatexStyles /> : null}
       <ReactMarkdown
         remarkPlugins={markdownRemarkPlugins}
         rehypePlugins={markdownRehypePlugins}
