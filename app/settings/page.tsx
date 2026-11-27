@@ -11,6 +11,8 @@ import EmailSettings from "@/components/notifications/EmailSettings";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { fetchProfile, upsertProfile } from "@/lib/supabase/cloud";
 import GitHubPanel from "@/components/github/GitHubPanel";
+import ApiKeysPanel from "@/components/settings/ApiKeysPanel";
+import PastResearchRuns from "@/components/settings/PastResearchRuns";
 import {
   fetchByokStatus,
   fetchUsage,
@@ -39,6 +41,7 @@ import {
   Bot,
   Brain,
   Calendar,
+  FileSearch,
 } from "lucide-react";
 
 const settingsSections = [
@@ -88,6 +91,18 @@ const settingsSections = [
     icon: KeyRound,
     status: "Optional",
   },
+  {
+    title: "Public API keys",
+    description: "Keys for the public API (/api/v1/chat) — create, list, revoke.",
+    icon: KeyRound,
+    status: "Optional",
+  },
+  {
+    title: "Deep research",
+    description: "Your past deep research runs — reopen a finished report.",
+    icon: FileSearch,
+    status: "Quick settings",
+  },
 ];
 
 const scopeLabels: Record<string, string> = {
@@ -136,7 +151,11 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    // Runs for guests too: the usage meter falls back to the
+    // rate-limiter windows for guests (the API supports them), and
+    // the BYOK fetch just returns null when signed out. Gating this
+    // on a user used to leave guests with "Usage is not available
+    // right now" even though the meter could have shown their counts.
     let cancelled = false;
     void (async () => {
       await refreshByokAndUsage();
@@ -372,6 +391,16 @@ export default function SettingsPage() {
                     if (section.title === "API Keys") {
                       document
                         .getElementById("byok-settings")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    }
+                    if (section.title === "Public API keys") {
+                      document
+                        .getElementById("public-api-settings")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    }
+                    if (section.title === "Deep research") {
+                      document
+                        .getElementById("research-settings")
                         ?.scrollIntoView({ behavior: "smooth" });
                     }
                     if (section.title === "Google Calendar") {
@@ -704,6 +733,52 @@ export default function SettingsPage() {
                 )}
               </div>
             )}
+          </div>
+        </section>
+
+        {/* PUBLIC API KEYS */}
+        <section id="public-api-settings" className="scroll-mt-24">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              Public API
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Public API keys
+            </h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              Keys for calling ANVIX from your own code (
+              <code className="text-zinc-300">/api/v1/chat</code>). Each key
+              is limited to 30 requests per minute and 100 per day on the
+              shared quota.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
+            <ApiKeysPanel />
+          </div>
+        </section>
+
+        {/* PAST DEEP RESEARCH RUNS */}
+        <section id="research-settings" className="scroll-mt-24">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#D4AF37]">
+              Deep research
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
+              Past research runs
+            </h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              Your recent deep research runs, newest first. Open one to
+              read its finished report again.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
+            <PastResearchRuns />
           </div>
         </section>
 
