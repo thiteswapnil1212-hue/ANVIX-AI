@@ -30,6 +30,7 @@ import {
   writeNudgeDismissed,
 } from "@/lib/chat/guest-nudge";
 import { cleanPreviewText } from "@/lib/chat/preview-text";
+import { recordSessionUsage } from "@/lib/usage/session-usage";
 import {
   conversationMessagesKey,
   createTimestamp,
@@ -956,6 +957,8 @@ export default function ChatLayout() {
       try {
         const image = await requestGeneratedImage(trimmedPrompt);
         updateAssistantMessage({ generatedImage: image });
+        // Session usage, as above: an image that actually came back.
+        recordSessionUsage("generate");
         return true;
       } catch (error) {
         const message =
@@ -1290,6 +1293,11 @@ export default function ChatLayout() {
     };
 
     activeRequestRef.current = request;
+
+    // Session usage: the server meter reads a per-instance in-memory
+    // limiter, so it usually shows 0 for guests — this browser's own
+    // count is what the Settings meter merges in (display only).
+    recordSessionUsage("chat");
 
     let workingConversationId = activeConversationId;
     const timestamp = createTimestamp();
