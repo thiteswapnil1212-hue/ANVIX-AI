@@ -241,6 +241,101 @@ test("persistGuestState writes the index + only loaded message keys", () => {
   assert.equal(store.has(STORAGE_LEGACY_KEY), false);
 });
 
+test("persistGuestState with onlyIds rewrites only the dirty keys", () => {
+  const { store, storage } = createMemoryStorage();
+  const list = [
+    {
+      id: "a",
+      title: "First",
+      preview: "hello",
+      updatedAt: "2026-11-22T10:00:00.000Z",
+      createdAt: "2026-11-22T09:00:00.000Z",
+      pinned: false,
+    },
+    {
+      id: "b",
+      title: "Second",
+      preview: "bye",
+      updatedAt: "2026-11-22T08:00:00.000Z",
+      createdAt: "2026-11-22T07:00:00.000Z",
+      pinned: false,
+    },
+  ];
+  const msg = (id: string, content: string) => ({
+    id,
+    role: "user" as const,
+    content,
+    createdAt: "2026-11-22T09:00:00.000Z",
+  });
+  const messagesById = {
+    a: [msg("m1", "hello")],
+    b: [msg("m2", "bye")],
+  };
+
+  persistGuestState(storage, list, "a", messagesById);
+  const beforeA = store.get(conversationMessagesKey("a"));
+  const beforeB = store.get(conversationMessagesKey("b"));
+
+  // Only "a" changed: "b"'s key must be byte-identical afterwards,
+  // and the index is still rewritten (metadata is cheap).
+  const changed = {
+    a: [msg("m1", "hello"), msg("m3", "again")],
+    b: [msg("m2", "bye")],
+  };
+  persistGuestState(storage, list, "a", changed, null, new Set(["a"]));
+  assert.notEqual(store.get(conversationMessagesKey("a")), beforeA);
+  assert.equal(store.get(conversationMessagesKey("b")), beforeB);
+  assert.deepEqual(
+    JSON.parse(store.get(conversationMessagesKey("a")) ?? "[]").map(
+      (m: { content: string }) => m.content
+    ),
+    ["hello", "again"]
+  );
+
+  // Empty dirty set: no message key is touched at all.
+  persistGuestState(storage, list, "a", changed, null, new Set());
+  assert.equal(store.get(conversationMessagesKey("b")), beforeB);
+});
+
+test("persistGuestState always writes the overlay conversation's key", () => {
+  const { store, storage } = createMemoryStorage();
+  const list = [
+    {
+      id: "a",
+      title: "First",
+      preview: "hello",
+      updatedAt: "2026-11-22T10:00:00.000Z",
+      createdAt: "2026-11-22T09:00:00.000Z",
+      pinned: false,
+    },
+  ];
+  const messagesById = {
+    a: [
+      {
+        id: "m1",
+        role: "assistant" as const,
+        content: "",
+        createdAt: "2026-11-22T09:00:00.000Z",
+      },
+    ],
+  };
+  const overlay = {
+    conversationId: "a",
+    messageId: "m1",
+    content: "streamed so far",
+    thinking: "",
+    sources: [],
+  };
+
+  // The overlay's conversation is NOT in onlyIds — it must still be
+  // written, carrying the in-flight text (the interim-persist case).
+  persistGuestState(storage, list, "a", messagesById, overlay, new Set());
+  const stored = JSON.parse(
+    store.get(conversationMessagesKey("a")) ?? "[]"
+  ) as { content: string }[];
+  assert.equal(stored[0]?.content, "streamed so far");
+});
+
 test("parseLegacyBlob returns empty state for garbage input", () => {
   assert.deepEqual(parseLegacyBlob(null), {
     activeConversationId: null,
