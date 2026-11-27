@@ -3,6 +3,7 @@ import Navbar from "@/components/layout/Navbar";
 import Hero from "@/features/landing/Hero";
 import PromptEditor from "@/components/ai/PromptEditor";
 import BackgroundGlow from "@/components/background/BackgroundGlow";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
 
 const capabilities = [
   {
@@ -157,6 +158,16 @@ export default function Home() {
               </article>
             ))}
           </div>
+        </section>
+
+        {/* Install — quiet: renders nothing until the browser offers
+            installation, so this strip only appears when the button
+            can actually work. */}
+        <section
+          aria-label="Install ANVIX"
+          className="mx-auto max-w-6xl px-4 pb-24 sm:px-6 lg:pb-32"
+        >
+          <InstallPrompt quiet />
         </section>
       </div>
     </main>
