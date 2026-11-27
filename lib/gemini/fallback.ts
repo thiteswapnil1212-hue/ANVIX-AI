@@ -71,7 +71,31 @@ export function classifyGeminiFailure(error: unknown): {
     };
   }
 
-  if (/api key|authentication|unauthorized|forbidden|invalid api|invalid request|unsupported model|unsupported request/.test(lowerMessage)) {
+  // Model availability: the model id is unknown, not served on this
+  // API path, or not enabled for this key (404 / "model not found" /
+  // "unsupported model"). This is NOT a permanent request error — the
+  // request itself is fine, this model just cannot serve it, so the
+  // caller must try the NEXT model in the chain instead of failing
+  // the user. (2026-11-27: `gemini-4-hydrogen` failed exactly this
+  // way on the chat route and the old "permanent_error" mapping meant
+  // the fallback to 3.8 Flash never ran — Deep errored outright.)
+  // Auth/config failures stay permanent below: a bad key cannot be
+  // fixed by trying another model.
+  if (
+    status === 404 ||
+    /model .* not found|not found for api version|model .* not supported|unsupported model/i.test(
+      lowerMessage
+    )
+  ) {
+    return {
+      category: "model_unavailable",
+      status,
+      retryable: true,
+      message,
+    };
+  }
+
+  if (/api key|authentication|unauthorized|forbidden|invalid api|invalid request|unsupported request/.test(lowerMessage)) {
     return {
       category: "permanent_error",
       status,
