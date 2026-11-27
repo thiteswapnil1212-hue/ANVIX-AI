@@ -11,6 +11,7 @@ import {
   resolveChatMode,
   resolveLegacyChatModel,
   thinkingLevelForChoice,
+  thinkingLevelForModel,
 } from "./chat-modes.ts";
 
 test("chat modes map to the documented model chains and defaults", () => {
@@ -46,6 +47,54 @@ test("unknown modes fall back to Smart, never throw", () => {
   assert.equal(parseChatMode(42), "smart");
   assert.equal(parseChatMode("FAST"), "smart");
   assert.equal(getChatMode("nope"), undefined);
+});
+
+test("Off maps to minimal on Lite only, low on every other model", () => {
+  // Live 2026-11-27: Smart/Deep + Off errored (3.8-flash rejects
+  // minimal) while Fast + Off answered (Lite accepts it).
+  assert.deepEqual(
+    thinkingLevelForModel("off", "gemini-3.5-flash-lite"),
+    { level: "minimal", includeThoughts: false }
+  );
+  assert.deepEqual(thinkingLevelForModel("off", "gemini-3.8-flash"), {
+    level: "low",
+    includeThoughts: false,
+  });
+  // Fast/deep are the same on every model.
+  assert.deepEqual(thinkingLevelForModel("fast", "gemini-3.8-flash"), {
+    level: "low",
+    includeThoughts: true,
+  });
+  assert.deepEqual(thinkingLevelForModel("fast", "gemini-3.5-flash-lite"), {
+    level: "low",
+    includeThoughts: true,
+  });
+  assert.deepEqual(thinkingLevelForModel("deep", "gemini-3.8-flash"), {
+    level: "high",
+    includeThoughts: true,
+  });
+  assert.deepEqual(thinkingLevelForModel("deep", "gemini-3.5-flash-lite"), {
+    level: "high",
+    includeThoughts: true,
+  });
+});
+
+test("resolveChatMode resolves Off against the mode primary model", () => {
+  const smartOff = resolveChatMode("smart", "off");
+  assert.equal(smartOff.modelId, "gemini-3.8-flash");
+  assert.equal(smartOff.thinking, "off");
+  assert.equal(smartOff.thinkingLevel, "low");
+  assert.equal(smartOff.includeThoughts, false);
+
+  const deepOff = resolveChatMode("deep", "off");
+  assert.equal(deepOff.modelId, "gemini-3.8-flash");
+  assert.equal(deepOff.thinkingLevel, "low");
+  assert.equal(deepOff.includeThoughts, false);
+
+  const fastOff = resolveChatMode("fast", "off");
+  assert.equal(fastOff.modelId, "gemini-3.5-flash-lite");
+  assert.equal(fastOff.thinkingLevel, "minimal");
+  assert.equal(fastOff.includeThoughts, false);
 });
 
 test("thinking choices map to Gemini 3 thinking levels", () => {
