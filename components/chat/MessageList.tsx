@@ -15,7 +15,7 @@ import type { GroundingSource } from "@/lib/gemini/grounding";
 import type { GeneratedImage } from "@/lib/image-client";
 import type { ChatArtifact } from "@/lib/artifacts";
 import { newMessagesLabel } from "@/lib/chat/format-count";
-import { addedMessageScrollTarget, bottomSpacerPx } from "@/lib/chat/scroll-anchor";
+import { addedMessageScrollTarget, bottomSpacerPx, isLastRowCutOff } from "@/lib/chat/scroll-anchor";
 import ChatMessageBubble from "./ChatMessageBubble";
 
 interface Message {
@@ -477,6 +477,18 @@ export default function MessageList({
   // (Replaces the ResizeObserver that used to follow streamed
   // growth; the observer could feed back through the virtualizer's
   // own re-measurement.)
+  //
+  // The pin fires ONLY when the last row is actually cut off below
+  // the viewport (isLastRowCutOff). It must not fire
+  // unconditionally: the streaming snapshot flushes every 100 ms —
+  // even while the reply is still thinking and nothing changed —
+  // and each flush re-runs this effect because the `messages`
+  // array identity changes. An unconditional pin yanks a
+  // just-anchored prompt back to the bottom ~100 ms after it lands
+  // and keeps it pinned through the whole thinking phase (round-6
+  // live failure: prompt at y≈515–575 instead of ~y129). A short
+  // reply stays put under its top-anchored prompt; the pin takes
+  // over the moment the reply grows past the viewport bottom.
   useEffect(() => {
     if (isTyping && autoScrollRef.current && totalCount > 0) {
       // A just-anchored prompt owns this commit: the layout effect
@@ -488,11 +500,29 @@ export default function MessageList({
         return;
       }
 
-      programmaticScrollUntilRef.current = Date.now() + 800;
-      rowVirtualizer.scrollToIndex(totalCount - 1, {
-        align: "end",
-        behavior: "auto",
-      });
+      const container = scrollRef.current;
+      if (!container) return;
+
+      // The list's top padding: 48px from sm up, 40px below.
+      const topPadPx = window.matchMedia("(min-width: 640px)").matches
+        ? 48
+        : 40;
+
+      if (
+        isLastRowCutOff({
+          totalSizePx: rowVirtualizer.getTotalSize(),
+          paddingEndPx: bottomSpacerPxRef.current,
+          topPadPx,
+          scrollTopPx: container.scrollTop,
+          clientHeightPx: container.clientHeight,
+        })
+      ) {
+        programmaticScrollUntilRef.current = Date.now() + 800;
+        rowVirtualizer.scrollToIndex(totalCount - 1, {
+          align: "end",
+          behavior: "auto",
+        });
+      }
     }
   }, [messages, isTyping, rowVirtualizer, totalCount]);
 
