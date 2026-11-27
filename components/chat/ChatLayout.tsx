@@ -194,6 +194,41 @@ export default function ChatLayout() {
   const interimPersistTimerRef = useRef<ReturnType<typeof setInterval> | null>(
     null
   );
+  // Dirty-keyed persist (perf): the messages array identity each
+  // conversation's key was last written with. A persist rewrites only
+  // the keys whose array changed since then — a long chat no longer
+  // pays a full re-serialize of every loaded conversation on every
+  // write. Messages are immutable in state (every update replaces the
+  // array), so identity change is exactly content change. The index
+  // is metadata-only and is always written.
+  const persistedMessagesRef = useRef(
+    new Map<string, GuestChatMessage[]>()
+  );
+
+  const dirtyConversationIds = (
+    messages: Record<string, GuestChatMessage[]>,
+    overlay?: StreamingOverlay | null
+  ): Set<string> => {
+    const dirty = new Set<string>();
+    for (const [id, list] of Object.entries(messages)) {
+      if (persistedMessagesRef.current.get(id) !== list) dirty.add(id);
+    }
+    // An in-flight overlay forces its conversation dirty even though
+    // the array identity is unchanged, so the 1 s interim persist
+    // keeps bounding crash loss to ~1 s of streamed text.
+    if (overlay) dirty.add(overlay.conversationId);
+    return dirty;
+  };
+
+  const markPersisted = (
+    messages: Record<string, GuestChatMessage[]>,
+    ids: Set<string>
+  ): void => {
+    for (const id of ids) {
+      const list = messages[id];
+      if (list !== undefined) persistedMessagesRef.current.set(id, list);
+    }
+  };
 
   useEffect(() => {
     conversationListRef.current = conversationList;
@@ -493,12 +528,16 @@ export default function ChatLayout() {
 
     const write = () => {
       try {
+        const dirty = dirtyConversationIds(messagesById);
         persistGuestState(
           window.localStorage,
           conversationList,
           activeConversationId,
-          messagesById
+          messagesById,
+          null,
+          dirty
         );
+        markPersisted(messagesById, dirty);
       } catch (error) {
         console.warn("Unable to persist guest chat history.", error);
       }
@@ -537,13 +576,17 @@ export default function ChatLayout() {
         persistTimerRef.current = null;
       }
       try {
+        const messages = messagesByIdRef.current;
+        const dirty = dirtyConversationIds(messages, streamingRef.current);
         persistGuestState(
           window.localStorage,
           conversationListRef.current,
           activeConversationIdRef.current,
-          messagesByIdRef.current,
-          streamingRef.current
+          messages,
+          streamingRef.current,
+          dirty
         );
+        markPersisted(messages, dirty);
       } catch (error) {
         console.warn("Unable to persist guest chat history.", error);
       }
@@ -653,6 +696,7 @@ export default function ChatLayout() {
         delete next[id];
         return next;
       });
+      persistedMessagesRef.current.delete(id);
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(conversationMessagesKey(id));
       }
@@ -1418,13 +1462,17 @@ export default function ChatLayout() {
     // of streamed text, since the store is only written on commit.
     interimPersistTimerRef.current = setInterval(() => {
       try {
+        const messages = messagesByIdRef.current;
+        const dirty = dirtyConversationIds(messages, streamingRef.current);
         persistGuestState(
           window.localStorage,
           conversationListRef.current,
           targetConversationId,
-          messagesByIdRef.current,
-          streamingRef.current
+          messages,
+          streamingRef.current,
+          dirty
         );
+        markPersisted(messages, dirty);
       } catch (error) {
         console.warn("Unable to persist guest chat history.", error);
       }
