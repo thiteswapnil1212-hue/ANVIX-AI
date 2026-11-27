@@ -19,6 +19,14 @@ import {
  * `includeThoughts: false`, so no thought tokens are spent on summaries
  * the user hid. Thinking tokens bill as output tokens, so Deep (high)
  * burns quota ~2–5x faster than Fast — the UI says so on the toggle.
+ *
+ * `minimal` is valid ONLY on `gemini-3.5-flash-lite` — `gemini-3.8-flash`
+ * rejects it (live 2026-11-27: Smart/Deep + Off errored while Fast + Off
+ * answered). So the Off mapping is model-aware: off on any model other
+ * than Lite sends `low` with `includeThoughts: false` instead. The
+ * per-attempt model in the chat route re-resolves the level the same
+ * way, so a fallback to the other model never inherits a level it
+ * rejects.
  */
 
 export type ChatModeId = "fast" | "smart" | "deep";
@@ -90,9 +98,27 @@ export function thinkingLevelForChoice(choice: ThinkingChoice): {
   level: ThinkingLevel;
   includeThoughts: boolean;
 } {
+  // The choice-only mapping is the Lite mapping: Lite is the default
+  // chat model and the only one that accepts `minimal`.
+  return thinkingLevelForModel(choice, CHAT_MODEL_ID);
+}
+
+/**
+ * Model-aware thinking level for a choice. Identical to
+ * `thinkingLevelForChoice` except Off: `minimal` is valid only on
+ * `gemini-3.5-flash-lite`, so off on any other model sends `low` with
+ * no thought summaries instead — the lowest level that model accepts.
+ * Fast/deep are the same on every model (`low`/`high`).
+ */
+export function thinkingLevelForModel(
+  choice: ThinkingChoice,
+  modelId: string
+): { level: ThinkingLevel; includeThoughts: boolean } {
   switch (choice) {
     case "off":
-      return { level: "minimal", includeThoughts: false };
+      return modelId === CHAT_MODEL_ID
+        ? { level: "minimal", includeThoughts: false }
+        : { level: "low", includeThoughts: false };
     case "fast":
       return { level: "low", includeThoughts: true };
     case "deep":
@@ -116,7 +142,10 @@ export type ResolvedChatMode = {
 /**
  * Resolve a chat request's mode + thinking choice into the concrete model
  * and thinking config. An absent/invalid thinking choice uses the mode's
- * default; an absent/invalid mode uses Smart.
+ * default; an absent/invalid mode uses Smart. The thinking level is
+ * resolved against the mode's PRIMARY model — a fallback attempt
+ * re-resolves it per model in the chat route, so the stored level here
+ * is the primary's, not a promise about the fallback.
  */
 export function resolveChatMode(
   modeId: unknown,
@@ -124,7 +153,10 @@ export function resolveChatMode(
 ): ResolvedChatMode {
   const mode = getChatMode(parseChatMode(modeId)) ?? CHAT_MODES[1];
   const choice = parseThinkingChoice(thinking) ?? mode.defaultThinking;
-  const { level, includeThoughts } = thinkingLevelForChoice(choice);
+  const { level, includeThoughts } = thinkingLevelForModel(
+    choice,
+    mode.modelId
+  );
 
   return {
     mode,
