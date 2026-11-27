@@ -1,4 +1,6 @@
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, resolveRateLimitKey } from "@/lib/rate-limit";
+import { callerIdentity, recordUsage } from "@/lib/usage/meter";
+import { flushUsageInBackground } from "@/lib/usage/server-flush";
 import {
   enforceDailyCap,
   IMAGE_DAILY_CAP,
@@ -146,6 +148,17 @@ async function handleImageRequest(request: Request) {
       { provider: "pollinations", retryable: true }
     );
   }
+  // Quota meter: count this finished image under the "generate"
+  // scope (the meter has no "image" scope). The chat and agent
+  // routes already record; image never did, so Generate could never
+  // move above 0. The flush is best-effort — without the
+  // usage_events table live it simply has nowhere to land yet.
+  recordUsage(
+    "generate",
+    callerIdentity(await resolveRateLimitKey(request, "generate"))
+  );
+  flushUsageInBackground(request);
+
   return new Response(bytes, {
     status: 200,
     headers: {
