@@ -32,6 +32,10 @@ import {
 } from "@/lib/supabase/assistants-memory";
 import type { MemoryRecord } from "@/lib/memory";
 import {
+  mergeSessionUsage,
+  readSessionUsage,
+} from "@/lib/usage/session-usage";
+import {
   User,
   KeyRound,
   ShieldCheck,
@@ -140,6 +144,7 @@ export default function SettingsPage() {
   const [byokSaving, setByokSaving] = useState(false);
   const [useOwnKey, setUseOwnKeyState] = useState(() => shouldUseOwnKey());
   const [usage, setUsage] = useState<UsageStatus | null>(null);
+  const [usageSessionIncluded, setUsageSessionIncluded] = useState(false);
 
   const refreshByokAndUsage = async () => {
     const [status, usageStatus] = await Promise.all([
@@ -147,7 +152,21 @@ export default function SettingsPage() {
       fetchUsage(),
     ]);
     setByokStatus(status);
-    setUsage(usageStatus);
+    if (usageStatus) {
+      // The server meter reads a per-instance in-memory limiter, so
+      // it usually shows 0 for guests — merge in this browser's own
+      // session counts (max per scope, never a sum), so the meter
+      // reflects the guest's actual usage in this session.
+      const merged = mergeSessionUsage(
+        usageStatus.meters,
+        readSessionUsage()
+      );
+      setUsage({ ...usageStatus, meters: merged.meters });
+      setUsageSessionIncluded(merged.sessionIncluded);
+    } else {
+      setUsage(null);
+      setUsageSessionIncluded(false);
+    }
   };
 
   useEffect(() => {
@@ -556,7 +575,11 @@ export default function SettingsPage() {
           </div>
 
           <div className="rounded-2xl border border-white/[0.07] bg-[#111113] p-5">
-            {!usage ? (
+            {!byokLoaded ? (
+              <p className="text-sm leading-6 text-zinc-400">
+                Loading your usage…
+              </p>
+            ) : !usage ? (
               <p className="text-sm leading-6 text-zinc-400">
                 Usage is not available right now. Your chats still work —
                 this meter is best-effort.
@@ -595,6 +618,9 @@ export default function SettingsPage() {
                   {usage.source === "db"
                     ? "Counts from today's hourly totals (UTC day)."
                     : "Counts from this server instance's rate limiter (last 24 hours) — the database totals aren't available on this deployment."}
+                  {usageSessionIncluded
+                    ? " Includes usage counted in this browser today."
+                    : ""}
                 </p>
               </div>
             )}
