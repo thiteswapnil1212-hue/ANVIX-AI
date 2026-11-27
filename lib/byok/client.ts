@@ -9,6 +9,7 @@
  */
 
 import { getAuthHeaders } from "@/lib/api/auth-headers";
+import type { QuotaMeter } from "@/lib/usage/meter";
 
 export const USE_OWN_KEY_STORAGE_KEY = "anvix:useOwnKey";
 
@@ -38,14 +39,11 @@ export interface ByokStatus {
   verifiedAt: string | null;
 }
 
-export interface QuotaMeter {
-  scope: string;
-  used: number;
-  limit: number;
-  remaining: number;
-  percentUsed: number;
-  overLimit: boolean;
-}
+// QuotaMeter is the server meter's shape (lib/usage/meter.ts) — one
+// type for both sides, so the Settings merge cannot drift from what
+// /api/usage returns. (This file used to redeclare it with a loose
+// `scope: string`, which the session merge then rejected.)
+export type { QuotaMeter };
 
 export interface UsageStatus {
   date: string;
