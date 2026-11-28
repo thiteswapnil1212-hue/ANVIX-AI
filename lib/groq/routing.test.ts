@@ -2,19 +2,44 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  GROQ_REASONING_MODEL_ID,
+  GROQ_DECOMMISSIONED_MODEL_IDS,
+  GROQ_DEEP_MODEL_CHAIN,
+  groqReasoningEffortForThinking,
   isGroqConfigured,
   shouldTryGroqDeep,
 } from "./config.ts";
 
-test("Groq reasoning model is the 70B R1 distill, not the full R1", () => {
-  // Guard the honest-scope note: if the model id ever changes to the
-  // full R1 (or anything else), this test forces the copy + comments
-  // to be updated with it instead of silently claiming R1.
-  assert.equal(
-    GROQ_REASONING_MODEL_ID,
-    "deepseek-r1-distill-llama-70b"
-  );
+test("Groq Deep chain is GPT-OSS 120B primary, Qwen 3.8 27B secondary", () => {
+  // The R1-distill id died (Groq decommissioned it 2025-10-02; the
+  // live 400 model_decommissioned proved it 2026-11-28). If this
+  // chain ever changes again, update the copy + comments with it.
+  assert.deepEqual([...GROQ_DEEP_MODEL_CHAIN], [
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.8-27b",
+  ]);
+});
+
+test("no decommissioned Groq model id is in the Deep chain", () => {
+  // Tripwire against stale community lists: every id Groq has shut
+  // down (per Groq's own deprecations page) must stay out of the
+  // chain. The list includes the R1-distill and every other
+  // candidate the old search results suggested.
+  for (const dead of GROQ_DECOMMISSIONED_MODEL_IDS) {
+    assert.ok(
+      !(GROQ_DEEP_MODEL_CHAIN as readonly string[]).includes(dead),
+      `${dead} must not be in the Groq Deep chain`
+    );
+  }
+  assert.ok(GROQ_DECOMMISSIONED_MODEL_IDS.length >= 5);
+});
+
+test("thinking choice maps to Groq reasoning_effort", () => {
+  // Verified against Groq's own reasoning docs: low/medium/high are
+  // supported by GPT-OSS 120B and Qwen 3.8 27B alike. Off is `low`,
+  // not `none` — Deep mode must always reason, just lightly.
+  assert.equal(groqReasoningEffortForThinking("off"), "low");
+  assert.equal(groqReasoningEffortForThinking("fast"), "medium");
+  assert.equal(groqReasoningEffortForThinking("deep"), "high");
 });
 
 test("isGroqConfigured needs a non-blank key", () => {
@@ -30,7 +55,7 @@ test("shouldTryGroqDeep needs Deep mode + a key + no attachments", () => {
   assert.equal(shouldTryGroqDeep({ ...base, modeId: "smart" }), false);
   assert.equal(shouldTryGroqDeep({ ...base, modeId: "fast" }), false);
   assert.equal(shouldTryGroqDeep({ ...base, hasGroqKey: false }), false);
-  // Text-only model: an attachment stays on the Gemini path.
+  // Text-only models: an attachment stays on the Gemini path.
   assert.equal(
     shouldTryGroqDeep({ ...base, hasAttachments: true }),
     false
