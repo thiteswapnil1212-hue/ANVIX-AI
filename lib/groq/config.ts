@@ -87,6 +87,33 @@ export const GROQ_API_KEY_ENV_VAR = "GROQ_API_KEY";
 export const GROQ_STREAM_TIMEOUT_MS = 110_000;
 
 /**
+ * Completion-token budget for one Groq Deep call.
+ *
+ * Live defect (loop-verify-groq-fix, 2026-11-28): Groq's reasoning
+ * docs (console.groq.com/docs/reasoning, crawled 2026-11-28) put the
+ * default `max_completion_tokens` at 1024 and warn it "may be too low
+ * for complex reasoning" and that "complex proofs may require higher
+ * limits" — reasoning tokens count against the same budget ("reasoning
+ * chains that are part of the token output"). The client used to send
+ * no budget, so a hard question with reasoning_effort "high" burned
+ * the whole 1024 tokens on reasoning and the stream ended
+ * (finish_reason "length") with no answer text: live 2026-11-28,
+ * both chain models "finished with no answer text" on
+ * 987654321 x 123456789, while easy questions answered in 1–2 s.
+ * The route's 8 s first-token deadline is NOT the culprit — the
+ * logs show the no-text branch, not the timeout branch, and 1024
+ * tokens stream in ~2 s at Groq speed.
+ *
+ * 16,384 is the lower of the two chain models' maxima on Groq's
+ * models page (GPT-OSS 120B: 65,536; Qwen 3.8 27B: 16,384), 16x the
+ * default — one shared value valid for both models. If a question
+ * still starves at 16k, the per-model maxima are the next step, not
+ * a guess. Truncation still degrades safely: no answer text means
+ * the route tries the next chain model, then Gemini.
+ */
+export const GROQ_MAX_COMPLETION_TOKENS = 16_384;
+
+/**
  * First-token deadline for one Groq attempt inside `/api/chat`: if
  * the model has not emitted anything within this window, the route
  * aborts it and tries the next model in the chain (or the Gemini
