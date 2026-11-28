@@ -5,7 +5,7 @@ import {
   GroqError,
   streamGroqChatCompletion,
 } from "./client.ts";
-import { GROQ_API_URL, GROQ_REASONING_MODEL_ID } from "./config.ts";
+import { GROQ_API_URL, GROQ_DEEP_MODEL_CHAIN } from "./config.ts";
 
 /** Build a fake streaming SSE Response from raw chunk strings. */
 function sseResponse(chunks: string[], status = 200): Response {
@@ -39,7 +39,7 @@ function collect() {
   };
 }
 
-test("client posts to the Groq OpenAI-compatible endpoint with the R1 distill", async () => {
+test("client posts to the Groq OpenAI-compatible endpoint with the chain model + reasoning effort", async () => {
   let seenUrl = "";
   let seenInit: RequestInit | undefined;
   const fetchImpl = (async (url: string, init?: RequestInit) => {
@@ -51,6 +51,8 @@ test("client posts to the Groq OpenAI-compatible endpoint with the R1 distill", 
   const { callbacks } = collect();
   await streamGroqChatCompletion({
     apiKey: "gsk-test",
+    model: GROQ_DEEP_MODEL_CHAIN[0],
+    reasoningEffort: "high",
     systemInstruction: "Behave.",
     prompt: "Hello",
     fetchImpl,
@@ -62,12 +64,35 @@ test("client posts to the Groq OpenAI-compatible endpoint with the R1 distill", 
   const headers = seenInit?.headers as Record<string, string>;
   assert.equal(headers.Authorization, "Bearer gsk-test");
   const body = JSON.parse(String(seenInit?.body)) as Record<string, unknown>;
-  assert.equal(body.model, GROQ_REASONING_MODEL_ID);
+  assert.equal(body.model, "openai/gpt-oss-120b");
+  assert.equal(body.reasoning_effort, "high");
   assert.equal(body.stream, true);
   assert.deepEqual(body.messages, [
     { role: "system", content: "Behave." },
     { role: "user", content: "Hello" },
   ]);
+});
+
+test("client omits reasoning_effort when none is given (Groq default applies)", async () => {
+  let seenInit: RequestInit | undefined;
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    seenInit = init;
+    return sseResponse([sseData({ content: "hi" }), "data: [DONE]\n"]);
+  }) as typeof fetch;
+
+  const { callbacks } = collect();
+  await streamGroqChatCompletion({
+    apiKey: "gsk-test",
+    model: GROQ_DEEP_MODEL_CHAIN[1],
+    systemInstruction: "",
+    prompt: "Hello",
+    fetchImpl,
+    ...callbacks,
+  });
+
+  const body = JSON.parse(String(seenInit?.body)) as Record<string, unknown>;
+  assert.equal(body.model, "qwen/qwen3.8-27b");
+  assert.equal("reasoning_effort" in body, false);
 });
 
 test("client strips think tags from the answer and routes them to thinking", async () => {
@@ -81,6 +106,7 @@ test("client strips think tags from the answer and routes them to thinking", asy
   const { thinking, text, callbacks } = collect();
   await streamGroqChatCompletion({
     apiKey: "gsk-test",
+    model: GROQ_DEEP_MODEL_CHAIN[0],
     systemInstruction: "",
     prompt: "What is 17 + 25?",
     fetchImpl,
@@ -102,6 +128,7 @@ test("client routes reasoning_content deltas to thinking", async () => {
   const { thinking, text, callbacks } = collect();
   await streamGroqChatCompletion({
     apiKey: "gsk-test",
+    model: GROQ_DEEP_MODEL_CHAIN[0],
     systemInstruction: "",
     prompt: "x",
     fetchImpl,
@@ -124,6 +151,7 @@ test("client never leaks a think tag split across SSE chunks", async () => {
   const { thinking, text, callbacks } = collect();
   await streamGroqChatCompletion({
     apiKey: "gsk-test",
+    model: GROQ_DEEP_MODEL_CHAIN[0],
     systemInstruction: "",
     prompt: "x",
     fetchImpl,
@@ -144,6 +172,7 @@ test("client throws GroqError with the status on a non-OK response", async () =>
     () =>
       streamGroqChatCompletion({
         apiKey: "gsk-test",
+        model: GROQ_DEEP_MODEL_CHAIN[0],
         systemInstruction: "",
         prompt: "x",
         fetchImpl,
@@ -169,6 +198,7 @@ test("client skips malformed SSE lines and stops at [DONE]", async () => {
   const { text, callbacks } = collect();
   await streamGroqChatCompletion({
     apiKey: "gsk-test",
+    model: GROQ_DEEP_MODEL_CHAIN[0],
     systemInstruction: "",
     prompt: "x",
     fetchImpl,
