@@ -193,6 +193,151 @@ test("a rejected verify discards the findings", async () => {
   }
 });
 
+test("a compute-only loop skips the model verify and returns a done brief", async () => {
+  // Loop-verify-groq-fix (2026-11-28): the verify MODEL rejected
+  // the correct Python result for this exact question live, so a
+  // compute-only loop must never call it — the finding is verified
+  // by construction and the brief is assembled deterministically.
+  const seen: string[] = [];
+  const generate: LoopGenerate = async (input) => {
+    seen.push(input.tools);
+    if (input.tools === "none") {
+      return {
+        text: planJson([
+          {
+            kind: "compute",
+            query: "987654321 * 123456789",
+            label: "exact_multiplication",
+          },
+        ]),
+        sources: [],
+      };
+    }
+    return {
+      text: "The product is 121932631112635269.",
+      sources: [],
+      code: {
+        code: "print(987654321 * 123456789)",
+        language: "PYTHON",
+        output: "121932631112635269\n",
+        outcome: "OUTCOME_OK",
+      },
+    };
+  };
+  const result = await runAgenticLoop({
+    prompt: "Multiply 987654321 by 123456789 exactly.",
+    webAvailable: true,
+    generate,
+    signal: fakeSignal(),
+  });
+  assert.equal(result.outcome, "done");
+  if (result.outcome === "done") {
+    assert.match(result.brief, /121932631112635269/);
+    assert.match(result.brief, /OUTCOME_OK/);
+    assert.equal(result.stepsUsed, 1);
+  }
+  // Plan + compute step only: no second "none" call for a model verify.
+  assert.deepEqual(seen, ["none", "code"]);
+});
+
+test("a compute finding on unrelated numbers falls back without a model verify", async () => {
+  const seen: string[] = [];
+  const generate: LoopGenerate = async (input) => {
+    seen.push(input.tools);
+    if (input.tools === "none") {
+      return {
+        text: planJson([
+          {
+            kind: "compute",
+            query: "987654321 * 123456789",
+            label: "exact_multiplication",
+          },
+        ]),
+        sources: [],
+      };
+    }
+    return {
+      text: "The product is 24642.",
+      sources: [],
+      code: {
+        code: "print(111 * 222)",
+        language: "PYTHON",
+        output: "24642\n",
+        outcome: "OUTCOME_OK",
+      },
+    };
+  };
+  const result = await runAgenticLoop({
+    prompt: "Multiply 987654321 by 123456789 exactly.",
+    webAvailable: true,
+    generate,
+    signal: fakeSignal(),
+  });
+  assert.equal(result.outcome, "fallback");
+  if (result.outcome === "fallback") {
+    assert.match(
+      result.reason,
+      /compute-unverified:code did not use the question's numbers/
+    );
+  }
+  assert.deepEqual(seen, ["none", "code"]);
+});
+
+test("a mixed loop verifies search by model and keeps compute out of the verify call", async () => {
+  let verifyPrompt = "";
+  const generate: LoopGenerate = async (input) => {
+    if (input.tools === "none" && !input.prompt.includes("verifier")) {
+      return {
+        text: planJson([
+          { kind: "search", query: "gold price", label: "gold price" },
+          { kind: "compute", query: "10g total", label: "total" },
+        ]),
+        sources: [],
+      };
+    }
+    if (input.tools === "grounding") {
+      return {
+        text: "Gold $2,600/oz.",
+        sources: [{ title: "Reuters", uri: "https://example.com/gold" }],
+      };
+    }
+    if (input.tools === "code") {
+      return {
+        text: "The total is $835.20.",
+        sources: [],
+        code: {
+          code: "print(2600/31.1*10)",
+          language: "PYTHON",
+          output: "835.20\n",
+          outcome: "OUTCOME_OK",
+        },
+      };
+    }
+    verifyPrompt = input.prompt;
+    return {
+      text: '{"ok": true, "brief": "Gold $2,600/oz (Reuters)."}',
+      sources: [],
+    };
+  };
+  const result = await runAgenticLoop({
+    prompt: "what is 10g of gold worth?",
+    webAvailable: true,
+    generate,
+    signal: fakeSignal(),
+  });
+  assert.equal(result.outcome, "done");
+  if (result.outcome === "done") {
+    // Search brief from the model verify + compute finding appended.
+    assert.match(result.brief, /Gold \$2,600\/oz \(Reuters\)/);
+    assert.match(result.brief, /835\.20/);
+    assert.equal(result.stepsUsed, 2);
+  }
+  // The model verify saw the search finding, never the compute one —
+  // a model must not re-derive arithmetic it cannot check.
+  assert.match(verifyPrompt, /Gold \$2,600\/oz/);
+  assert.ok(!verifyPrompt.includes("835.20"));
+});
+
 test("budget exhaustion stops the loop before the next step", async () => {
   let nowMs = 0;
   const generate: LoopGenerate = async (input) => {
