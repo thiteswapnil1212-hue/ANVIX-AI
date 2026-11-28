@@ -1,12 +1,16 @@
 /**
  * Streaming `<think>` splitter for reasoning models (groq-r1-deep
- * lane, 2026-11-27).
+ * lane, 2026-11-27; chain swapped to GPT-OSS 120B + Qwen 3.8 27B
+ * on 2026-11-28 after Groq decommissioned the R1-distill).
  *
- * DeepSeek R1-distill emits its reasoning inside a `<think>...</think>`
- * block at the start of its reply, then the visible answer. The block
- * may be split across stream chunks — including mid-tag (`<thi` in one
- * chunk, `nk>` in the next) — so this splitter is a small state
- * machine, not a regex over each chunk:
+ * Reasoning models emit their thinking before the visible answer —
+ * Qwen's `raw` format puts it inside a `<think>...</think>` block
+ * at the start of the reply (GPT-OSS instead uses a separate
+ * `reasoning_content` delta, handled in the client; this splitter
+ * only ever sees `content`). The block may be split across stream
+ * chunks — including mid-tag (`<thi` in one chunk, `nk>` in the
+ * next) — so this splitter is a small state machine, not a regex
+ * over each chunk:
  *
  * - Text outside a think block is visible answer text.
  * - Text inside a think block is reasoning — it goes to the Thinking
