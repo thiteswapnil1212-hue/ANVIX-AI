@@ -99,6 +99,19 @@ export function remainingLoopBudgetMs(
  * The plan call. It decides whether the question needs live facts or
  * calculation at all — most questions are `direct`, and the loop costs
  * exactly one fast Lite call for those.
+ *
+ * Routing fix (loop-plan-fix, 2026-11-28): the old prompt asked the
+ * planner to decide whether the question "needs live facts or
+ * calculation, or can be answered directly from knowledge" — and
+ * Flash-Lite resolved that vagueness to `direct` for every one of
+ * the 5 live probes (including a 9-digit multiplication and a dated
+ * Sensex question), so the loop never ran at all. The prompt now
+ * flips the default: CHECK THE TRIGGERS FIRST — if any trigger
+ * matches, steps are MANDATORY and `direct` is forbidden. `direct`
+ * is only allowed when no trigger matches. The triggers are
+ * concrete and checkable (digit counts, date words, "exact") so a
+ * small planner can apply them mechanically instead of judging
+ * "answerable from knowledge".
  */
 export function buildPlanPrompt(
   prompt: string,
@@ -108,10 +121,24 @@ export function buildPlanPrompt(
     ? "Live web search IS available."
     : "Live web search is NOT available right now — do not plan search steps.";
   return (
-    "You are ANVIX's research planner for a Deep-mode question. Decide whether the question needs live facts or calculation, or can be answered directly from knowledge.\n\n" +
+    "You are ANVIX's research planner for a Deep-mode question. " +
+    "Your job is to decide whether the question needs tool help (web search or Python calculation) or can be answered directly.\n\n" +
     `User question: ${prompt}\n\n${webNote}\n\n` +
+    "CHECK THE TRIGGERS FIRST. If ANY trigger below matches, you MUST plan steps (\"direct\": false). " +
+    "You may answer {\"direct\": true} ONLY when NO trigger matches.\n\n" +
+    "COMPUTE triggers — plan a \"compute\" step, never answer direct:\n" +
+    "- Exact arithmetic with any operand of 4 or more digits (for example 987654321 x 123456789, 17^6 + 23^4).\n" +
+    "- Powers, products, factorials, combinations, or multi-step arithmetic where one wrong digit changes the answer.\n" +
+    "- The question asks for an EXACT integer, a precise value, or to verify/check a calculation.\n" +
+    "- Any arithmetic on numbers the user pasted in, or a word problem whose answer is a number that must be exact.\n\n" +
+    "SEARCH triggers — plan a \"search\" step (only when web search is available):\n" +
+    "- The question mentions a date, or the words current, latest, as of, today, recent, now, or a year.\n" +
+    "- Prices, closing values, exchange rates, scores, or anything that changes day to day.\n" +
+    "- Current office-holders, recent events, election results, or facts that change over time.\n\n" +
+    "If a SEARCH trigger matches but web search is NOT available, do NOT plan a search step — plan a compute step only if a COMPUTE trigger also matches, otherwise answer direct.\n\n" +
+    "DIRECT is allowed only when NO trigger matches — for example a single small fact from general knowledge, one-step mental arithmetic with operands under 4 digits, or an explanation, opinion, or how-to question.\n\n" +
     "Return ONLY a JSON object, no other text:\n" +
-    '- If the question is simple, factual from knowledge, or needs no live data or calculation: {"direct": true}\n' +
+    '- If no trigger matches: {"direct": true}\n' +
     '- Otherwise: {"direct": false, "summary": "<one-line plan>", "steps": [{"kind": "search"|"compute", "query": "<sub-question or calculation>", "label": "<short label>"}]}\n' +
     "Rules: at most 5 steps; prefer \"search\" for current events, prices, dates, or facts that change; prefer \"compute\" for arithmetic, data analysis, or checking numbers; each step must be independently useful; never plan a step you cannot use."
   );
