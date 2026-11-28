@@ -5,7 +5,7 @@ import {
   GroqError,
   streamGroqChatCompletion,
 } from "./client.ts";
-import { GROQ_API_URL, GROQ_DEEP_MODEL_CHAIN } from "./config.ts";
+import { GROQ_API_URL, GROQ_DEEP_MODEL_CHAIN, GROQ_MAX_COMPLETION_TOKENS } from "./config.ts";
 
 /** Build a fake streaming SSE Response from raw chunk strings. */
 function sseResponse(chunks: string[], status = 200): Response {
@@ -66,6 +66,13 @@ test("client posts to the Groq OpenAI-compatible endpoint with the chain model +
   const body = JSON.parse(String(seenInit?.body)) as Record<string, unknown>;
   assert.equal(body.model, "openai/gpt-oss-120b");
   assert.equal(body.reasoning_effort, "high");
+  // Loop-verify-groq-fix (2026-11-28): the client used to send no
+  // completion budget, so Groq capped reasoning + answer at its
+  // 1024-token default and hard questions ended with no answer text.
+  // The budget must ride on every call: 16,384, the lower of the
+  // two chain models' maxima on Groq's models page.
+  assert.equal(body.max_completion_tokens, GROQ_MAX_COMPLETION_TOKENS);
+  assert.equal(body.max_completion_tokens, 16_384);
   assert.equal(body.stream, true);
   assert.deepEqual(body.messages, [
     { role: "system", content: "Behave." },
