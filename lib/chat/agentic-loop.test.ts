@@ -121,6 +121,46 @@ test("plan prompt tells the model when search is unavailable", () => {
   );
 });
 
+test("plan prompt routes large arithmetic to compute, never direct", () => {
+  // Loop-plan-fix (2026-11-28): the old prompt's "answerable from
+  // knowledge" wording let Flash-Lite return direct for a 9-digit
+  // multiplication live. The prompt must now state the compute
+  // triggers as mandatory rules with a concrete digit threshold.
+  const prompt = buildPlanPrompt("987654321 x 123456789", true);
+  assert.match(prompt, /CHECK THE TRIGGERS FIRST/);
+  assert.match(prompt, /MUST plan steps/);
+  assert.match(prompt, /4 or more digits/);
+  assert.match(prompt, /plan a "compute" step, never answer direct/);
+  assert.match(prompt, /EXACT integer/);
+});
+
+test("plan prompt routes dated and live facts to search", () => {
+  const prompt = buildPlanPrompt("Sensex close 27 Nov 2026", true);
+  assert.match(prompt, /SEARCH triggers/);
+  assert.match(prompt, /current, latest, as of, today, recent, now/);
+  assert.match(prompt, /closing values/);
+  assert.match(prompt, /facts that change over time/);
+});
+
+test("plan prompt forbids direct when a trigger matches, and keeps it only when none does", () => {
+  const prompt = buildPlanPrompt("hi", true);
+  assert.match(
+    prompt,
+    /You may answer \{"direct": true\} ONLY when NO trigger matches/
+  );
+  assert.match(
+    prompt,
+    /DIRECT is allowed only when NO trigger matches/
+  );
+  // Search triggers must not fire when web is unavailable — the
+  // plan falls back to compute-or-direct instead of planning a
+  // search it cannot run.
+  assert.match(
+    buildPlanPrompt("hi", false),
+    /If a SEARCH trigger matches but web search is NOT available, do NOT plan a search step/
+  );
+});
+
 test("step and verify prompts carry the question and the results", () => {
   assert.match(buildSearchStepPrompt(SAMPLE_PLAN.steps[0], "q"), /gold price/);
   assert.match(
