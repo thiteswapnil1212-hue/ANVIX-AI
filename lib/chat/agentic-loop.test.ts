@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   AGENTIC_LOOP_BUDGET_MS,
   AGENTIC_LOOP_MAX_STEPS,
+  buildComputeBrief,
   buildLoopContext,
   buildPlanPrompt,
   buildSearchStepPrompt,
@@ -14,6 +15,7 @@ import {
   planThinkingText,
   remainingLoopBudgetMs,
   stepThinkingText,
+  verifyComputeFinding,
   verifyThinkingText,
   type LoopPlan,
   type LoopStepResult,
@@ -158,6 +160,139 @@ test("plan prompt forbids direct when a trigger matches, and keeps it only when 
   assert.match(
     buildPlanPrompt("hi", false),
     /If a SEARCH trigger matches but web search is NOT available, do NOT plan a search step/
+  );
+});
+
+test("verifyComputeFinding accepts the live big-multiplication result", () => {
+  // Loop-verify-groq-fix (2026-11-28): the verify MODEL rejected
+  // this exact correct Python result live ("verify-rejected: ...
+  // incorrect (should be 121,932,631,112,635,269? No, let's
+  // check ..."). The deterministic check must accept it: code ran
+  // OK, printed the number, and used the question's numbers.
+  const checked = verifyComputeFinding(
+    "Multiply 987654321 by 123456789 exactly and give the full integer result.",
+    {
+      kind: "compute",
+      query: "987654321 * 123456789",
+      label: "exact_multiplication",
+    },
+    {
+      code: "print(987654321 * 123456789)",
+      language: "PYTHON",
+      output: "121932631112635269\n",
+      outcome: "OUTCOME_OK",
+    }
+  );
+  assert.deepEqual(checked, { ok: true });
+});
+
+test("verifyComputeFinding accepts a decomposed computation that reuses one operand", () => {
+  // 987654321 x 123456789 as 8*N*N + 9*N with N = 123456789:
+  // the code never spells out 987654321, but it uses 123456789.
+  const checked = verifyComputeFinding(
+    "Multiply 987654321 by 123456789 exactly.",
+    { kind: "compute", query: "987654321 * 123456789", label: "product" },
+    {
+      code: "N = 123456789\nprint(8*N*N + 9*N)",
+      language: "PYTHON",
+      output: "121932631112635269\n",
+      outcome: "OUTCOME_OK",
+    }
+  );
+  assert.deepEqual(checked, { ok: true });
+});
+
+test("verifyComputeFinding rejects failed code, empty output, and unrelated numbers", () => {
+  const step = { kind: "compute" as const, query: "987654321 * 123456789", label: "product" };
+  const question = "Multiply 987654321 by 123456789 exactly.";
+  // Code never ran.
+  assert.deepEqual(
+    verifyComputeFinding(question, step, {
+      code: "print(1)",
+      language: "PYTHON",
+      output: "",
+      outcome: "OUTCOME_FAILED",
+    }),
+    { ok: false, issue: "code did not execute successfully" }
+  );
+  // Code ran but printed nothing.
+  assert.deepEqual(
+    verifyComputeFinding(question, step, {
+      code: "x = 987654321 * 123456789",
+      language: "PYTHON",
+      output: "",
+      outcome: "OUTCOME_OK",
+    }),
+    { ok: false, issue: "code ran but produced no output" }
+  );
+  // Code ran on unrelated numbers — a different computation.
+  assert.deepEqual(
+    verifyComputeFinding(question, step, {
+      code: "print(111 * 222)",
+      language: "PYTHON",
+      output: "24642\n",
+      outcome: "OUTCOME_OK",
+    }),
+    { ok: false, issue: "code did not use the question's numbers" }
+  );
+  // Numeric question, word output with no number.
+  assert.deepEqual(
+    verifyComputeFinding(question, step, {
+      code: "print(987654321 * 123456789)\nprint('done')",
+      language: "PYTHON",
+      output: "done\n",
+      outcome: "OUTCOME_OK",
+    }).ok,
+    false
+  );
+});
+
+test("verifyComputeFinding accepts small arithmetic and bare boolean outputs", () => {
+  // No long numbers in the question: the number-use check is
+  // vacuous, and small arithmetic passes on OK + output alone.
+  assert.deepEqual(
+    verifyComputeFinding(
+      "What is 2+2?",
+      { kind: "compute", query: "2+2", label: "sum" },
+      {
+        code: "print(2+2)",
+        language: "PYTHON",
+        output: "4\n",
+        outcome: "OUTCOME_OK",
+      }
+    ),
+    { ok: true }
+  );
+  // Yes-no check: "True"/"False" is a result, not a missing number.
+  assert.deepEqual(
+    verifyComputeFinding(
+      "Is 123456789 divisible by 3?",
+      { kind: "compute", query: "123456789 % 3 == 0", label: "divisible" },
+      {
+        code: "print(123456789 % 3 == 0)",
+        language: "PYTHON",
+        output: "True\n",
+        outcome: "OUTCOME_OK",
+      }
+    ),
+    { ok: true }
+  );
+});
+
+test("buildComputeBrief joins compute findings and caps the brief", () => {
+  const brief = buildComputeBrief([
+    {
+      step: SAMPLE_PLAN.steps[1],
+      finding: "10g = $835.20\n[Executed Python — outcome: OUTCOME_OK]",
+    },
+  ]);
+  assert.match(brief, /835\.20/);
+  assert.match(brief, /OUTCOME_OK/);
+  assert.equal(
+    buildComputeBrief([
+      { step: SAMPLE_PLAN.steps[1], finding: "x".repeat(5000) },
+    ]).length,
+    3000
   );
 });
 
