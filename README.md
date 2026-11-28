@@ -1,6 +1,6 @@
 # ANVIX AI
 
-**Turn ideas into working software.** Describe what you want in plain language, and ANVIX plans the architecture and generates the code — powered by Google's Gemini, with Fast / Smart / Deep chat modes (3.5 Flash-Lite, 3.8 Flash, 3.8 Flash + Deep reasoning).
+**Turn ideas into working software.** Describe what you want in plain language, and ANVIX plans the architecture and generates the code — powered by Google's Gemini, with Fast / Smart / Deep chat modes (3.5 Flash-Lite, 3.8 Flash, Groq DeepSeek R1-distill reasoning when configured, else 3.8 Flash + Deep reasoning).
 
 **Live demo:** https://anvix-ai.vercel.app/
 
@@ -16,7 +16,7 @@ The core idea is **prompt engineering as the product**: natural-language intent 
 
 ### 💬 Chat — Fast / Smart / Deep modes
 
-Chat offers named modes instead of raw model ids (`lib/chat-modes.ts`): **Fast** (Gemini 3.5 Flash-Lite, fallback 3.8 Flash), **Smart** (3.8 Flash, fallback 3.5 Flash-Lite), and **Deep** (3.8 Flash with high thinking and a structured plan–solve–check reasoning prompt, fallback 3.5 Flash-Lite) — all on the Gemini free tier, each mode falling back to its second model if the first fails before answering. A thinking toggle (Off / Fast / Deep) overrides the mode's default reasoning effort, and the model's thought summary shows in a collapsible "Thinking" block when thinking is on. Web grounding is on by default (Google Search + URL Context, with a sources list under grounded answers; free tier: 5,000 searches/month). You can also attach up to 3 images (downscaled to ~768px in the browser) or PDFs (up to 3 MB) per message. The model registry (`lib/chat-models.ts`) keeps other providers visible but locked until their API keys and route wiring exist:
+Chat offers named modes instead of raw model ids (`lib/chat-modes.ts`): **Fast** (Gemini 3.5 Flash-Lite, fallback 3.8 Flash), **Smart** (3.8 Flash, fallback 3.5 Flash-Lite), and **Deep** (Groq DeepSeek R1-distill reasoning when `GROQ_API_KEY` is configured, else 3.8 Flash with high thinking and a structured plan–solve–check reasoning prompt, fallback 3.5 Flash-Lite) — all on free tiers, each mode falling back to its second model if the first fails before answering. The R1-distill is the 70B distilled model, not the full 671B R1 — the copy never claims otherwise. Groq has no thinking-effort parameter, so Deep always reasons deeply on Groq; the thinking toggle still controls the Gemini fallback path. Web grounding is on by default (Google Search + URL Context, with a sources list under grounded answers; free tier: 5,000 searches/month) — note Groq has no grounding tools, so a Web-ON Deep request is answered by Groq ungrounded, and only falls back to a grounded Gemini answer if Groq fails. You can also attach up to 3 images (downscaled to ~768px in the browser) or PDFs (up to 3 MB) per message. The model registry (`lib/chat-models.ts`) keeps other providers visible but locked until their API keys and route wiring exist:
 
 **Scaffolded in the UI** (visible but locked until their API keys are added):
 - OpenAI: GPT-5.5, GPT-4.1, GPT-6 (Astra), GPT-4o
@@ -126,7 +126,7 @@ hooks/                # React hooks
 
 ## Roadmap
 
-- [ ] Unlock OpenAI, DeepSeek, and xAI providers (UI already scaffolded — needs keys + route wiring)
+- [ ] Unlock OpenAI, DeepSeek, and xAI providers (UI already scaffolded — needs keys + route wiring). Note: Deep mode already uses a DeepSeek model — the R1-distill via Groq, wired in the groq-r1-deep lane (2026-11-27); the roadmap item is about the remaining scaffolded providers, not DeepSeek reasoning.
 - [ ] A second verified-live Gemini model in the chains (3.8 Flash and 3.5 Flash-Lite both answer live; Gemini 4-hydrogen was removed from the Deep chain on 2026-11-27 — it fails deterministically on this stack's legacy GenerateContent path and is only revisit-worthy after a migration to the `@google/genai` SDK)
 - [ ] Runnable in-browser preview for generated projects (today the preview is a placeholder)
 - [ ] Side-by-side multi-model comparison view
