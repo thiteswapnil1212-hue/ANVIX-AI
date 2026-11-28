@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   GROQ_DECOMMISSIONED_MODEL_IDS,
   GROQ_DEEP_MODEL_CHAIN,
+  GROQ_MAX_COMPLETION_TOKENS,
   groqReasoningEffortForThinking,
   isGroqConfigured,
   shouldTryGroqDeep,
@@ -31,6 +32,19 @@ test("no decommissioned Groq model id is in the Deep chain", () => {
     );
   }
   assert.ok(GROQ_DECOMMISSIONED_MODEL_IDS.length >= 5);
+});
+
+test("Groq completion budget is 16384, within both chain models' maxima", () => {
+  // Loop-verify-groq-fix (2026-11-28): Groq's default budget is
+  // 1024 and reasoning tokens count against it, so hard questions
+  // ended with no answer text. 16,384 is the lower of the two chain
+  // models' maxima on Groq's models page (GPT-OSS 120B: 65,536;
+  // Qwen 3.8 27B: 16,384) — one shared value valid for both. A
+  // future raise must stay at or below Qwen's max, or move to
+  // per-model budgets.
+  assert.equal(GROQ_MAX_COMPLETION_TOKENS, 16_384);
+  assert.ok(GROQ_MAX_COMPLETION_TOKENS <= 16_384);
+  assert.ok(GROQ_MAX_COMPLETION_TOKENS > 1024);
 });
 
 test("thinking choice maps to Groq reasoning_effort", () => {
