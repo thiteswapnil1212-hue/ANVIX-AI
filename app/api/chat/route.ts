@@ -53,7 +53,9 @@ import {
   extractCodeExecution,
 } from "@/lib/gemini/code-execution";
 import {
+  GROQ_DEEP_MODEL_CHAIN,
   GROQ_FIRST_TOKEN_DEADLINE_MS,
+  groqReasoningEffortForThinking,
   isGroqConfigured,
   shouldTryGroqDeep,
 } from "@/lib/groq/config";
@@ -789,28 +791,35 @@ export async function POST(request: Request) {
         return false;
       };
 
-      // Groq R1-distill pre-phase (Deep mode only, key configured, no
-      // attachments — the distill is text-only). Groq reasons first;
-      // ANY pre-emit Groq failure falls through to the Gemini chain
-      // below, so the user never sees a Groq error outright. Returns
-      // true when the stream is finished (done, aborted, or a
-      // terminal failure after output) and false when the caller
-      // should run the Gemini chain.
+      // Groq pre-phase (Deep mode only, key configured, no
+      // attachments — both chain models are text-only). The chain is
+      // GPT-OSS 120B first, Qwen 3.8 27B second; ANY pre-emit
+      // failure on one model (including a future 400
+      // `model_decommissioned` — the R1-distill died exactly that
+      // way on 2026-11-28) tries the next model, and only after the
+      // whole chain fails does the Gemini chain below run — so the
+      // user never sees a Groq error outright. Returns true when the
+      // stream is finished (done, aborted, or a terminal failure
+      // after output) and false when the caller should try the next
+      // model in the chain.
       //
       // Web-ON: Groq runs WITHOUT grounding tools (it has none) — a
-      // grounded Gemini answer only happens if Groq fails and the
-      // Gemini leg runs grounded. The thinking toggle does not change
-      // Groq's reasoning (reasoning models take no effort
-      // parameter) — it still controls the Gemini fallback path and
-      // the Deep reasoning prompt.
+      // grounded Gemini answer only happens if the Groq chain fails
+      // and the Gemini leg runs grounded. The thinking toggle maps
+      // onto Groq's `reasoning_effort` (Off→low, Fast→medium,
+      // Deep→high; supported by both chain models per Groq's own
+      // reasoning docs) and still controls the Gemini fallback path
+      // and the Deep reasoning prompt.
       //
       // Provenance: Groq's think deltas are BUFFERED until the first
-      // answer text arrives. If Groq fails before any text, the
-      // buffered reasoning is dropped and the Gemini path stays
-      // clean (emittedAnything stays false, so its grounding-degrade
-      // still works) — the client never sees reasoning for an answer
-      // it did not get.
-      const runGroqPhase = async (): Promise<boolean> => {
+      // answer text arrives. If a Groq attempt fails before any text,
+      // the buffered reasoning is dropped and the next attempt stays
+      // clean (emittedAnything stays false, so the Gemini leg's
+      // grounding-degrade still works) — the client never sees
+      // reasoning for an answer it did not get.
+      const runGroqAttempt = async (
+        modelId: (typeof GROQ_DEEP_MODEL_CHAIN)[number]
+      ): Promise<boolean> => {
         const ac = new AbortController();
         request.signal.addEventListener("abort", () => ac.abort(), {
           once: true,
@@ -824,6 +833,10 @@ export async function POST(request: Request) {
 
         const groqPromise = streamGroqChatCompletion({
           apiKey: process.env.GROQ_API_KEY as string,
+          model: modelId,
+          reasoningEffort: groqReasoningEffortForThinking(
+            resolved.thinking
+          ),
           systemInstruction,
           prompt,
           signal: ac.signal,
@@ -850,9 +863,10 @@ export async function POST(request: Request) {
         );
 
         // First-token deadline: Groq is fast (sub-second TTFT
-        // normally); a hung Groq leg must not stall the Gemini
-        // fallback. The deadline only bites when nothing has been
-        // emitted yet — a streaming Groq answer runs to completion.
+        // normally); a hung Groq attempt must not stall the next
+        // model or the Gemini fallback. The deadline only bites when
+        // nothing has been emitted yet — a streaming Groq answer
+        // runs to completion.
         const settled = await Promise.race([
           groqPromise.then(() => true),
           new Promise<boolean>((resolve) =>
@@ -866,8 +880,8 @@ export async function POST(request: Request) {
           ac.abort();
           await groqPromise;
           console.warn(
-            "[ANVIX CHAT] Groq Deep attempt timed out before first token, falling back to Gemini",
-            { model: "groq-r1-distill" }
+            "[ANVIX CHAT] Groq Deep attempt timed out before first token, trying next model",
+            { model: modelId }
           );
           return false;
         }
@@ -890,18 +904,19 @@ export async function POST(request: Request) {
         }
 
         // Clean finish with no answer text: treat as a failure and
-        // let Gemini answer (the buffered reasoning is dropped).
+        // let the next model answer (the buffered reasoning is
+        // dropped).
         if (groqDone) {
           console.warn(
-            "[ANVIX CHAT] Groq Deep attempt finished with no answer text, falling back to Gemini",
-            { model: "groq-r1-distill" }
+            "[ANVIX CHAT] Groq Deep attempt finished with no answer text, trying next model",
+            { model: modelId }
           );
           return false;
         }
 
         console.warn(
-          "[ANVIX CHAT] Groq Deep attempt failed, falling back to Gemini",
-          { error: groqError }
+          "[ANVIX CHAT] Groq Deep attempt failed, trying next model",
+          { model: modelId, error: groqError }
         );
         if (groqEmitted) {
           emitInterrupted();
@@ -917,7 +932,9 @@ export async function POST(request: Request) {
           hasAttachments: attachments.length > 0,
         })
       ) {
-        if (await runGroqPhase()) return;
+        for (const modelId of GROQ_DEEP_MODEL_CHAIN) {
+          if (await runGroqAttempt(modelId)) return;
+        }
       }
 
       // Agentic loop (Deep mode, Gemini path only — the Groq phase
