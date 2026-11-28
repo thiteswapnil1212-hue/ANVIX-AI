@@ -8,6 +8,7 @@ import {
   AGENTIC_LOOP_BUDGET_MS,
   AGENTIC_LOOP_STEP_TIMEOUT_MS,
   LOOP_FINDING_CAP,
+  buildComputeBrief,
   buildComputeStepPrompt,
   buildPlanPrompt,
   buildSearchStepPrompt,
@@ -16,6 +17,7 @@ import {
   parseVerifyResult,
   planThinkingText,
   stepThinkingText,
+  verifyComputeFinding,
   verifyThinkingText,
   type LoopStep,
   type LoopStepResult,
@@ -191,7 +193,7 @@ export async function runAgenticLoop(
       if (!finding.trim()) {
         return { outcome: "fallback", reason: "step-empty:compute" };
       }
-      results.push({ step, finding });
+      results.push({ step, finding, code: generated.code });
       continue;
     }
 
@@ -216,37 +218,76 @@ export async function runAgenticLoop(
   }
 
   // --- VERIFY ---------------------------------------------------------------
-  if (remaining() <= 0) {
-    return { outcome: "fallback", reason: "budget-exceeded" };
-  }
-  input.onThinking?.(verifyThinkingText());
+  // Compute findings are verified by construction (see
+  // verifyComputeFinding): code that ran successfully and printed a
+  // result using the question's own numbers IS verified — a model
+  // must never re-derive arithmetic (live 2026-11-28, the verify
+  // model rejected a correct Python result for 987654321 x
+  // 123456789). Only search findings go to the model verify call.
+  const searchResults = results.filter((r) => r.step.kind === "search");
+  const computeResults = results.filter(
+    (r) => r.step.kind === "compute"
+  );
 
-  let verifyText: string;
-  try {
-    verifyText = (
-      await callWithTimeout({
-        prompt: buildVerifyPrompt(input.prompt, plan, results),
-        tools: "none",
-      })
-    ).text;
-  } catch {
-    return { outcome: "fallback", reason: "verify-call-failed" };
+  for (const result of computeResults) {
+    if (!result.code) {
+      return {
+        outcome: "fallback",
+        reason: "compute-unverified:no code extract",
+      };
+    }
+    const checked = verifyComputeFinding(
+      input.prompt,
+      result.step,
+      result.code
+    );
+    if (!checked.ok) {
+      return {
+        outcome: "fallback",
+        reason: `compute-unverified:${checked.issue.slice(0, 120)}`,
+      };
+    }
   }
 
-  const verified = parseVerifyResult(verifyText);
-  if (!verified) {
-    return { outcome: "fallback", reason: "verify-unparseable" };
+  let searchBrief = "";
+  if (searchResults.length > 0) {
+    if (remaining() <= 0) {
+      return { outcome: "fallback", reason: "budget-exceeded" };
+    }
+    input.onThinking?.(verifyThinkingText());
+
+    let verifyText: string;
+    try {
+      verifyText = (
+        await callWithTimeout({
+          prompt: buildVerifyPrompt(input.prompt, plan, searchResults),
+          tools: "none",
+        })
+      ).text;
+    } catch {
+      return { outcome: "fallback", reason: "verify-call-failed" };
+    }
+
+    const verified = parseVerifyResult(verifyText);
+    if (!verified) {
+      return { outcome: "fallback", reason: "verify-unparseable" };
+    }
+    if (!verified.ok) {
+      return {
+        outcome: "fallback",
+        reason: `verify-rejected:${verified.issue.slice(0, 120)}`,
+      };
+    }
+    searchBrief = verified.brief;
   }
-  if (!verified.ok) {
-    return {
-      outcome: "fallback",
-      reason: `verify-rejected:${verified.issue.slice(0, 120)}`,
-    };
-  }
+
+  const brief = [searchBrief, buildComputeBrief(computeResults)]
+    .filter(Boolean)
+    .join("\n");
 
   return {
     outcome: "done",
-    brief: verified.brief,
+    brief,
     sources: allSources,
     stepsUsed: results.length,
   };
