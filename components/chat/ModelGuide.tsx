@@ -40,7 +40,7 @@ type SortOption = "default" | "name" | "provider";
 const MODEL_INFO: Record<string, ModelInfo> = {
   "gemini-3.5-flash-lite": {
     description:
-      "The Fast chat mode model — a general-purpose option for everyday questions, coding help, writing, and explanations. Fast mode falls back to Gemini 3.8 Flash if it fails; Smart mode uses 3.8 Flash first, and Deep mode uses 3.8 Flash with high thinking and a structured plan–solve–check reasoning prompt.",
+      "The Fast chat mode model — a general-purpose option for everyday questions, coding help, writing, and explanations. Fast mode falls back to Gemini 3.8 Flash if it fails; Smart mode uses 3.8 Flash first, and Deep mode uses Groq's DeepSeek R1-distill reasoning model when a Groq key is configured (Gemini 3.8 Flash with high thinking and a structured plan–solve–check reasoning prompt otherwise, and as the fallback if Groq fails).",
     bestFor: ["Everyday questions", "Learning", "Coding", "Brainstorming"],
     example: "Explain React useEffect with a simple example.",
   },
