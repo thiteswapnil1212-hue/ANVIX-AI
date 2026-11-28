@@ -14,6 +14,14 @@
  * `onThinking`; only non-think content reaches `onText` — a raw
  * `<think>` tag can never appear in chat.
  *
+ * The request always carries `max_completion_tokens`
+ * (GROQ_MAX_COMPLETION_TOKENS): Groq's default budget is 1024 and
+ * reasoning tokens count against it, so a hard question with
+ * reasoning_effort "high" used to burn the whole budget on reasoning
+ * and end with no answer text (live 2026-11-28, both chain models
+ * on 987654321 x 123456789). See the constant's comment for the
+ * docs citations.
+ *
  * Failure contract: any non-OK status, a missing body, or malformed
  * SSE throws `GroqError` with the upstream `status` attached. The
  * chat route treats EVERY Groq failure as fallback-worthy (429, 5xx,
@@ -25,6 +33,7 @@
 
 import {
   GROQ_API_URL,
+  GROQ_MAX_COMPLETION_TOKENS,
   GROQ_STREAM_TIMEOUT_MS,
   type GroqDeepModelId,
 } from "./config.ts";
@@ -102,6 +111,7 @@ export async function streamGroqChatCompletion({
       body: JSON.stringify({
         model,
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+        max_completion_tokens: GROQ_MAX_COMPLETION_TOKENS,
         messages: [
           { role: "system", content: systemInstruction },
           { role: "user", content: prompt },
