@@ -1,5 +1,5 @@
 /**
- * Groq streaming client (groq-r1-deep lane, 2026-11-27).
+ * Groq streaming client.
  *
  * Plain `fetch` against Groq's OpenAI-compatible chat-completions
  * endpoint — no SDK, no new npm dependency. Server-only: the key is
@@ -8,24 +8,25 @@
  * Stream shape: server-sent events, one `data: {...}` JSON object
  * per line, terminated by `data: [DONE]`. Each delta carries
  * `choices[0].delta.content` (answer text, possibly containing
- * `<think>...</think>` reasoning) and, for reasoning models,
- * `choices[0].delta.reasoning_content` (reasoning without tags).
- * Both reasoning forms go to `onThinking`; only non-think content
- * reaches `onText` — a raw `<think>` tag can never appear in chat.
+ * `<think>...</think>` reasoning — Qwen's `raw` format) and, for
+ * reasoning models, `choices[0].delta.reasoning_content` (reasoning
+ * without tags — GPT-OSS's form). Both reasoning forms go to
+ * `onThinking`; only non-think content reaches `onText` — a raw
+ * `<think>` tag can never appear in chat.
  *
  * Failure contract: any non-OK status, a missing body, or malformed
  * SSE throws `GroqError` with the upstream `status` attached. The
  * chat route treats EVERY Groq failure as fallback-worthy (429, 5xx,
- * timeout, auth/404) and runs the Gemini chain instead — the Groq
- * leg never errors the user outright. The client itself never
- * retries: one call, one outcome, the route decides what happens
- * next.
+ * timeout, auth/404, 400 `model_decommissioned`) and tries the next
+ * model in the chain, then the Gemini chain — the Groq leg never
+ * errors the user outright. The client itself never retries: one
+ * call, one outcome, the route decides what happens next.
  */
 
 import {
   GROQ_API_URL,
-  GROQ_REASONING_MODEL_ID,
   GROQ_STREAM_TIMEOUT_MS,
+  type GroqDeepModelId,
 } from "./config.ts";
 import { createThinkSplitter } from "./think-tags.ts";
 
@@ -48,9 +49,17 @@ export type GroqStreamCallbacks = {
 
 export type GroqStreamOptions = GroqStreamCallbacks & {
   apiKey: string;
+  /** Which chain model to call (from GROQ_DEEP_MODEL_CHAIN). */
+  model: GroqDeepModelId;
   /** Full system instruction (Deep reasoning prompt included). */
   systemInstruction: string;
   prompt: string;
+  /**
+   * Reasoning effort for this call. Verified against Groq's own
+   * reasoning docs: `low` / `medium` / `high` are supported by
+   * GPT-OSS 120B and Qwen 3.8 27B alike. Omitted = Groq's default.
+   */
+  reasoningEffort?: "low" | "medium" | "high";
   /** Abort signal from the caller (route-level deadline / disconnect). */
   signal?: AbortSignal;
   /** Test seam: defaults to the global fetch. */
@@ -67,8 +76,10 @@ const MAX_ERROR_BODY_CHARS = 500;
  */
 export async function streamGroqChatCompletion({
   apiKey,
+  model,
   systemInstruction,
   prompt,
+  reasoningEffort,
   signal,
   fetchImpl = fetch,
   onThinking,
@@ -89,7 +100,8 @@ export async function streamGroqChatCompletion({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: GROQ_REASONING_MODEL_ID,
+        model,
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         messages: [
           { role: "system", content: systemInstruction },
           { role: "user", content: prompt },
