@@ -43,6 +43,12 @@ import {
   type MemoryRecord,
 } from "@/lib/memory";
 import { deepReasoningInstructionForMode } from "@/lib/chat/deep-reasoning";
+import {
+  GROQ_FIRST_TOKEN_DEADLINE_MS,
+  isGroqConfigured,
+  shouldTryGroqDeep,
+} from "@/lib/groq/config";
+import { streamGroqChatCompletion } from "@/lib/groq/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -743,6 +749,137 @@ export async function POST(request: Request) {
         );
         return false;
       };
+
+      // Groq R1-distill pre-phase (Deep mode only, key configured, no
+      // attachments — the distill is text-only). Groq reasons first;
+      // ANY pre-emit Groq failure falls through to the Gemini chain
+      // below, so the user never sees a Groq error outright. Returns
+      // true when the stream is finished (done, aborted, or a
+      // terminal failure after output) and false when the caller
+      // should run the Gemini chain.
+      //
+      // Web-ON: Groq runs WITHOUT grounding tools (it has none) — a
+      // grounded Gemini answer only happens if Groq fails and the
+      // Gemini leg runs grounded. The thinking toggle does not change
+      // Groq's reasoning (reasoning models take no effort
+      // parameter) — it still controls the Gemini fallback path and
+      // the Deep reasoning prompt.
+      //
+      // Provenance: Groq's think deltas are BUFFERED until the first
+      // answer text arrives. If Groq fails before any text, the
+      // buffered reasoning is dropped and the Gemini path stays
+      // clean (emittedAnything stays false, so its grounding-degrade
+      // still works) — the client never sees reasoning for an answer
+      // it did not get.
+      const runGroqPhase = async (): Promise<boolean> => {
+        const ac = new AbortController();
+        request.signal.addEventListener("abort", () => ac.abort(), {
+          once: true,
+        });
+        if (request.signal.aborted || cancelled) ac.abort();
+
+        let groqEmitted = false;
+        let groqDone = false;
+        let groqError: unknown = null;
+        let bufferedThinking = "";
+
+        const groqPromise = streamGroqChatCompletion({
+          apiKey: process.env.GROQ_API_KEY as string,
+          systemInstruction,
+          prompt,
+          signal: ac.signal,
+          onThinking: (text) => {
+            bufferedThinking += text;
+          },
+          onText: (text) => {
+            // Commit point: flush the buffered reasoning first, so
+            // the Thinking block precedes the answer it produced.
+            if (bufferedThinking) {
+              emitThinking(bufferedThinking);
+              bufferedThinking = "";
+            }
+            groqEmitted = true;
+            emitText(text);
+          },
+        }).then(
+          () => {
+            groqDone = true;
+          },
+          (error) => {
+            groqError = error;
+          }
+        );
+
+        // First-token deadline: Groq is fast (sub-second TTFT
+        // normally); a hung Groq leg must not stall the Gemini
+        // fallback. The deadline only bites when nothing has been
+        // emitted yet — a streaming Groq answer runs to completion.
+        const settled = await Promise.race([
+          groqPromise.then(() => true),
+          new Promise<boolean>((resolve) =>
+            setTimeout(
+              () => resolve(false),
+              GROQ_FIRST_TOKEN_DEADLINE_MS
+            )
+          ),
+        ]);
+        if (!settled && !groqEmitted) {
+          ac.abort();
+          await groqPromise;
+          console.warn(
+            "[ANVIX CHAT] Groq Deep attempt timed out before first token, falling back to Gemini",
+            { model: "groq-r1-distill" }
+          );
+          return false;
+        }
+
+        await groqPromise;
+
+        if (cancelled || request.signal.aborted) {
+          closeQuietly();
+          return true;
+        }
+
+        if (groqDone && groqEmitted) {
+          if (eventsEnabled) {
+            controller.enqueue(
+              encoder.encode(encodeChatEvent({ t: "done" }))
+            );
+          }
+          controller.close();
+          return true;
+        }
+
+        // Clean finish with no answer text: treat as a failure and
+        // let Gemini answer (the buffered reasoning is dropped).
+        if (groqDone) {
+          console.warn(
+            "[ANVIX CHAT] Groq Deep attempt finished with no answer text, falling back to Gemini",
+            { model: "groq-r1-distill" }
+          );
+          return false;
+        }
+
+        console.warn(
+          "[ANVIX CHAT] Groq Deep attempt failed, falling back to Gemini",
+          { error: groqError }
+        );
+        if (groqEmitted) {
+          emitInterrupted();
+          return true;
+        }
+        return false;
+      };
+
+      if (
+        shouldTryGroqDeep({
+          modeId: resolved.mode.id,
+          hasGroqKey: isGroqConfigured(process.env.GROQ_API_KEY),
+          hasAttachments: attachments.length > 0,
+        })
+      ) {
+        if (await runGroqPhase()) return;
+      }
 
       const first = startAttempt(orderedChain[0]);
 
