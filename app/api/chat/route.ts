@@ -4,7 +4,6 @@ import { recordUsage } from "@/lib/usage/meter";
 import { flushUsageInBackground } from "@/lib/usage/server-flush";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { thinkingConfig } from "@/lib/gemini/model-config";
 import { classifyGeminiFailure } from "@/lib/gemini/fallback";
 import {
   parseChatMode,
@@ -43,6 +42,16 @@ import {
   type MemoryRecord,
 } from "@/lib/memory";
 import { deepReasoningInstructionForMode } from "@/lib/chat/deep-reasoning";
+import { buildLoopContext } from "@/lib/chat/agentic-loop";
+import { runAgenticLoop } from "@/lib/chat/agentic-loop-runner";
+import {
+  CHAT_MODEL_ID,
+  thinkingConfig,
+} from "@/lib/gemini/model-config";
+import {
+  codeExecutionTool,
+  extractCodeExecution,
+} from "@/lib/gemini/code-execution";
 import {
   GROQ_FIRST_TOKEN_DEADLINE_MS,
   isGroqConfigured,
@@ -393,6 +402,10 @@ export async function POST(request: Request) {
       const encoder = new TextEncoder();
       let emittedAnything = false;
       let lastError: unknown = null;
+      // Grounding sources gathered by the agentic loop (Deep only);
+      // merged into the final `sources` event so the "Grounded" badge
+      // renders for loop research too. Empty unless the loop ran.
+      let loopSources: GroundingSource[] = [];
 
       const emitText = (text: string) => {
         if (!text) return;
@@ -416,6 +429,24 @@ export async function POST(request: Request) {
         }
         // Plain-text mode never receives thought parts: thinking is
         // only requested when the client will display it.
+      };
+
+      // Loop narration (plan / step / verify) for the Thinking block.
+      // Unlike emitThinking this does NOT set emittedAnything: loop
+      // narration is pre-answer planning, not model output, and the
+      // plain chain's fallback/degrade logic keys off
+      // emittedAnything — a loop that narrated and then fell back
+      // must still get its normal fallback instead of an
+      // "interrupted" error.
+      const emitLoopThinking = (text: string) => {
+        if (!text || !eventsEnabled) return;
+        try {
+          controller.enqueue(
+            encoder.encode(encodeChatEvent({ t: "thinking", text }))
+          );
+        } catch {
+          // Client may have disconnected.
+        }
       };
 
       const emitInterrupted = () => {
@@ -448,8 +479,10 @@ export async function POST(request: Request) {
         // "" here, so their prompts are byte-identical to before),
         // then the user's custom instructions + selected assistant +
         // relevant memories (empty = no override, the model behaves
-        // exactly as before).
-        const systemInstruction = [
+        // exactly as before). `let`, not `const`: a successful
+        // agentic loop appends its verified brief below, before the
+        // final answer call.
+        let systemInstruction = [
           ARTIFACT_SYSTEM_INSTRUCTION,
           deepReasoningInstructionForMode(resolved.mode.id),
           systemPrompt,
@@ -600,10 +633,16 @@ export async function POST(request: Request) {
 
           // Stream finished cleanly on this model — no fallback.
           if (eventsEnabled) {
-            if (sources.length > 0) {
+            // Loop research sources first (they were gathered before
+            // this attempt); the attempt's own sources merge after.
+            const allSources = mergeGroundingSources(
+              loopSources,
+              sources
+            );
+            if (allSources.length > 0) {
               controller.enqueue(
                 encoder.encode(
-                  encodeChatEvent({ t: "sources", sources })
+                  encodeChatEvent({ t: "sources", sources: allSources })
                 )
               );
             }
@@ -879,6 +918,91 @@ export async function POST(request: Request) {
         })
       ) {
         if (await runGroqPhase()) return;
+      }
+
+      // Agentic loop (Deep mode, Gemini path only — the Groq phase
+      // above already answered when it could, and Groq stays
+      // one-shot). PLAN → ACT (grounded search / Python execution,
+      // max 5 steps) → VERIFY → final streamed answer. Any loop
+      // failure returns "fallback" and the plain Deep chain below
+      // answers exactly as before — the loop never costs the user
+      // their answer. Skipped with attachments: the loop's calls are
+      // text-only and cannot see them, so the brief could mislead the
+      // final answer about an image/PDF question.
+      //
+      // Internal calls run on Flash-Lite + `low` thinking with
+      // capped outputs (the loop is scaffolding; the Deep model
+      // delivers the answer). Loop narration goes through
+      // emitLoopThinking, which never sets emittedAnything, so a
+      // loop that narrated and then fell back still gets the plain
+      // chain's normal fallback instead of an "interrupted" error.
+      if (
+        resolved.mode.id === "deep" &&
+        attachments.length === 0 &&
+        !cancelled &&
+        !request.signal.aborted
+      ) {
+        const loopResult = await runAgenticLoop({
+          prompt,
+          webAvailable: webEnabled && !isGroundingCoolingDown(),
+          generate: async ({ prompt: loopPrompt, tools, signal }) => {
+            const loopModel = client.getGenerativeModel({
+              model: CHAT_MODEL_ID,
+              generationConfig: {
+                ...thinkingConfig("low", false),
+                maxOutputTokens: 2048,
+              },
+              ...(tools === "grounding"
+                ? { tools: groundingTools(true) }
+                : {}),
+              ...(tools === "code" ? { tools: codeExecutionTool() } : {}),
+            });
+            const result = await loopModel.generateContent(loopPrompt, {
+              signal,
+            } as never);
+            const response = result.response;
+            // Raw-part split, never response.text(): thought parts
+            // must not leak into loop findings.
+            const { text } = splitChunkParts(response);
+            return {
+              text,
+              sources:
+                tools === "grounding"
+                  ? extractGroundingSources(response)
+                  : [],
+              ...(tools === "code"
+                ? { code: extractCodeExecution(response) }
+                : {}),
+            };
+          },
+          signal: request.signal,
+          onThinking: emitLoopThinking,
+        });
+
+        if (loopResult.outcome === "done") {
+          systemInstruction = [
+            systemInstruction,
+            buildLoopContext(loopResult.brief),
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+          loopSources = loopResult.sources;
+          console.info("[ANVIX CHAT] Agentic loop completed", {
+            steps: loopResult.stepsUsed,
+            sources: loopResult.sources.length,
+          });
+        } else if (loopResult.outcome === "fallback") {
+          console.warn(
+            "[ANVIX CHAT] Agentic loop fell back to plain Deep",
+            { reason: loopResult.reason }
+          );
+        }
+        // "direct" → nothing to add; the plain chain answers as before.
+
+        if (cancelled || request.signal.aborted) {
+          closeQuietly();
+          return;
+        }
       }
 
       const first = startAttempt(orderedChain[0]);
