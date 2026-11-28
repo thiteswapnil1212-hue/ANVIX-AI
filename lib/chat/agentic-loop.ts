@@ -30,19 +30,31 @@
  * Deep requests never reach the loop.
  *
  * Honesty rules the loop keeps:
- * - The VERIFY pass checks the tool outputs BEFORE the answer is
+ * - The VERIFY pass checks SEARCH findings before the answer is
  *   written (a post-hoc pass would need the whole streamed answer
  *   buffered first — the same reason the reasoning-deep lane rejected
  *   a second verify call). A failed check discards the findings and
  *   falls back to the plain Deep answer.
+ * - COMPUTE findings are verified by construction instead
+ *   (verifyComputeFinding): code that ran successfully and printed
+ *   a result using the question's own numbers IS verified. A model
+ *   must never re-derive arithmetic — live 2026-11-28, the verify
+ *   model (Flash-Lite) rejected a correct Python result for
+ *   987654321 x 123456789 ("verify-rejected: ... incorrect (should
+ *   be ...? No, let's check ..."), discarding a verified finding.
  * - A finding is only "verified" when the verify call says so in
  *   strict JSON; a malformed verify response is a fallback, never a
- *   silent pass.
+ *   silent pass. (Search findings only — see above.)
  * - Search findings carry their sources into the brief, and the
  *   runner returns the grounding sources so the route can emit them
  *   as the `sources` event — the "Grounded" badge only ever renders
  *   from real sources.
  */
+
+import {
+  isCodeExecutionOk,
+  type CodeExecutionExtract,
+} from "../gemini/code-execution.ts";
 
 export const AGENTIC_LOOP_MAX_STEPS = 5;
 export const AGENTIC_LOOP_BUDGET_MS = 40_000;
@@ -74,6 +86,8 @@ export type LoopStepResult = {
   step: LoopStep;
   /** Finding text (search facts or compute output), capped. */
   finding: string;
+  /** Present only for compute steps: the executed-code extract. */
+  code?: CodeExecutionExtract;
 };
 
 export type LoopOutcome =
@@ -161,10 +175,13 @@ export function buildComputeStepPrompt(step: LoopStep, prompt: string): string {
 }
 
 /**
- * The verify pass: one check over the plan + step results. It returns
- * strict JSON — `ok: false` discards the findings (the route falls
- * back to the plain Deep answer), so a contradiction or a bad number
- * never reaches the user dressed up as verified.
+ * The verify pass: one check over the SEARCH step results only. It
+ * returns strict JSON — `ok: false` discards the findings (the route
+ * falls back to the plain Deep answer), so a contradiction or a bad
+ * fact never reaches the user dressed up as verified. Compute
+ * findings are NEVER sent here: they are verified deterministically
+ * by verifyComputeFinding instead (a model re-deriving arithmetic is
+ * exactly what rejected a correct Python result live).
  */
 export function buildVerifyPrompt(
   prompt: string,
@@ -277,6 +294,96 @@ export function parseVerifyResult(text: string): VerifyResult | null {
     };
   }
   return null;
+}
+
+export type ComputeVerification =
+  | { ok: true }
+  | { ok: false; issue: string };
+
+/** Digit runs of 4+ digits, separators stripped ("987,654,321" -> "987654321"). */
+function longDigitRuns(text: string): string[] {
+  const runs = text.match(/[0-9][0-9_.,]*[0-9]|[0-9]/g) ?? [];
+  return runs
+    .map((run) => run.replace(/[^0-9]/g, ""))
+    .filter((digits) => digits.length >= 4);
+}
+
+/**
+ * Deterministic check for one compute finding — NO model call.
+ *
+ * Live defect (loop-verify-groq-fix, 2026-11-28): the verify model
+ * (Flash-Lite, `low` thinking) rejected a correct Python result for
+ * 987654321 x 123456789 — "verify-rejected: The calculated product
+ * ... is incorrect (should be 121,932,631,112,635,269? No, let's
+ * check ..." — and the finding was discarded. A weak model must
+ * never re-derive arithmetic: code that ran successfully IS the
+ * verification. This checks only what code can check:
+ * 1. the code executed OK,
+ * 2. it printed a result (non-empty output),
+ * 3. the result is the right shape — a question with numbers must
+ *    get an output with a number (a bare true/false/yes/no counts
+ *    as a result for yes-no checks like divisibility),
+ * 4. the code worked on the question's own numbers — at least one
+ *    long (4+ digit) number from the question/step must appear in
+ *    the executed code, so a computation of unrelated numbers fails.
+ *    Decomposition is allowed: 987654321 x 123456789 computed as
+ *    8*N*N + 9*N with N = 123456789 still contains 123456789.
+ *    When the question has no long numbers this check is vacuous.
+ * A failure here falls back to the plain Deep answer (fail safe:
+ * a wrongly rejected verification only costs the loop's benefit,
+ * a wrongly accepted one would ship a bad "verified" fact).
+ */
+export function verifyComputeFinding(
+  question: string,
+  step: LoopStep,
+  code: CodeExecutionExtract
+): ComputeVerification {
+  if (!isCodeExecutionOk(code)) {
+    return { ok: false, issue: "code did not execute successfully" };
+  }
+  if (!code.output.trim()) {
+    return { ok: false, issue: "code ran but produced no output" };
+  }
+  const queryText = `${question}\n${step.query}`;
+  const output = code.output;
+  if (/\d/.test(queryText)) {
+    const hasNumber = /\d/.test(output);
+    const isBareBoolean = /^(true|false|yes|no)\s*$/i.test(output.trim());
+    if (!hasNumber && !isBareBoolean) {
+      return {
+        ok: false,
+        issue: "numeric question but the output has no number",
+      };
+    }
+  }
+  const longNumbers = longDigitRuns(queryText);
+  if (longNumbers.length > 0) {
+    const codeNumbers = new Set(longDigitRuns(code.code));
+    const usedQuestionNumbers = longNumbers.some((n) =>
+      codeNumbers.has(n)
+    );
+    if (!usedQuestionNumbers) {
+      return {
+        ok: false,
+        issue: "code did not use the question's numbers",
+      };
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * Deterministic brief for compute findings: they are already
+ * verified by construction (see verifyComputeFinding), so no model
+ * call is needed to write this — join the capped findings (each
+ * already carries its "[Executed Python — outcome: OUTCOME_OK]"
+ * line) and cap the whole brief.
+ */
+export function buildComputeBrief(results: LoopStepResult[]): string {
+  return results
+    .map((result) => result.finding)
+    .join("\n")
+    .slice(0, LOOP_BRIEF_CAP);
 }
 
 // --- Brief + thinking text -------------------------------------------------
